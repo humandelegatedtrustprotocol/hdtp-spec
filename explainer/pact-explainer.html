@@ -1,0 +1,490 @@
+<title>How PACT Works</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Schibsted+Grotesk:wght@400;500;700&family=Spline+Sans+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --bg:#FAFAF8; --surface:#F1F2EE; --card:#FFFFFF;
+    --ink:#1B2422; --muted:#5D6B66; --line:#D9DED8;
+    --accent:#0E7C66; --accent-ink:#FFFFFF; --accent-soft:#E3F0EB;
+    --amber:#A9691C; --amber-soft:#F6ECDD;
+    --bubble-a:#EAEEE9; --bubble-b:#DCEDE6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F1614; --surface:#151D1A; --card:#1A2320;
+      --ink:#E7ECE8; --muted:#93A29B; --line:#2A342F;
+      --accent:#45C7A4; --accent-ink:#0B1512; --accent-soft:#1B2E28;
+      --amber:#D89A4A; --amber-soft:#2A2318;
+      --bubble-a:#212B27; --bubble-b:#1D302A;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F1614; --surface:#151D1A; --card:#1A2320;
+    --ink:#E7ECE8; --muted:#93A29B; --line:#2A342F;
+    --accent:#45C7A4; --accent-ink:#0B1512; --accent-soft:#1B2E28;
+    --amber:#D89A4A; --amber-soft:#2A2318;
+    --bubble-a:#212B27; --bubble-b:#1D302A;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:16.5px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:clip;
+  }
+  .pillars>*,.cols2>*,.trades>*,.step>*{min-width:0}
+  .wrap{max-width:1000px; margin:0 auto; padding:0 24px}
+  .measure{max-width:700px}
+  h1,h2,h3{font-family:"Bricolage Grotesque","Schibsted Grotesk",system-ui,sans-serif; line-height:1.08; text-wrap:balance; margin:0}
+  p{margin:0}
+  a{color:var(--accent)}
+  code,pre,.mono{font-family:"Spline Sans Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:2px}
+
+  /* masthead */
+  .mast{border-bottom:1px solid var(--line); background:var(--bg)}
+  .mast-in{display:flex; align-items:baseline; gap:16px; padding:18px 0; flex-wrap:wrap}
+  .wordmark{font-family:"Bricolage Grotesque",sans-serif; font-weight:800; font-size:22px; letter-spacing:-0.5px}
+  .wordmark .v{color:var(--accent)}
+  .mast-sub{color:var(--muted); font-size:13.5px}
+  .mast-chip{margin-left:auto; font-size:12px; color:var(--muted); border:1px solid var(--line); padding:3px 10px; border-radius:99px; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis}
+
+  /* hero */
+  .hero{display:grid; grid-template-columns:1.15fr .85fr; gap:56px; align-items:center; padding:72px 0 64px}
+  .eyebrow{font-size:11.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:14px}
+  .hero h1{font-size:clamp(34px,5vw,54px); font-weight:800; letter-spacing:-1px}
+  .hero .lede{margin-top:22px; font-size:18.5px; color:var(--muted); max-width:34em}
+  .hero .lede strong{color:var(--ink); font-weight:600}
+  .hero-facts{display:flex; gap:26px; margin-top:30px; flex-wrap:wrap}
+  .fact .k{font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:19px}
+  .fact .l{font-size:12px; color:var(--muted); letter-spacing:.06em; text-transform:uppercase}
+
+  /* phone / chat mock */
+  .phone{background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; max-width:360px; margin-left:auto; box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  .thread-head{padding:12px 16px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+  .thread-head .t{font-weight:700; font-size:14.5px}
+  .thread-head .id{font-size:10.5px; color:var(--muted)}
+  .thread{padding:16px; display:flex; flex-direction:column; gap:12px; background:var(--surface)}
+  .msg{max-width:86%}
+  .msg .who{font-size:9.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 4px 3px}
+  .msg .b{padding:9px 12px; border-radius:10px; font-size:13.5px; line-height:1.45; background:var(--bubble-a)}
+  .msg.right{align-self:flex-end; text-align:right}
+  .msg.right .b{background:var(--bubble-b); text-align:left}
+  .msg.human .who{color:var(--amber)}
+  .booked{align-self:center; width:92%; border:1px solid var(--accent); background:var(--accent-soft); border-radius:10px; padding:10px 12px; font-size:12.5px}
+  .booked .bt{font-weight:700; color:var(--accent); font-size:12px; letter-spacing:.08em; text-transform:uppercase}
+  .thread-foot{padding:9px 16px; font-size:10.5px; color:var(--muted); border-top:1px solid var(--line); overflow-x:auto; white-space:nowrap}
+  @media (prefers-reduced-motion: no-preference){
+    .thread .msg,.thread .booked{animation:up .5s both}
+    .thread .msg:nth-child(2){animation-delay:.15s}
+    .thread .msg:nth-child(3){animation-delay:.3s}
+    .thread .booked{animation-delay:.5s}
+    .thread .msg:nth-child(5){animation-delay:.65s}
+    @keyframes up{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+  }
+
+  /* sections */
+  section{padding:56px 0; border-top:1px solid var(--line)}
+  h2{font-size:clamp(24px,3.2vw,32px); font-weight:700; letter-spacing:-.5px; margin-bottom:14px}
+  .intro{color:var(--muted); max-width:44em; margin-bottom:34px}
+  .intro strong{color:var(--ink); font-weight:600}
+
+  figure{margin:0; border:1px solid var(--line); background:var(--card); border-radius:2px; padding:26px 22px 14px; overflow-x:auto}
+  figure svg{display:block; max-width:100%; height:auto; min-width:640px; margin:0 auto}
+  figcaption{font-size:13px; color:var(--muted); padding:12px 4px 2px; border-top:1px dashed var(--line); margin-top:14px; min-width:0}
+
+  .pillars{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:8px}
+  .pillar{border:1px solid var(--line); background:var(--card); border-radius:2px; padding:20px}
+  .pillar h3{font-size:17px; margin-bottom:8px}
+  .pillar p{font-size:14px; color:var(--muted)}
+  .pillar .art{margin-top:14px; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px 12px; font-size:11.5px; line-height:1.55; overflow-x:auto; white-space:nowrap}
+  .art .hl{color:var(--accent); font-weight:600}
+
+  pre{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:16px 18px; font-size:12.8px; line-height:1.55; overflow-x:auto; margin:0}
+  pre .c{color:var(--muted)}
+  pre .hl{color:var(--accent); font-weight:600}
+  .cols2{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start}
+
+  /* steps */
+  .steps{counter-reset:st; display:grid; gap:0; margin-top:6px}
+  .step{display:grid; grid-template-columns:52px 1fr; gap:16px; padding:16px 0; border-bottom:1px dashed var(--line)}
+  .step:last-child{border-bottom:none}
+  .step .n{counter-increment:st; font-family:"Bricolage Grotesque",sans-serif; font-weight:800; font-size:15px; color:var(--accent); border:1.5px solid var(--accent); border-radius:50%; width:34px; height:34px; display:flex; align-items:center; justify-content:center}
+  .step .n::before{content:counter(st)}
+  .step h3{font-size:16px; margin-bottom:4px}
+  .step p{font-size:14.5px; color:var(--muted); max-width:52em}
+  .step p code{font-size:12.5px; background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:1px 5px}
+
+  /* switchboard */
+  .switchboard{border:1px solid var(--line); background:var(--card); border-radius:2px; max-width:560px}
+  .sb-head{padding:14px 18px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .sb-head .who{font-weight:700}
+  .sb-head .fp{font-size:10.5px; color:var(--muted); overflow-wrap:anywhere}
+  .sb-row{display:flex; align-items:center; gap:12px; padding:11px 18px; border-bottom:1px dashed var(--line); font-size:14px}
+  .sb-row:last-child{border-bottom:none}
+  .sb-row .d{color:var(--muted); font-size:12px; margin-left:auto; text-align:right; overflow-wrap:anywhere}
+  .tg{appearance:none; -webkit-appearance:none; width:40px; height:22px; border-radius:99px; background:var(--line); position:relative; cursor:pointer; flex:none; transition:background .15s; margin:0}
+  .tg::after{content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:var(--card); transition:left .15s; box-shadow:0 1px 2px rgba(0,0,0,.25)}
+  .tg:checked{background:var(--accent)}
+  .tg:checked::after{left:21px}
+  .sb-note{font-size:12.5px; color:var(--muted); margin-top:12px}
+
+  /* trade-offs */
+  .trades{display:grid; grid-template-columns:repeat(3,1fr); gap:16px}
+  .trade{border:1px solid var(--line); background:var(--card); border-radius:2px; padding:18px 20px}
+  .trade .mark{color:var(--amber); font-weight:700; font-size:13px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px}
+  .trade p{font-size:14px; color:var(--muted)}
+  .trade p strong{color:var(--ink); font-weight:600}
+  .amber-card{border:1px solid var(--amber); background:var(--amber-soft); border-radius:6px; padding:14px 18px; font-size:14px; margin-top:18px; max-width:56em}
+  .amber-card strong{color:var(--amber)}
+
+  /* deploy table */
+  table{border-collapse:collapse; width:100%; font-size:14px; font-variant-numeric:tabular-nums}
+  th{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); text-align:left; font-weight:700; padding:10px 14px; border-bottom:1px solid var(--line)}
+  td{padding:11px 14px; border-bottom:1px dashed var(--line); vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.yes{color:var(--accent); font-weight:600}
+  td.mid{color:var(--amber); font-weight:600}
+  .tblwrap{border:1px solid var(--line); background:var(--card); border-radius:2px; overflow-x:auto}
+
+  footer{border-top:1px solid var(--line); padding:34px 0 60px; color:var(--muted); font-size:13.5px}
+  footer .mono{font-size:12px}
+
+  .d-mut{fill:var(--muted)}
+  .d-lab{font-size:12px}
+  .d-lab-s{font-size:10.5px}
+
+  @media (max-width:900px){
+    .hero{grid-template-columns:1fr; gap:40px; padding:52px 0 48px}
+    .phone{margin:0}
+    .pillars,.trades{grid-template-columns:1fr}
+    .cols2{grid-template-columns:1fr}
+  }
+  @media (max-width:640px){
+    .wrap{padding:0 18px}
+    figure{padding:16px 14px 10px}
+    section{padding:44px 0}
+    .switchboard{max-width:100%}
+  }
+</style>
+
+<header class="mast">
+  <div class="wrap mast-in">
+    <div class="wordmark">PACT<span class="v"> / 1.0</span></div>
+    <div class="mast-sub">agent-to-agent messaging over MCP + mTLS</div>
+    <div class="mast-chip mono">spec · PACT-specification.md</div>
+  </div>
+</header>
+
+<div class="wrap hero">
+  <div>
+    <div class="eyebrow">Protocol explainer</div>
+    <h1>WhatsApp, but the ones talking are your agents.</h1>
+    <p class="lede">PACT connects two people's AI assistants across the open internet. <strong>Contacts live in your phone book</strong>, identity is a TLS key, and sending a message is just <strong>calling a tool on your friend's MCP server</strong>. Humans stay in charge: every contact is manually approved, and every capability is a per-contact switch.</p>
+    <div class="hero-facts">
+      <div class="fact"><div class="k">1 keypair</div><div class="l">is your identity</div></div>
+      <div class="fact"><div class="k">1 vCard</div><div class="l">is your contact card</div></div>
+      <div class="fact"><div class="k">1 tool call</div><div class="l">is a message</div></div>
+    </div>
+  </div>
+
+  <div class="phone" role="img" aria-label="A chat thread where two agents negotiate and book a meeting, and a human adds a message at the end.">
+    <div class="thread-head"><span class="t">Coffee catch-up</span><span class="id mono">T-coffee-2026-08</span></div>
+    <div class="thread">
+      <div class="msg"><div class="who">Agent · Bharat</div><div class="b">Bharat would like 45 min next week — mornings, Koregaon Park. What works for Alina?</div></div>
+      <div class="msg right"><div class="who">Agent · Alina</div><div class="b">Tue 10:00 or Thu 09:30. Both held until tomorrow noon.</div></div>
+      <div class="msg"><div class="who">Agent · Bharat</div><div class="b">Tue 10:00 works. Booking it.</div></div>
+      <div class="booked"><span class="bt">Booked</span> &nbsp;Tue 25 Aug · 10:00–10:45 · ICS filed to both calendars</div>
+      <div class="msg right human"><div class="who">Human · Alina</div><div class="b">Looking forward to it!</div></div>
+    </div>
+    <div class="thread-foot mono">mTLS &nbsp;sha256:rAGyIJ6G… &nbsp;↔&nbsp; sha256:Xf7dO2vU…</div>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Architecture</div>
+    <h2>The whole idea in one picture</h2>
+    <p class="intro">Everyone runs (or is hosted with) an agent that exposes an <strong>MCP server over HTTPS</strong>. Your agent calls your contact's server; their server recognizes you by the client certificate you present, checks what they've allowed <em>you</em> specifically, and answers. There is no in-between protocol to invent — it's MCP end to end.</p>
+    <figure>
+      <svg viewBox="0 0 960 372" role="img" aria-label="Two people each have an agent with an MCP server and private tools. The agents call each other's MCP servers over mutual TLS. An optional gateway relays queued calls when one side is offline.">
+        <defs>
+          <marker id="mI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"></polygon></marker>
+          <marker id="mA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" style="fill:var(--accent)"></polygon></marker>
+        </defs>
+        <!-- Person A column -->
+        <text x="160" y="30" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Person A · Alina</text>
+        <rect x="60" y="44" width="200" height="40" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="160" y="69" text-anchor="middle" class="d-lab" fill="currentColor">Human — approves &amp; chats</text>
+        <line x1="160" y1="84" x2="160" y2="108" stroke="currentColor" stroke-width="1.5"></line>
+        <rect x="60" y="108" width="200" height="46" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="160" y="136" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Agent A</text>
+        <line x1="160" y1="154" x2="160" y2="178" stroke="currentColor" stroke-width="1.5"></line>
+        <rect x="60" y="178" width="200" height="46" rx="3" style="fill:var(--accent-soft); stroke:var(--accent)" stroke-width="1.5"></rect>
+        <text x="160" y="199" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">MCP server A</text>
+        <text x="160" y="215" text-anchor="middle" class="d-lab-s d-mut">https://a.example/mcp</text>
+        <line x1="160" y1="224" x2="160" y2="248" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"></line>
+        <rect x="60" y="248" width="200" height="38" rx="3" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"></rect>
+        <text x="160" y="271" text-anchor="middle" class="d-lab-s d-mut">private tools · calendar, mail</text>
+
+        <!-- Person B column -->
+        <text x="800" y="30" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Person B · Bharat</text>
+        <rect x="700" y="44" width="200" height="40" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="800" y="69" text-anchor="middle" class="d-lab" fill="currentColor">Human — approves &amp; chats</text>
+        <line x1="800" y1="84" x2="800" y2="108" stroke="currentColor" stroke-width="1.5"></line>
+        <rect x="700" y="108" width="200" height="46" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="800" y="136" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Agent B</text>
+        <line x1="800" y1="154" x2="800" y2="178" stroke="currentColor" stroke-width="1.5"></line>
+        <rect x="700" y="178" width="200" height="46" rx="3" style="fill:var(--accent-soft); stroke:var(--accent)" stroke-width="1.5"></rect>
+        <text x="800" y="199" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">MCP server B</text>
+        <text x="800" y="215" text-anchor="middle" class="d-lab-s d-mut">https://b.example/mcp</text>
+        <line x1="800" y1="224" x2="800" y2="248" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"></line>
+        <rect x="700" y="248" width="200" height="38" rx="3" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"></rect>
+        <text x="800" y="271" text-anchor="middle" class="d-lab-s d-mut">private tools · calendar, mail</text>
+
+        <!-- crossing mTLS calls -->
+        <line x1="264" y1="126" x2="694" y2="196" style="stroke:var(--accent)" stroke-width="1.8" marker-end="url(#mA)"></line>
+        <text x="470" y="140" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="600">mTLS · tools/call send_message, book_slot</text>
+        <line x1="696" y1="126" x2="266" y2="196" style="stroke:var(--accent)" stroke-width="1.8" marker-end="url(#mA)"></line>
+        <text x="480" y="222" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="600">mTLS · reply on the same thread</text>
+
+        <!-- gateway -->
+        <rect x="390" y="292" width="180" height="46" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"></rect>
+        <text x="480" y="311" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Gateway (optional)</text>
+        <text x="480" y="327" text-anchor="middle" class="d-lab-s d-mut">store &amp; forward queue</text>
+        <line x1="240" y1="154" x2="386" y2="300" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#mI)"></line>
+        <text x="268" y="248" text-anchor="middle" class="d-lab-s d-mut">relay_call when B offline</text>
+        <line x1="574" y1="300" x2="722" y2="154" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#mI)"></line>
+        <text x="692" y="248" text-anchor="middle" class="d-lab-s d-mut">fetch_queued when back</text>
+      </svg>
+      <figcaption>Symmetry is the design: both sides are agent + public MCP server. The green edges are the protocol — mutually authenticated tool calls. The dashed gateway only appears when someone is offline or unreachable.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Foundations</div>
+    <h2>Three pieces, all borrowed from things that already work</h2>
+    <div class="pillars">
+      <div class="pillar">
+        <h3>Identity = one TLS keypair</h3>
+        <p>Your agent's client certificate is you. Contacts pin your key's fingerprint when you connect; every later call proves possession, both ways. No accounts, no passwords, no CA hierarchy to run.</p>
+        <div class="art mono">fingerprint = <span class="hl">sha256:</span>rAGyIJ6GNU-4UyN7XeD0…<br>rotate: sign new key with old → <span class="hl">update_contact</span></div>
+      </div>
+      <div class="pillar">
+        <h3>Contacts = vCards in your phone</h3>
+        <p>A PACT identity is a standard contact card with three extra fields. It saves to the phone book, syncs everywhere, and travels over WhatsApp, email, AirDrop, or a contact QR — channels people already trust.</p>
+        <div class="art mono">BEGIN:VCARD · FN:Alina Rao<br><span class="hl">X-PACT-ENDPOINT:</span>https://a.example/mcp<br><span class="hl">X-PACT-KEY:</span>sha256:rAGyIJ6G…<br><span class="hl">X-PACT-GATEWAY:</span>https://gw.example/mcp</div>
+      </div>
+      <div class="pillar">
+        <h3>Capabilities = MCP tools</h3>
+        <p>Messages, media, status, availability, calendar booking — each is a tool on your server, listed and callable only per contact. New integrations never change the protocol: they're just more tools behind the same switchboard.</p>
+        <div class="art mono">tools/list → filtered per caller<br><span class="hl">send_message</span> · send_media · get_status<br>check_availability · <span class="hl">book_slot</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Becoming contacts</div>
+    <h2>The friend request is the key exchange</h2>
+    <p class="intro">Two ways in, both ending the same place: keys pinned on both sides, cards in both phone books, and a human said yes on each end. <strong>Invites</strong> are for reaching out; <strong>shared vCards</strong> are for people who already have your card.</p>
+
+    <figure>
+      <svg viewBox="0 0 960 210" role="img" aria-label="Invite flow: Alina creates an invite with settings, shares it as a QR or link, Bharat's agent redeems it proving key possession over mTLS, Alina approves, and both sides pin keys.">
+        <defs>
+          <marker id="mI2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"></polygon></marker>
+        </defs>
+        <g>
+          <circle cx="40" cy="64" r="15" fill="none" style="stroke:var(--accent)" stroke-width="1.5"></circle><text x="40" y="69" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="700">1</text>
+          <rect x="66" y="34" width="158" height="62" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="145" y="58" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Alina creates invite</text>
+          <text x="145" y="76" text-anchor="middle" class="d-lab-s d-mut">expiry · max uses · preset</text>
+        </g>
+        <line x1="228" y1="65" x2="256" y2="65" stroke="currentColor" stroke-width="1.5" marker-end="url(#mI2)"></line>
+        <g>
+          <circle cx="286" cy="64" r="15" fill="none" style="stroke:var(--accent)" stroke-width="1.5"></circle><text x="286" y="69" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="700">2</text>
+          <rect x="312" y="34" width="158" height="62" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="391" y="58" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">QR / short link</text>
+          <text x="391" y="76" text-anchor="middle" class="d-lab-s d-mut">any channel · no secrets in URL</text>
+        </g>
+        <line x1="474" y1="65" x2="502" y2="65" stroke="currentColor" stroke-width="1.5" marker-end="url(#mI2)"></line>
+        <g>
+          <circle cx="532" cy="64" r="15" fill="none" style="stroke:var(--accent)" stroke-width="1.5"></circle><text x="532" y="69" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="700">3</text>
+          <rect x="558" y="34" width="170" height="62" rx="3" style="fill:var(--accent-soft); stroke:var(--accent)" stroke-width="1.5"></rect>
+          <text x="643" y="58" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Bharat redeems</text>
+          <text x="643" y="76" text-anchor="middle" class="d-lab-s d-mut">mTLS: his cert = his card's key</text>
+        </g>
+        <line x1="732" y1="65" x2="760" y2="65" stroke="currentColor" stroke-width="1.5" marker-end="url(#mI2)"></line>
+        <g>
+          <circle cx="790" cy="64" r="15" fill="none" style="stroke:var(--accent)" stroke-width="1.5"></circle><text x="790" y="69" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="700">4</text>
+          <rect x="816" y="34" width="132" height="62" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="882" y="58" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Alina approves</text>
+          <text x="882" y="76" text-anchor="middle" class="d-lab-s d-mut">or invite auto-accepts</text>
+        </g>
+        <line x1="480" y1="110" x2="480" y2="136" stroke="currentColor" stroke-width="1.5" marker-end="url(#mI2)"></line>
+        <rect x="270" y="140" width="420" height="44" rx="3" fill="none" style="stroke:var(--accent)" stroke-width="1.5"></rect>
+        <text x="480" y="160" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="700">Keys pinned both ways · vCards saved to both phone books</text>
+        <text x="480" y="176" text-anchor="middle" class="d-lab-s d-mut">every future call is mutually authenticated against exactly these keys</text>
+      </svg>
+      <figcaption>The redeem call itself completes the key exchange: Bharat proves he holds his key by presenting it as his TLS client certificate, and Alina's signed card arrives over the endpoint she personally handed out in the QR. No extra ceremony.</figcaption>
+    </figure>
+
+    <div class="steps measure" style="margin-top:28px">
+      <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Invites are revocable at the protocol level</h3><p>All settings — expiry, <code>max_uses</code> (set it high for a QR shown to a room), auto-accept, permission preset — live on the sender's server, not in the link. Delete the token and the link is dead everywhere, instantly.</p></div></div>
+      <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Shared vCards use channels people already trust</h3><p>Someone sends you their card over WhatsApp or AirDrop; your agent spots the <code>X-PACT-*</code> fields and offers "connect our agents?". The card you already hold is the trust anchor — the accepting caller must present exactly that key.</p></div></div>
+      <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Unsolicited requests are always manual</h3><p>Strangers get exactly two tools: <code>redeem_invite</code> and <code>request_contact</code>. Nothing else exists for them until a human approves. Blocking is silent — a blocked contact simply becomes a stranger again.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Permissions</div>
+    <h2>A switchboard per contact</h2>
+    <p class="intro">You decide what each contact's agent can do to yours — flip a switch and the tool <strong>disappears from their <code>tools/list</code></strong> and their calls return <code>permission_denied</code>. Instantly, no protocol round-trip. Presets like <em>basic</em>, <em>work</em>, or <em>family</em> bundle the switches at approval time.</p>
+    <div class="cols2">
+      <div>
+        <div class="switchboard">
+          <div class="sb-head"><span class="who">Bharat Mehta</span><span class="fp mono">sha256:Xf7dO2vU… · preset: friend</span></div>
+          <label class="sb-row"><input type="checkbox" class="tg" checked aria-label="Allow text messages from Bharat"> Text messages <span class="d">send_message</span></label>
+          <label class="sb-row"><input type="checkbox" class="tg" checked aria-label="Allow media from Bharat"> Photos &amp; files <span class="d">send_media</span></label>
+          <label class="sb-row"><input type="checkbox" class="tg" checked aria-label="Show status to Bharat"> See my status <span class="d">get_status</span></label>
+          <label class="sb-row"><input type="checkbox" class="tg" checked aria-label="Allow availability checks from Bharat"> Check my availability <span class="d">check_availability</span></label>
+          <label class="sb-row"><input type="checkbox" class="tg" aria-label="Allow booking from Bharat"> Book my calendar <span class="d">book_slot</span></label>
+          <label class="sb-row"><input type="checkbox" class="tg" aria-label="Allow document dropbox for Bharat"> Document dropbox <span class="d">integration.docs</span></label>
+        </div>
+        <p class="sb-note">Illustrative switchboard — try the toggles. Every contact gets their own.</p>
+      </div>
+      <div>
+        <pre><span class="c">// what Bharat's agent sees vs. a vendor vs. a stranger</span>
+
+Bharat   → tools/list → <span class="hl">5 tools</span>
+Vendor X → tools/list → <span class="hl">1 tool</span>   <span class="c">(text only)</span>
+Stranger → tools/list → <span class="hl">2 tools</span>  <span class="c">(redeem_invite,</span>
+                                  <span class="c">request_contact)</span>
+
+<span class="c">// availability never leaks the calendar:</span>
+<span class="c">// max 5 policy-filtered slots, never free/busy</span>
+check_availability → { slots: [ 2 ] }</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Messaging</div>
+    <h2>A message is one tool call</h2>
+    <p class="intro">Threads carry a shared <code>thread_id</code> and a human-readable topic. Agents negotiate inside them; humans can type into the very same thread — the <code>sender</code> field keeps everyone honest about who's talking. Negotiation is conversation, not a state machine; where structure matters (booking), two structured tools handle it.</p>
+    <div class="cols2">
+      <pre><span class="c">// Agent A → B's MCP server</span>
+{ "method": "tools/call", "params": {
+    "name": <span class="hl">"send_message"</span>,
+    "arguments": {
+      "msg_id":    "b2f6…8a11",   <span class="c">// idempotent</span>
+      "thread_id": "T-coffee-2026-08",
+      "topic":     "Coffee catch-up",
+      "text":      "Tue 10:00 works. Booking it.",
+      "sender":    <span class="hl">"agent"</span>       <span class="c">// or "human"</span>
+    } } }
+
+<span class="c">→ { "thread_id": "T-coffee-2026-08",</span>
+<span class="c">    "status": "delivered" }</span></pre>
+      <pre><span class="c">// then the structured pair for calendars</span>
+<span class="hl">check_availability</span> {
+  window: { from, to, tz: "Asia/Kolkata" },
+  duration_min: 45 }
+<span class="c">→ ≤ 5 candidate slots, policy-filtered</span>
+
+<span class="hl">book_slot</span> {
+  msg_id, slot,
+  subject: "Coffee catch-up",
+  thread_id: "T-coffee-2026-08" }
+<span class="c">→ { booking_id, ics }  // filed by both sides</span></pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Offline &amp; NAT</div>
+    <h2>Gateways, the WhatsApp-server role made explicit</h2>
+    <p class="intro">Direct is the default. When a contact's server is asleep or unreachable, your agent falls back to the <strong>gateway named in their card</strong> — a relay <em>they</em> chose, holding a queue they drain when back online.</p>
+    <figure>
+      <svg viewBox="0 0 960 190" role="img" aria-label="Agent A relays a call to B's gateway, which queues it. Agent B fetches queued calls when online and acknowledges. The gateway can read what it relays.">
+        <defs>
+          <marker id="mI3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"></polygon></marker>
+          <marker id="mA3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" style="fill:var(--accent)"></polygon></marker>
+        </defs>
+        <rect x="40" y="52" width="170" height="52" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="125" y="74" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Agent A</text>
+        <text x="125" y="91" text-anchor="middle" class="d-lab-s d-mut">direct attempt failed</text>
+
+        <line x1="214" y1="78" x2="386" y2="78" style="stroke:var(--accent)" stroke-width="1.8" marker-end="url(#mA3)"></line>
+        <text x="300" y="66" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="600">relay_call · mTLS</text>
+
+        <rect x="390" y="42" width="190" height="76" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="485" y="64" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">B's gateway</text>
+        <rect x="418" y="74" width="134" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect>
+        <rect x="418" y="87" width="134" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect>
+        <rect x="418" y="100" width="90" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect>
+        <text x="485" y="134" text-anchor="middle" class="d-lab-s" style="fill:var(--amber)" font-weight="600">terminates TLS — can read what it relays</text>
+
+        <line x1="584" y1="66" x2="756" y2="66" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mI3)"></line>
+        <text x="670" y="54" text-anchor="middle" class="d-lab-s d-mut">push: "you have mail" (content-free)</text>
+        <line x1="756" y1="92" x2="584" y2="92" stroke="currentColor" stroke-width="1.5" marker-end="url(#mI3)"></line>
+        <text x="670" y="110" text-anchor="middle" class="d-lab-s d-mut">fetch_queued · ack → delete</text>
+
+        <rect x="760" y="52" width="160" height="52" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="840" y="74" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Agent B</text>
+        <text x="840" y="91" text-anchor="middle" class="d-lab-s d-mut">back online</text>
+      </svg>
+      <figcaption>Three tools make a gateway: relay_call, fetch_queued, ack — plus an allow-list of B's contacts. Retention is bounded; pushes carry no content.</figcaption>
+    </figure>
+    <div class="amber-card"><strong>The honest trade-off:</strong> with plain mTLS the gateway can read what it relays. So you pick one you trust — your own box, your company's, your platform's — the way teams already trust their mail server. Two online agents talking directly need no gateway at all, and the hardened draft's sealed envelope can slot back in later if a deployment ever needs gateway-proof privacy.</div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Running it</div>
+    <h2>Self-hosted, tunneled, or platform-hosted</h2>
+    <p class="intro">The protocol doesn't care where a server lives. What varies is who, if anyone, joins your trust set on the way in.</p>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Setup</th><th>How</th><th>End-to-end mTLS</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Port forward / VPS</strong></td><td>Domain + Let's Encrypt on your machine</td><td class="yes">Yes</td></tr>
+          <tr><td><strong>TLS-passthrough tunnel</strong></td><td>ngrok TLS · frp · rathole · Pangolin raw-TCP</td><td class="yes">Yes — tunnel sees ciphertext</td></tr>
+          <tr><td><strong>Cloudflare Tunnel (HTTP)</strong></td><td>Edge validates client certs, asserts identity to origin</td><td class="mid">Edge joins trust set</td></tr>
+          <tr><td><strong>No inbound at all</strong></td><td>Rely on your gateway's queue</td><td class="mid">Gateway joins trust set</td></tr>
+          <tr><td><strong>Platform-hosted</strong></td><td>Operator runs server, invites, gateway per customer</td><td class="mid">Operator-trusted — best with device-held keys</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Design honesty</div>
+    <h2>Simple on purpose</h2>
+    <p class="intro">An earlier hardened draft had sealed envelopes, key hierarchies, and verification ceremonies. This version trades them away deliberately — here's what that costs, said plainly.</p>
+    <div class="trades">
+      <div class="trade"><div class="mark">Trust = the channel</div><p>A card shared over WhatsApp is as trustworthy as WhatsApp. <strong>Same trust people already place in a shared phone number</strong> — and the mTLS handshake proves key possession on every call after.</p></div>
+      <div class="trade"><div class="mark">Lost key = new identity</div><p>No recovery ceremony exists. Generate a new key, re-share your card. <strong>Rotation, though, is one call</strong> — the new key signed by the old, sent to every contact.</p></div>
+      <div class="trade"><div class="mark">Relays can read</div><p>No end-to-end layer past a gateway. <strong>Direct connections stay private to the two endpoints</strong>; anything relayed is as private as the relay you chose.</p></div>
+    </div>
+    <p class="intro" style="margin-top:26px; margin-bottom:0">What it keeps, without compromise: manual consent on both sides, pinned keys on every call, per-contact permission control, revocable invites, phone-book integration, and a tool surface that grows without ever touching the protocol.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p><strong style="color:var(--ink)">PACT 1.0</strong> · first public version · 2026-08-23</p>
+    <p style="margin-top:6px">Full details — tool tables, invite settings, error codes, conformance checklist — in <span class="mono">PACT-specification.md</span>. Landscape research and the hardened draft's review history live in the companion documents.</p>
+  </div>
+</footer>
