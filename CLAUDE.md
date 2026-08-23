@@ -2,7 +2,9 @@
 
 ## What this project is
 
-PACT: a protocol for person-to-person communication carried out by their AI assistant agents. Each person exposes an MCP server over HTTPS; contacts are mutual, human-approved, and pinned by TLS key fingerprint; messages, media, availability checks, and calendar booking are permission-gated MCP tools on that server. `SPEC.md` is the single source of truth. `docs/` and `archive/` are informative/historical — do not treat them as normative.
+PACT: a protocol for person-to-person communication carried out by their AI assistant agents. Each person exposes an MCP server over HTTPS; contacts are mutual, human-approved, and pinned by TLS key fingerprint; messages, media, availability checks, and calendar booking are permission-gated MCP tools on that server. `SPEC.md` is the single source of truth. Everything in `docs/` and `archive/` predates the pivot and documents the **rejected** design (HPKE sealed envelopes, DIDs, SAS, key transparency) — `docs/landscape-and-roadmap.md` included: it never mentions vCard, `X-PACT-*`, or any current tool, and its §4 decisions, §5 build-vs-reuse, §6 roadmap and §8 section citations resolve only against `archive/hardened-draft-spec.md`. Never take a design decision, roadmap item, or cross-reference from either directory.
+
+`explainer/pact-explainer.html` is an **Artifact body**, not a standalone page — it starts at `<title>` with no doctype/`<html>`/`<head>`/`<body>` wrapper; never add one. It is published at `claude.ai/code/artifact/6410d04a-ec41-45b5-bb97-fbc3801c4da1` — republish with that `url` or you create a second artifact.
 
 ## Design north star (decided, do not re-litigate without the owner)
 
@@ -17,12 +19,14 @@ PACT: a protocol for person-to-person communication carried out by their AI assi
 - Protocol version 1 (`X-PACT-VERSION:1`); the current document is v1.0.0. Wire-visible changes need a spec edit first.
 - Tool names snake_case (`send_message`, `redeem_invite`, `book_slot`); permissions dotted (`message.text`, `calendar.book`, `integration.<name>`); errors snake_case codes (`permission_denied`, `invite_invalid` — full list SPEC §12).
 - Idempotency via caller-supplied `msg_id`; threads via shared `thread_id` + optional `topic`; `sender: agent|human` labeling is mandatory honesty.
-- Guest tier (unknown certs) sees exactly `redeem_invite` + `request_contact`. Availability responses: ≤5 policy-filtered slots, never raw free/busy.
-- Diagrams in the spec are mermaid; keep them compiling (mmdc) when editing.
+- Guest tier (unknown certs) sees exactly `redeem_invite` + `request_contact`; `update_contact`, `remove_contact` and `get_card` are always available at contact tier regardless of permissions. Availability responses: ≤5 policy-filtered slots, never raw free/busy.
+- The mermaid blocks all live in `SPEC.md`; keep them syntactically valid when editing (no renderer is installed here). The explainer's diagrams are hand-authored inline SVG — this rule does not reach them.
 
 ## Owner's working preferences
 
 Minimalistic, precise code that fits the module it lands in; read existing code first; no speculative features; stick to the objective. Prefer prose + small tables in docs over bullet sprawl.
+
+The only build is the site: `npm ci && node site/build.mjs` renders `SPEC.md`, the landing page and the explainer into `dist/`, and `.github/workflows/pages.yml` deploys that to GitHub Pages on every push to `main`. That build is the verification gate — it fails on headings over 120 characters, which is how an accidental setext heading (a paragraph followed directly by `---`) gets caught. There are still no tests, linter, or runtime code; don't add them unless asked. `docs/` and `archive/` are deliberately excluded from the published site. `archive/test-vectors/gen_vectors.py` is dead code for the rejected HPKE/SAS design and does not even import (`pyhpke` unavailable) — leave it.
 
 ## Likely next work (in rough order)
 

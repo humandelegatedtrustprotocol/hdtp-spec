@@ -1,4 +1,4 @@
-# PACT 1.0 — Simple Agent-to-Agent Messaging over MCP + mTLS
+# PACT 1.0 — Personal Agent Communication & Trust Protocol
 
 **Version 1.0.0 · 2026-08-23 · first public version**
 
@@ -212,6 +212,7 @@ sequenceDiagram
 The vCard B received out-of-band is the trust anchor: the `contact_accepted` caller must present exactly that key. Trust in the card equals trust in the channel that carried it — which is the same trust people already place in a shared phone number.
 
 **Removal / blocking:** `remove_contact` notifies the peer and deletes the pin on both sides (effective locally regardless — enforcement is "your fingerprint is no longer in my list"). Blocking is local-only: the contact silently drops to guest tier; no notification is sent.
+
 ---
 
 ## 6. The agent MCP server and its tools
