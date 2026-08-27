@@ -43,6 +43,13 @@
         ignore_dnt: false,
         // EU-residency project: the default ingest host is US and would drop these events.
         api_host: 'https://api-eu.mixpanel.com',
+        // Mixpanel's own autocapture ($-prefixed events) runs ALONGSIDE the curated
+        // events below, which carry section dwell and scroll depth that autocapture
+        // does not produce. Two page-view sources, distinguishable by the $ prefix.
+        autocapture: true,
+        // Session replay for every visit. Gated by `enabled` above, so GPC/DNT still
+        // switches it off. Keep the footer disclosure in build.mjs in sync with this.
+        record_sessions_percent: 100,
       })
       mp = window.mixpanel
     } catch (e) { mp = null }

@@ -80,7 +80,7 @@ const analyticsHead = (base) => {
 // MIXPANEL_TOKEN set nothing is collected, so printing the notice anyway would tell every
 // visitor we track them when we do not — a false statement on a site whose own subject is
 // honest trade-offs. Keep the wording in sync with assets/analytics.js.
-const analyticsNotice = () => (!GA && !MP) ? '' : `\n  <p class="fine">This site records anonymous usage analytics: pages viewed, which sections are read and for how long, scroll depth, and clicks on links, diagrams and code blocks. No message content, account, or personal data is involved — this is a static document site with no accounts and no back end.</p>`
+const analyticsNotice = () => (!GA && !MP) ? '' : `\n  <p class="fine">This site records usage analytics: pages viewed, which sections are read and for how long, scroll depth, and clicks on links, diagrams and code blocks. It also records a replay of your visit — scrolling, pointer movement and clicks are captured so the session can be played back. This is a static document site with no accounts, forms, search or back end, so nothing you type is collected. Analytics and replay are switched off entirely if your browser sends Global Privacy Control or Do Not Track.</p>`
 
 const layout = ({ title, description, base, page, body, toc, wide }) => `<!doctype html>
 <html lang="en">
@@ -296,9 +296,14 @@ await cp(resolve(root, 'site', 'assets'), resolve(out, 'assets'), { recursive: t
 
 // Self-hosted so the page makes no third-party request. Only shipped when Mixpanel is
 // actually configured, so an analytics-off build stays byte-for-byte free of it.
+//
+// This is deliberately the WITH-RECORDER build. Session replay is enabled, and the
+// plain bundle lazy-loads its recorder from cdn.mxpnl.com at runtime, which would put
+// a third-party script back on the page after we just removed one. The recorder is
+// inlined here instead, which is most of the 433 kB.
 if (MP) {
   await cp(
-    resolve(root, 'node_modules', 'mixpanel-browser', 'dist', 'mixpanel.min.js'),
+    resolve(root, 'node_modules', 'mixpanel-browser', 'dist', 'mixpanel-with-recorder.min.js'),
     resolve(out, 'assets', 'mixpanel.min.js'),
   )
 }

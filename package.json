@@ -10,6 +10,6 @@
   "dependencies": {
     "markdown-it": "14.1.0",
     "markdown-it-anchor": "9.2.0",
-    "mixpanel-browser": "2.55.1"
+    "mixpanel-browser": "2.82.1"
   }
 }
