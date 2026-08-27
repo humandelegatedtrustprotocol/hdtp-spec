@@ -76,6 +76,12 @@ const analyticsHead = () => {
   return parts.join('\n') + '\n'
 }
 
+// The disclosure has to describe what THIS build does. With neither GA_MEASUREMENT_ID nor
+// MIXPANEL_TOKEN set nothing is collected, so printing the notice anyway would tell every
+// visitor we track them when we do not — a false statement on a site whose own subject is
+// honest trade-offs. Keep the wording in sync with assets/analytics.js.
+const analyticsNotice = () => (!GA && !MP) ? '' : `\n  <p class="fine">This site records anonymous usage analytics: pages viewed, which sections are read and for how long, scroll depth, and clicks on links, diagrams and code blocks. No message content, account, or personal data is involved — this is a static document site with no accounts and no back end.</p>`
+
 const layout = ({ title, description, base, page, body, toc, wide }) => `<!doctype html>
 <html lang="en">
 <head>
@@ -116,8 +122,7 @@ ${toc || ''}
 ${body}
 </main>
 <footer class="sitefoot">
-  <p><strong>PACT</strong> — Personal Agent Communication &amp; Trust. Specification v1.0.0.</p>
-  <p class="fine">This site records anonymous usage analytics: pages viewed, which sections are read and for how long, scroll depth, and clicks on links, diagrams and code blocks. No message content, account, or personal data is involved — this is a static document site with no accounts and no back end.</p>
+  <p><strong>PACT</strong> — Personal Agent Communication &amp; Trust. Specification v1.0.0.</p>${analyticsNotice()}
 </footer>
 <script type="module" src="${base}assets/site.js"></script>
 </body>
