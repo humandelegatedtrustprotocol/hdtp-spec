@@ -138,3 +138,20 @@ body.wide main{max-width:1000px}
 body.wide .sitefoot{max-width:1000px}
 .sitefoot p{margin:0 0 8px}
 .fine{font-size:12.5px;line-height:1.55;max-width:70ch}
+
+/* analytics consent — tokens only, so it follows light/dark like everything else */
+.consent{position:fixed;inset-inline:0;bottom:0;z-index:60;padding:0 1rem 1rem;pointer-events:none}
+.consent-in{max-width:54rem;margin:0 auto;display:flex;flex-wrap:wrap;gap:.9rem 1.2rem;
+  align-items:center;pointer-events:auto;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:.95rem 1.1rem;box-shadow:0 10px 34px rgb(0 0 0 / .20)}
+.consent-msg{flex:1 1 24rem;margin:0;font-size:.84rem;line-height:1.55;color:var(--muted)}
+.consent-act{display:flex;gap:.5rem;flex-shrink:0}
+.consent-btn{font:inherit;font-size:.83rem;line-height:1;padding:.55rem 1rem;cursor:pointer;
+  border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink)}
+.consent-btn:hover{border-color:var(--accent);color:var(--accent)}
+.consent-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.consent-btn.primary:hover{color:var(--accent-ink);filter:brightness(1.06)}
+.consent-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.consent-link{font:inherit;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;
+  text-decoration:underline;text-underline-offset:2px}
+@media (max-width:640px){.consent-act{width:100%}.consent-btn{flex:1}}

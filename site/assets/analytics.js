@@ -20,7 +20,25 @@
     navigator.globalPrivacyControl === true ||
     navigator.doNotTrack === '1' || window.doNotTrack === '1'
   )
-  var enabled = !optedOut && Boolean(cfg.ga || cfg.mixpanel)
+
+  // Consent. A stored choice always wins; with nothing stored the default is ON, so
+  // this is a notice with an opt-out rather than prior opt-in. GPC/DNT sits ABOVE it
+  // as a hard override: a browser that asks not to be tracked is never shown a banner,
+  // because there is nothing for it to consent to.
+  var CONSENT_KEY = 'pact_analytics_consent'
+  var DEFAULT_ON = true
+
+  function readConsent () {
+    try { return localStorage.getItem(CONSENT_KEY) } catch (e) { return null }
+  }
+  function writeConsent (v) {
+    try { localStorage.setItem(CONSENT_KEY, v) } catch (e) {}
+  }
+
+  var configured = Boolean(cfg.ga || cfg.mixpanel)
+  var choice = readConsent()
+  var enabled = configured && !optedOut &&
+    (choice === 'granted' || (choice === null && DEFAULT_ON))
 
   /* ------------------------------------------------------------- backends */
 
@@ -259,10 +277,109 @@
 
   /* ---------------------------------------------------------------- api */
 
+  /* ------------------------------------------------------------- consent ui */
+
+  // The bundle is same-origin (build.mjs vendors it), so having it on the page sends
+  // nothing anywhere. Processing starts at mixpanel.init, which is gated on `enabled`
+  // above — so turning analytics off here is a real stop, not a cosmetic one.
+  function turnOff () {
+    writeConsent('denied')
+    enabled = false
+    window.pact.enabled = false
+    if (cfg.ga) { window['ga-disable-' + cfg.ga] = true }
+    if (mp) {
+      // Stops the session recorder and drops the stored identifiers, not just future events.
+      try { mp.stop_session_recording() } catch (e) {}
+      try { mp.opt_out_tracking({ clear_persistence: true }) } catch (e) {}
+    }
+  }
+
+  // Re-initialising Mixpanel mid-page after an opt-out leaves half-torn-down state, so
+  // switching back on reloads instead. Cheap on a static document site.
+  function turnOn () {
+    writeConsent('granted')
+    if (!enabled) location.reload()
+  }
+
+  var panel = null
+  function closePanel () {
+    if (panel) { panel.remove(); panel = null }
+  }
+
+  function openPanel () {
+    if (!configured || panel) return
+    panel = document.createElement('div')
+    panel.className = 'consent'
+    panel.setAttribute('role', 'dialog')
+    panel.setAttribute('aria-label', 'Analytics settings')
+
+    var box = document.createElement('div')
+    box.className = 'consent-in'
+
+    var msg = document.createElement('p')
+    msg.className = 'consent-msg'
+    if (optedOut) {
+      msg.textContent = 'Your browser sends Global Privacy Control or Do Not Track, ' +
+        'so analytics and session replay are off for this visit. Nothing is recorded.'
+    } else if (enabled) {
+      msg.textContent = 'This site records how the spec gets read — pages, sections, ' +
+        'scroll depth, clicks — and replays visits to show where readers get stuck. ' +
+        'It is on by default. There are no accounts, forms or search here, so nothing ' +
+        'you type is collected.'
+    } else {
+      msg.textContent = 'Analytics and session replay are off for this browser. ' +
+        'Nothing about your visit is recorded.'
+    }
+    box.appendChild(msg)
+
+    var acts = document.createElement('div')
+    acts.className = 'consent-act'
+
+    if (!optedOut) {
+      var toggle = document.createElement('button')
+      toggle.type = 'button'
+      toggle.className = 'consent-btn'
+      toggle.textContent = enabled ? 'Turn off' : 'Turn on'
+      toggle.addEventListener('click', function () {
+        if (enabled) { turnOff(); closePanel(); openPanel() } else { turnOn() }
+      })
+      acts.appendChild(toggle)
+    }
+
+    var done = document.createElement('button')
+    done.type = 'button'
+    done.className = 'consent-btn primary'
+    done.textContent = 'Done'
+    done.addEventListener('click', function () {
+      // Closing is itself an answer, otherwise the banner nags on every visit.
+      if (!optedOut) writeConsent(enabled ? 'granted' : 'denied')
+      closePanel()
+    })
+    acts.appendChild(done)
+
+    box.appendChild(acts)
+    panel.appendChild(box)
+    document.body.appendChild(panel)
+    done.focus()
+  }
+
+  // Footer control, so the choice stays reachable after the banner is dismissed.
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('[data-pact-consent]')
+    if (t) { e.preventDefault(); panel ? closePanel() : openPanel() }
+  })
+
+  // First visit only, and never when the browser already said no.
+  if (configured && !optedOut && choice === null) openPanel()
+
+  /* ---------------------------------------------------------------- api */
+
   window.pact = {
     track: track,
     observeSections: observeSections,
     enabled: enabled,
     optedOut: optedOut,
+    openConsent: openPanel,
+    setConsent: function (on) { on ? turnOn() : turnOff() },
   }
 })()

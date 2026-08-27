@@ -80,7 +80,7 @@ const analyticsHead = (base) => {
 // MIXPANEL_TOKEN set nothing is collected, so printing the notice anyway would tell every
 // visitor we track them when we do not — a false statement on a site whose own subject is
 // honest trade-offs. Keep the wording in sync with assets/analytics.js.
-const analyticsNotice = () => (!GA && !MP) ? '' : `\n  <p class="fine">This site records usage analytics: pages viewed, which sections are read and for how long, scroll depth, and clicks on links, diagrams and code blocks. It also records a replay of your visit — scrolling, pointer movement and clicks are captured so the session can be played back. This is a static document site with no accounts, forms, search or back end, so nothing you type is collected. Analytics and replay are switched off entirely if your browser sends Global Privacy Control or Do Not Track.</p>`
+const analyticsNotice = () => (!GA && !MP) ? '' : `\n  <p class="fine">This site records usage analytics: pages viewed, which sections are read and for how long, scroll depth, and clicks on links, diagrams and code blocks. It also records a replay of your visit — scrolling, pointer movement and clicks are captured so the session can be played back. This is a static document site with no accounts, forms, search or back end, so nothing you type is collected. Analytics and replay are switched off entirely if your browser sends Global Privacy Control or Do Not Track. <button type="button" class="consent-link" data-pact-consent>Analytics settings</button></p>`
 
 const layout = ({ title, description, base, page, body, toc, wide }) => `<!doctype html>
 <html lang="en">
