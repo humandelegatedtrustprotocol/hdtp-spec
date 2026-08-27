@@ -292,6 +292,7 @@
       try { mp.stop_session_recording() } catch (e) {}
       try { mp.opt_out_tracking({ clear_persistence: true }) } catch (e) {}
     }
+    syncNotice()
   }
 
   // Re-initialising Mixpanel mid-page after an opt-out leaves half-torn-down state, so
@@ -299,6 +300,19 @@
   function turnOn () {
     writeConsent('granted')
     if (!enabled) location.reload()
+  }
+
+  // The footer paragraph is rendered at build time and asserts active recording. Once
+  // someone turns analytics off it is a false statement, so it gets rewritten to match
+  // the live state — the same rule the build-time gating follows.
+  function syncNotice () {
+    var n = document.querySelector('[data-pact-notice]')
+    if (!n || enabled) return
+    n.textContent = optedOut
+      ? 'Your browser sends Global Privacy Control or Do Not Track, so this site records ' +
+        'nothing about your visit.'
+      : 'Analytics and session replay are off for this browser. This site records nothing ' +
+        'about your visit.'
   }
 
   var panel = null
@@ -368,6 +382,8 @@
     var t = e.target.closest && e.target.closest('[data-pact-consent]')
     if (t) { e.preventDefault(); panel ? closePanel() : openPanel() }
   })
+
+  syncNotice()
 
   // First visit only, and never when the browser already said no.
   if (configured && !optedOut && choice === null) openPanel()
