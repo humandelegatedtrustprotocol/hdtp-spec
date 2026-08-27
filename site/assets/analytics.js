@@ -41,6 +41,8 @@
         track_pageview: false,
         persistence: 'localStorage',
         ignore_dnt: false,
+        // EU-residency project: the default ingest host is US and would drop these events.
+        api_host: 'https://api-eu.mixpanel.com',
       })
       mp = window.mixpanel
     } catch (e) { mp = null }

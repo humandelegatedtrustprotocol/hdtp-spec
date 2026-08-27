@@ -63,7 +63,7 @@ md.renderer.rules.table_close = () => '</table>\n</div>\n'
 
 /* ------------------------------------------------------------------ layout */
 
-const analyticsHead = () => {
+const analyticsHead = (base) => {
   if (!GA && !MP) return ''
   const parts = []
   if (GA) {
@@ -71,7 +71,7 @@ const analyticsHead = () => {
   }
   parts.push(`  <script>window.PACT_ANALYTICS=${JSON.stringify({ ga: GA || null, mixpanel: MP || null })};</script>`)
   if (MP) {
-    parts.push(`  <script src="https://cdn.jsdelivr.net/npm/mixpanel-browser@2.55.1/dist/mixpanel.min.js" crossorigin="anonymous"></script>`)
+    parts.push(`  <script src="${base}assets/mixpanel.min.js"></script>`)
   }
   return parts.join('\n') + '\n'
 }
@@ -104,7 +104,7 @@ ${SITE_URL ? `<meta property="og:url" content="${esc(SITE_URL)}">\n` : ''}<link 
     if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
   } catch (e) {}
 </script>
-${analyticsHead()}<script>window.PACT_PAGE=${JSON.stringify(page)};</script>
+${analyticsHead(base)}<script>window.PACT_PAGE=${JSON.stringify(page)};</script>
 <script defer src="${base}assets/analytics.js"></script>
 </head>
 <body${wide ? ' class="wide"' : ''}>
@@ -193,7 +193,7 @@ await writeFile(resolve(out, 'explainer', 'index.html'), `<!doctype html>
     if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
   } catch (e) {}
 </script>
-${analyticsHead()}<script>window.PACT_PAGE=${JSON.stringify({ id: 'explainer', title: 'Explainer' })};</script>
+${analyticsHead('../')}<script>window.PACT_PAGE=${JSON.stringify({ id: 'explainer', title: 'Explainer' })};</script>
 <script defer src="../assets/analytics.js"></script>
 <style>
   .pact-return{font:500 14px/1 'Schibsted Grotesk',system-ui,sans-serif;display:block;max-width:900px;
@@ -293,6 +293,15 @@ await writeFile(resolve(out, '404.html'), `<!doctype html>
 `)
 
 await cp(resolve(root, 'site', 'assets'), resolve(out, 'assets'), { recursive: true })
+
+// Self-hosted so the page makes no third-party request. Only shipped when Mixpanel is
+// actually configured, so an analytics-off build stays byte-for-byte free of it.
+if (MP) {
+  await cp(
+    resolve(root, 'node_modules', 'mixpanel-browser', 'dist', 'mixpanel.min.js'),
+    resolve(out, 'assets', 'mixpanel.min.js'),
+  )
+}
 
 console.log(`built dist/ — spec (${specHeadings.length} sections), explainer, landing, 404`)
 console.log(`analytics: GA4 ${GA ? 'on' : 'off'}, Mixpanel ${MP ? 'on' : 'off'}`)
