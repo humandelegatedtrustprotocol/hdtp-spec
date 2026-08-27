@@ -112,6 +112,19 @@ END:VCARD
 | `X-PACT-GATEWAY` | no | Store-and-forward relay to use when the endpoint is unreachable (§9) |
 | `X-PACT-SEAL` | no | Inbound sealing policy: `none`\|`optional`\|`required` (§13). Absent = `none` (a 1.0 peer) |
 
+**`FN` is the sender's own claim, and carries no authority.** The identity is
+`X-PACT-KEY`; the name beside it is whatever the card's author typed. Two contacts
+may therefore carry the same `FN` — usually because two people really are called
+the same thing, occasionally because one of them chose it. A receiving
+implementation MUST NOT treat `FN` as identifying, and SHOULD NOT present it as a
+contact's whole identity: where two pinned contacts render alike, show the
+fingerprint alongside. Implementations SHOULD also let the owner assign their own
+local name for a contact, which is the only name no peer can influence.
+
+Treat `FN` as untrusted display input: cap its length, strip control and
+bidirectional-format characters before rendering it, and fold confusable scripts
+when deciding whether two names collide. None of this is wire-visible — a card is
+accepted or rejected on its signature and its `X-PACT-KEY`, never on its name.
 
 The card a phone shares natively as "contact QR" is therefore already a PACT identity. An agent watches the phone book (or an import action): any contact carrying `X-PACT-*` fields is offerable as "connect our agents?" — which triggers the manual flow of §5.2. Ordinary contacts apps preserve unknown `X-` properties, which is exactly why vCard is the carrier: **no new sharing channel is invented**.
 
@@ -394,6 +407,7 @@ What this spec relies on, and what it consciously gave up relative to the earlie
 | Consent | Manual approval on both sides, always; invites = pre-approval by the issuer | Same property, much less machinery |
 | Wire privacy | TLS 1.3 between the two endpoints; sealed envelopes past edges and relays (§13, added in 1.1) | Forward secrecy at the envelope layer: **none** — and carriers always see metadata (§13.5) |
 | Impersonation of a link | Invite redemption anchored to the issuer-distributed URL; card signature by issuer key | Commit-reveal SAS (residual: whoever controls the sharing channel can swap the card/URL — same trust as sharing a phone number) |
+| Impersonation by name | Nothing at the protocol layer: `FN` is the sender's claim (§3). Attribution is cryptographic — an envelope verifies against the pinned key or it is refused — so a contact can never *send as* another. What it can do is call itself what another calls itself | Petnames are a UI answer, not a wire one (residual: on first contact, before the owner has named anyone, the only name on screen is the one the peer chose) |
 | Revocation | Delete contact/invite server-side — instant, local, nothing cryptographic outstanding | Delegation expiry machinery |
 | Rotation | One `update_contact` call, new key signed by old | Key hierarchies, transparency logs |
 | Replay/dup | Idempotent `msg_id` per call; TLS prevents third-party replay | Sequence windows |
