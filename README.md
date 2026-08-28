@@ -23,6 +23,10 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 4. **Capabilities** — everything a contact may do is an MCP tool, filtered per caller via `tools/list`; new integrations are just new tools.
 5. **Delivery** — direct HTTPS by default; optional recipient-chosen gateway queues calls when they're offline (gateway can read what it relays — pick one you trust).
 
+## Building the whitepaper
+
+`npm ci && npm run build` renders `SPEC.md` into `dist/pact-whitepaper.pdf` — an A4 whitepaper with a cover, a table of contents with page numbers, running headers, PDF bookmarks, and every mermaid diagram as vector art. The build is also the verification gate: it fails on a heading over 120 characters (the sign of an accidental setext heading) and on a diagram that does not render. It needs Node 22 and a Chrome that `puppeteer` downloads on install; set `PUPPETEER_EXECUTABLE_PATH` to use one already on the machine. `.github/workflows/whitepaper.yml` builds the PDF on every push to `main`, keeps it as a workflow artifact, and publishes it to the private R2 bucket when the Cloudflare secrets are set (`npm run publish` does the same from a local build).
+
 ## Suggested next steps
 
 - Reference implementation: a single-binary/container **agent server** (MCP over Streamable HTTP, TLS client-cert auth, contact store, invite issuance, the §6.2 core tools) + a thin client for calling peers.
