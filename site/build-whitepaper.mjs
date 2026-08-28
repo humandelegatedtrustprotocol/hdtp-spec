@@ -117,124 +117,157 @@ try {
   await tab.evaluate(() => document.fonts.ready)
 
   // Diagrams first, so paged.js lays out finished SVGs, not source text. Each diagram is
-  // scaled to the text column, so a wide one would shrink its labels below print size. A
-  // flowchart whose source orientation prints too small is therefore laid out the other way
-  // round (LR ↔ TB — same nodes, same edges, same labels) when that fits the page better;
-  // state diagrams are always laid out LR, because dagre's top-down placement piles their
-  // edge labels on top of each other. A diagram that still fits poorly may bleed 10 mm
-  // into each margin (figure.wide).
+  // scaled to the text column, and its text must print inside one size band so adjacent
+  // figures read alike. While a diagram would print below that band the build escalates:
+  // a flowchart is laid out the other way round (LR ↔ TB — same nodes, same edges, same
+  // labels), the figure bleeds 10 mm into each margin (figure.wide), and a flowchart is
+  // rendered at a larger font — its spacing stays in px, so the drawing grows slower than
+  // its text and prints bigger after scaling. Only flowcharts: a sequence diagram's stick
+  // figures and sequence numbers are fixed-size and would shrink instead, and a state
+  // diagram's free-floating edge labels collide. State diagrams are always laid out LR,
+  // because dagre's top-down placement piles their edge labels on top of each other.
   await tab.addScriptTag({ path: resolve(root, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js') })
   const diagrams = await tab.evaluate(async () => {
-    const COLUMN = 642, BLEED = 718, HEIGHT = 760   // px at 96 dpi: 170 mm, 190 mm, ~80% of the page area
+    const COLUMN = 642, BLEED = 718, HEIGHT = 820   // px at 96 dpi: 170 mm, 190 mm, a page less its heading
+    const FONT = 16                                  // px mermaid renders at; text prints at FONT × scale
+    const PRINT = [11, 14]                           // px on paper every figure's text lands in (8¼–10½ pt)
     const fit = (w, h, width) => Math.min(1, width / w, HEIGHT / h)
     const flipped = (src) => src.replace(/^(\s*(?:flowchart|graph))\s+(LR|TB|TD)\b/,
       (m, k, d) => `${k} ${d === 'LR' ? 'TB' : 'LR'}`)
     const sideways = (src) => /^\s*stateDiagram(-v2)?\s*\n/.test(src) && !/^\s*direction\s/m.test(src)
       ? src.replace(/^(\s*stateDiagram(?:-v2)?\s*\n)/, '$1    direction LR\n') : src
 
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: 'loose',
-      theme: 'base',
-      fontFamily: 'Inter, sans-serif',
-      themeVariables: {
+    // The root fontSize sizes every diagram's text: the sequence renderer copies it over its
+    // actor/message/note sizes. The sequence wrap width follows it so a larger font wraps
+    // the same lines; the subgraph title margin grows faster than the font, because mermaid
+    // offsets a cluster's nodes by only half of it while the title itself grows in full.
+    const config = (font) => {
+      const k = font / FONT
+      return {
+        startOnLoad: false,
+        securityLevel: 'loose',
+        theme: 'base',
         fontFamily: 'Inter, sans-serif',
-        fontSize: '15px',
-        background: '#FFFFFF',
-        primaryColor: '#E6F7F1',
-        primaryTextColor: '#0B100E',
-        primaryBorderColor: '#0F9B7A',
-        secondaryColor: '#F4F6F5',
-        secondaryBorderColor: '#E3E8E5',
-        secondaryTextColor: '#1F2724',
-        tertiaryColor: '#FFFFFF',
-        tertiaryBorderColor: '#E3E8E5',
-        tertiaryTextColor: '#1F2724',
-        lineColor: '#1F2724',
-        textColor: '#1F2724',
-        mainBkg: '#E6F7F1',
-        nodeBorder: '#0F9B7A',
-        nodeTextColor: '#0B100E',
-        clusterBkg: '#F4F6F5',
-        clusterBorder: '#E3E8E5',
-        titleColor: '#0B100E',
-        edgeLabelBackground: '#FFFFFF',
-        actorBkg: '#E6F7F1',
-        actorBorder: '#0F9B7A',
-        actorTextColor: '#0B100E',
-        actorLineColor: '#6B7671',
-        signalColor: '#1F2724',
-        signalTextColor: '#1F2724',
-        labelBoxBkgColor: '#F4F6F5',
-        labelBoxBorderColor: '#E3E8E5',
-        labelTextColor: '#0B100E',
-        loopTextColor: '#0B100E',
-        noteBkgColor: '#E6F7F1',
-        noteBorderColor: '#2BD4A4',
-        noteTextColor: '#0B100E',
-        activationBkgColor: '#F4F6F5',
-        activationBorderColor: '#0F9B7A',
-        sequenceNumberColor: '#FFFFFF',
-      },
-      flowchart: { htmlLabels: true, useMaxWidth: true, curve: 'basis', padding: 6, nodeSpacing: 22, rankSpacing: 30 },
-      // Sequence text is measured with these families; they default to Trebuchet, and a
-      // mismatch between measured and rendered font spills note text past its box.
-      sequence: {
-        useMaxWidth: true, wrap: true, width: 110, actorMargin: 16, messageMargin: 20, boxMargin: 4, noteMargin: 6, wrapPadding: 6,
-        actorFontFamily: 'Inter, sans-serif', actorFontSize: 15, actorFontWeight: 500,
-        noteFontFamily: 'Inter, sans-serif', noteFontSize: 14,
-        messageFontFamily: 'Inter, sans-serif', messageFontSize: 14,
-      },
-      state: { useMaxWidth: true, nodeSpacing: 150, rankSpacing: 70 },
-    })
+        fontSize: font,
+        themeVariables: {
+          fontFamily: 'Inter, sans-serif',
+          fontSize: `${font}px`,
+          background: '#FFFFFF',
+          primaryColor: '#E6F7F1',
+          primaryTextColor: '#0B100E',
+          primaryBorderColor: '#0F9B7A',
+          secondaryColor: '#F4F6F5',
+          secondaryBorderColor: '#E3E8E5',
+          secondaryTextColor: '#1F2724',
+          tertiaryColor: '#FFFFFF',
+          tertiaryBorderColor: '#E3E8E5',
+          tertiaryTextColor: '#1F2724',
+          lineColor: '#1F2724',
+          textColor: '#1F2724',
+          mainBkg: '#E6F7F1',
+          nodeBorder: '#0F9B7A',
+          nodeTextColor: '#0B100E',
+          clusterBkg: '#F4F6F5',
+          clusterBorder: '#E3E8E5',
+          titleColor: '#0B100E',
+          edgeLabelBackground: '#FFFFFF',
+          actorBkg: '#E6F7F1',
+          actorBorder: '#0F9B7A',
+          actorTextColor: '#0B100E',
+          actorLineColor: '#6B7671',
+          signalColor: '#1F2724',
+          signalTextColor: '#1F2724',
+          labelBoxBkgColor: '#F4F6F5',
+          labelBoxBorderColor: '#E3E8E5',
+          labelTextColor: '#0B100E',
+          loopTextColor: '#0B100E',
+          noteBkgColor: '#E6F7F1',
+          noteBorderColor: '#2BD4A4',
+          noteTextColor: '#0B100E',
+          activationBkgColor: '#F4F6F5',
+          activationBorderColor: '#0F9B7A',
+          sequenceNumberColor: '#FFFFFF',
+        },
+        flowchart: {
+          htmlLabels: true, useMaxWidth: true, curve: 'basis', padding: 6, nodeSpacing: 34, rankSpacing: 30,
+          subGraphTitleMargin: { top: 0.6 * font, bottom: 0.8 * font },
+        },
+        // Sequence text is measured with these families; they default to Trebuchet, and a
+        // mismatch between measured and rendered font spills note text past its box. The
+        // actor width is also the wrap width, and mermaid never budgets height for a
+        // stick figure's wrapped name: 130 keeps "Bharat (human)" on one line. boxMargin
+        // is the gap between a label and its arrow; below 8 the sequence number of a
+        // self-message sits on the label's descenders.
+        sequence: {
+          useMaxWidth: true, wrap: true, width: 130 * k, actorMargin: 16, messageMargin: 20, boxMargin: 8, noteMargin: 6, wrapPadding: 6,
+          actorFontFamily: 'Inter, sans-serif', actorFontWeight: 500,
+          noteFontFamily: 'Inter, sans-serif',
+          messageFontFamily: 'Inter, sans-serif',
+        },
+        state: { useMaxWidth: true, nodeSpacing: 150, rankSpacing: 70 },
+      }
+    }
 
     const report = []
     let n = 0
     for (const pre of document.querySelectorAll('figure.diagram pre.mermaid')) {
-      const source = sideways(pre.textContent)
-      const measure = async (src) => {
-        const { svg } = await mermaid.render(`diagram-${n++}`, src)
-        const [, , w, h] = svg.match(/viewBox="([^"]+)"/)[1].split(/\s+/).map(Number)
-        return { svg, w, h, scale: fit(w, h, COLUMN), flipped: src !== source }
-      }
-      // Flip only when the source orientation would print its labels too small.
-      let best = await measure(source)
-      if (best.scale < 0.6 && flipped(source) !== source) {
-        const other = await measure(flipped(source))
-        if (other.scale > best.scale) best = other
-      }
       const figure = pre.parentElement
-      figure.innerHTML = best.svg
-      const svg = figure.querySelector('svg')
-      // mermaid never wraps a note that carries explicit line breaks, yet still draws it at
-      // the configured actor width, so the text spills past its box. Widen such boxes to the
-      // text and grow the viewBox if a widened note now reaches past the drawing.
-      let grown = false
-      for (const rect of svg.querySelectorAll('rect.note')) {
-        const text = rect.parentElement.querySelector('text.noteText')
-        if (!text) continue
-        const need = text.getBBox().width + 16
-        const width = Number(rect.getAttribute('width'))
-        if (need <= width) continue
-        const cx = Number(rect.getAttribute('x')) + width / 2
-        rect.setAttribute('x', cx - need / 2)
-        rect.setAttribute('width', need)
-        grown = true
-      }
-      if (grown) {
+      const source = sideways(pre.textContent)
+      // Renders into the figure and reports how the drawing would print.
+      const render = async (src, font) => {
+        mermaid.initialize(config(font))
+        const { svg: markup } = await mermaid.render(`diagram-${n++}`, src)
+        figure.innerHTML = markup
+        const svg = figure.querySelector('svg')
+        // mermaid never wraps a note that carries explicit line breaks, yet still draws it at
+        // the configured actor width, so the text spills past its box. Widen such boxes to
+        // the text.
+        for (const rect of svg.querySelectorAll('rect.note')) {
+          const text = rect.parentElement.querySelector('text.noteText')
+          if (!text) continue
+          const need = text.getBBox().width + 16
+          const width = Number(rect.getAttribute('width'))
+          if (need <= width) continue
+          const cx = Number(rect.getAttribute('x')) + width / 2
+          rect.setAttribute('x', cx - need / 2)
+          rect.setAttribute('width', need)
+        }
+        // mermaid's viewBox stops short of its own drawing — the mirrored actors' names, a
+        // widened note — and Chrome clips at the viewBox, so cover whatever was drawn.
         const bb = svg.getBBox()
         const [x, y, w, h] = svg.getAttribute('viewBox').split(/\s+/).map(Number)
-        const x0 = Math.min(x, bb.x - 10), x1 = Math.max(x + w, bb.x + bb.width + 10)
-        svg.setAttribute('viewBox', `${x0} ${y} ${x1 - x0} ${h}`)
-        best.w = x1 - x0
-        best.scale = fit(best.w, best.h, COLUMN)
+        const x0 = Math.min(x, bb.x - 10), y0 = Math.min(y, bb.y - 10)
+        const x1 = Math.max(x + w, bb.x + bb.width + 10), y1 = Math.max(y + h, bb.y + bb.height + 10)
+        svg.setAttribute('viewBox', `${x0} ${y0} ${x1 - x0} ${y1 - y0}`)
+        // Arrowheads are fixed-size markers; grow them with the font so they scale down with it.
+        for (const marker of svg.querySelectorAll('marker')) {
+          for (const a of ['markerWidth', 'markerHeight']) marker.setAttribute(a, Number(marker.getAttribute(a)) * font / FONT)
+        }
+        const size = { w: x1 - x0, h: y1 - y0 }
+        let scale = fit(size.w, size.h, COLUMN), wide = false
+        if (scale * font < PRINT[0]) { wide = true; scale = fit(size.w, size.h, BLEED) }
+        return { html: figure.innerHTML, font, ...size, scale, wide, print: scale * font, flipped: src !== source }
       }
-      if (best.scale < 0.7) { figure.classList.add('wide'); best.scale = fit(best.w, best.h, BLEED) }
+      const fonts = /^\s*(flowchart|graph)\b/.test(source) ? [FONT, 18, 20, 22, 24, 26, 28, 30, 32] : [FONT]
+      let best
+      for (const font of fonts) {
+        if (best?.print >= PRINT[0]) break
+        let candidate = await render(source, font)
+        if (candidate.print < PRINT[0] && flipped(source) !== source) {
+          const other = await render(flipped(source), font)
+          if (other.print > candidate.print) candidate = other
+        }
+        if (!best || candidate.print > best.print) best = candidate
+      }
+      figure.innerHTML = best.html
+      if (best.wide) figure.classList.add('wide')
       // Size the SVG explicitly: mermaid's width="100%" would stretch narrow diagrams.
-      svg.setAttribute('width', Math.round(best.w * best.scale))
-      svg.setAttribute('height', Math.round(best.h * best.scale))
+      const scale = Math.min(best.scale, PRINT[1] / best.font)
+      const svg = figure.querySelector('svg')
+      svg.setAttribute('width', Math.round(best.w * scale))
+      svg.setAttribute('height', Math.round(best.h * scale))
       svg.style.maxWidth = 'none'
-      report.push(`${Math.round(best.w)}x${Math.round(best.h)}${best.flipped ? ' flipped' : ''} @${best.scale.toFixed(2)}${figure.classList.contains('wide') ? ' wide' : ''}`)
+      report.push(`${Math.round(best.w)}x${Math.round(best.h)}${best.flipped ? ' flipped' : ''}${best.font !== FONT ? ` @${best.font}px` : ''} ×${scale.toFixed(2)} = ${(best.font * scale).toFixed(1)}px${best.wide ? ' wide' : ''}`)
     }
     return report
   })
@@ -256,6 +289,31 @@ try {
       keep.className = 'keep'
       el.before(keep)
       keep.append(el, next)
+    }
+    // Sections run on; only the body's first section, the sealed-envelope part (§13) and
+    // the appendices open a fresh page. A break at every section left pages nearly empty.
+    for (const h2 of document.querySelectorAll('.doc h2')) {
+      if (/^(Introduction|13\. |Appendix)/.test(h2.textContent.trim())) h2.classList.add('newpage')
+    }
+    // Auto table layout splits property and tool names mid-token and starves the argument
+    // column, so each table shape gets fixed column widths (percent), keyed by its header row.
+    const columns = {
+      'Property|Required|Meaning': [24, 12, 64],
+      'Setting|Default|Notes': [18, 12, 70],
+      'Tool|Arguments|Returns': [23, 40, 37],
+      'Tool|Permission|Arguments|Returns': [22, 24.5, 23.5, 30],
+      'Permission|Gates|In "basic" preset': [30, 45, 25],
+      "Property|This spec's answer|Given up vs the hardened draft": [20, 45, 35],
+      'Member|Content': [16, 84],
+      'Suite id|KEM|KDF|AEAD|For recipients with': [22, 22, 14, 16, 26],
+    }
+    for (const table of document.querySelectorAll('.doc table')) {
+      const widths = columns[[...table.querySelectorAll('th')].map(th => th.textContent.trim()).join('|')]
+      if (!widths) continue
+      table.classList.add('cols')
+      const colgroup = document.createElement('colgroup')
+      colgroup.innerHTML = widths.map(w => `<col style="width:${w}%">`).join('')
+      table.prepend(colgroup)
     }
     // ✔ / ✖ are not in Inter; draw them instead of borrowing a system glyph.
     const marks = {

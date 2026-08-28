@@ -132,25 +132,30 @@ strong { font-weight: 600; color: var(--ink); }
 em { font-style: italic; }
 hr { display: none; }
 
-p { margin: 0 0 8pt; }
+p { margin: 0 0 8pt; orphans: 3; widows: 3; }
 ul, ol { margin: 0 0 8pt; padding-left: 16pt; }
-li { margin: 0 0 3pt; }
+li { margin: 0 0 3pt; orphans: 3; widows: 3; }
 li::marker { color: var(--accent); }
 
-/* Section titles start a page. paged.js keeps one selector per string name, so the running
-   header's source is declared once, below, for every heading that should feed it. */
+/* Sections run on; the build marks the few that open a fresh page (h2.newpage). paged.js
+   keeps one selector per string name, so the running header's source is declared once,
+   below, for every heading that should feed it. */
 .doc h2, .front .contents-title { string-set: section content(text); }
 h2 {
-  break-before: page;
+  break-before: auto;
   font-size: 20pt;
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ink);
-  margin: 0 0 16pt;
+  margin-bottom: 16pt;
   padding-bottom: 10pt;
   position: relative;
 }
+h2.newpage { break-before: page; }
+/* The gap above a section sits on what precedes it (the build wraps each h2 in .keep), so a
+   section that opens a page starts at the top like any other page. */
+.doc > :has(+ .keep > h2) { margin-bottom: 28pt; }
 h2::after {
   content: "";
   position: absolute;
@@ -218,7 +223,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   table-layout: auto;
-  font-size: 9pt;
+  font-size: 8.75pt;
   line-height: 1.4;
 }
 thead { display: table-header-group; }
@@ -226,7 +231,7 @@ tr { break-inside: avoid; }
 th, td {
   text-align: left;
   vertical-align: top;
-  padding: 4.5pt 6pt;
+  padding: 4.5pt 5pt;
   border: 0.5pt solid var(--line);
   overflow-wrap: break-word;
 }
@@ -235,7 +240,10 @@ th {
   font-weight: 600;
   color: var(--ink);
 }
-td code, th code { font-size: 0.92em; padding: 0 2.5pt; overflow-wrap: break-word; }
+td code, th code { font-size: 0.9em; padding: 0 2.5pt; overflow-wrap: break-word; }
+/* The build sets these columns per table shape; a property or tool name never breaks. */
+table.cols { table-layout: fixed; }
+table.cols td:first-child code { white-space: nowrap; }
 
 /* ------------------------------------------------------------- blockquote */
 
@@ -260,6 +268,8 @@ figure.diagram svg { display: inline-block; }
 figure.diagram.wide { margin-left: -10mm; margin-right: -10mm; }
 figure.diagram svg text,
 figure.diagram svg tspan { font-family: 'Inter', sans-serif; }
+/* Diagrams are scaled by different factors; keep their line weights the same on paper. */
+figure.diagram svg :is(path, line, rect, circle, ellipse, polygon, polyline) { vector-effect: non-scaling-stroke; }
 .mark { display: inline-block; width: 9pt; height: 9pt; vertical-align: -1pt; }
 .mark.yes { color: var(--accent); }
 .mark.no { color: var(--muted); }
@@ -350,7 +360,6 @@ figure.diagram svg tspan { font-family: 'Inter', sans-serif; }
   margin: 0 0 10pt;
   padding-bottom: 8pt;
   position: relative;
-  break-before: auto;
 }
 .front .contents-title::after {
   content: "";
