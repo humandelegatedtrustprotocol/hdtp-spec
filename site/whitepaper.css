@@ -73,7 +73,7 @@
     padding-bottom: 8mm;
   }
   @top-right {
-    content: string(section);
+    content: string(section, start);
     font-family: 'Inter', sans-serif;
     font-size: 7.5pt;
     font-weight: 400;
@@ -132,14 +132,15 @@ strong { font-weight: 600; color: var(--ink); }
 em { font-style: italic; }
 hr { display: none; }
 
-p { margin: 0 0 8pt; orphans: 3; widows: 3; }
+p { margin: 0 0 8pt; orphans: 2; widows: 2; }
 ul, ol { margin: 0 0 8pt; padding-left: 16pt; }
-li { margin: 0 0 3pt; orphans: 3; widows: 3; }
+li { margin: 0 0 3pt; orphans: 2; widows: 2; }
 li::marker { color: var(--accent); }
 
 /* Sections run on; the build marks the few that open a fresh page (h2.newpage). paged.js
    keeps one selector per string name, so the running header's source is declared once,
-   below, for every heading that should feed it. */
+   below, for every heading that should feed it; the header shows the section in force at
+   the top of the page (string(…, start), computed by the build). */
 .doc h2, .front .contents-title { string-set: section content(text); }
 h2 {
   break-before: auto;
@@ -219,6 +220,8 @@ code, kbd, samp {
 /* ----------------------------------------------------------------- tables */
 
 .table-wrap { margin: 0 0 12pt; }
+/* The build marks tables short enough to move whole rather than split. */
+.table-wrap.short { break-inside: avoid; }
 table {
   width: 100%;
   border-collapse: collapse;

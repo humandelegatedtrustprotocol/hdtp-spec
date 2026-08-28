@@ -120,12 +120,13 @@ try {
   // scaled to the text column, and its text must print inside one size band so adjacent
   // figures read alike. While a diagram would print below that band the build escalates:
   // a flowchart is laid out the other way round (LR ↔ TB — same nodes, same edges, same
-  // labels), the figure bleeds 10 mm into each margin (figure.wide), and a flowchart is
-  // rendered at a larger font — its spacing stays in px, so the drawing grows slower than
-  // its text and prints bigger after scaling. Only flowcharts: a sequence diagram's stick
-  // figures and sequence numbers are fixed-size and would shrink instead, and a state
-  // diagram's free-floating edge labels collide. State diagrams are always laid out LR,
-  // because dagre's top-down placement piles their edge labels on top of each other.
+  // labels) and rendered at a larger font — its spacing stays in px, so the drawing grows
+  // slower than its text and prints bigger after scaling — and only when no font reaches
+  // the band does the figure bleed 10 mm into each margin (figure.wide). Only flowcharts
+  // take a larger font: a sequence diagram's stick figures and sequence numbers are
+  // fixed-size and would shrink instead, and a state diagram's free-floating edge labels
+  // collide. State diagrams are always laid out LR, because dagre's top-down placement
+  // piles their edge labels on top of each other.
   await tab.addScriptTag({ path: resolve(root, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js') })
   const diagrams = await tab.evaluate(async () => {
     const COLUMN = 642, BLEED = 718, HEIGHT = 820   // px at 96 dpi: 170 mm, 190 mm, a page less its heading
@@ -244,11 +245,10 @@ try {
           for (const a of ['markerWidth', 'markerHeight']) marker.setAttribute(a, Number(marker.getAttribute(a)) * font / FONT)
         }
         const size = { w: x1 - x0, h: y1 - y0 }
-        let scale = fit(size.w, size.h, COLUMN), wide = false
-        if (scale * font < PRINT[0]) { wide = true; scale = fit(size.w, size.h, BLEED) }
-        return { html: figure.innerHTML, font, ...size, scale, wide, print: scale * font, flipped: src !== source }
+        const scale = fit(size.w, size.h, COLUMN)
+        return { html: figure.innerHTML, font, ...size, scale, print: scale * font, flipped: src !== source }
       }
-      const fonts = /^\s*(flowchart|graph)\b/.test(source) ? [FONT, 18, 20, 22, 24, 26, 28, 30, 32] : [FONT]
+      const fonts = /^\s*(flowchart|graph)\b/.test(source) ? [FONT, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40] : [FONT]
       let best
       for (const font of fonts) {
         if (best?.print >= PRINT[0]) break
@@ -259,6 +259,10 @@ try {
         }
         if (!best || candidate.print > best.print) best = candidate
       }
+      if (best.print < PRINT[0]) {
+        const scale = fit(best.w, best.h, BLEED)
+        if (scale > best.scale) best = { ...best, scale, print: scale * best.font, wide: true }
+      }
       figure.innerHTML = best.html
       if (best.wide) figure.classList.add('wide')
       // Size the SVG explicitly: mermaid's width="100%" would stretch narrow diagrams.
@@ -267,6 +271,8 @@ try {
       svg.setAttribute('width', Math.round(best.w * scale))
       svg.setAttribute('height', Math.round(best.h * scale))
       svg.style.maxWidth = 'none'
+      // How far the paginator may shrink this figure before its text leaves the band.
+      svg.dataset.shrink = Math.min(1, PRINT[0] / (best.font * scale)).toFixed(3)
       report.push(`${Math.round(best.w)}x${Math.round(best.h)}${best.flipped ? ' flipped' : ''}${best.font !== FONT ? ` @${best.font}px` : ''} ×${scale.toFixed(2)} = ${(best.font * scale).toFixed(1)}px${best.wide ? ' wide' : ''}`)
     }
     return report
@@ -290,10 +296,11 @@ try {
       el.before(keep)
       keep.append(el, next)
     }
-    // Sections run on; only the body's first section, the sealed-envelope part (§13) and
-    // the appendices open a fresh page. A break at every section left pages nearly empty.
+    // Sections run on; only the body's first section and the appendices open a fresh page.
+    // A break at every section left pages nearly empty, and one before §13 left a page
+    // carrying three lines.
     for (const h2 of document.querySelectorAll('.doc h2')) {
-      if (/^(Introduction|13\. |Appendix)/.test(h2.textContent.trim())) h2.classList.add('newpage')
+      if (/^(Introduction|Appendix)/.test(h2.textContent.trim())) h2.classList.add('newpage')
     }
     // Auto table layout splits property and tool names mid-token and starves the argument
     // column, so each table shape gets fixed column widths (percent), keyed by its header row.
@@ -315,6 +322,11 @@ try {
       colgroup.innerHTML = widths.map(w => `<col style="width:${w}%">`).join('')
       table.prepend(colgroup)
     }
+    // A table shorter than a third of a page moves whole rather than strand a row or two
+    // on the next page; longer tables split, and the paginator repeats their header row.
+    for (const table of document.querySelectorAll('.doc table')) {
+      if (table.getBoundingClientRect().height <= 300) table.parentElement.classList.add('short')
+    }
     // ✔ / ✖ are not in Inter; draw them instead of borrowing a system glyph.
     const marks = {
       '✔': '<span class="mark yes" role="img" aria-label="yes"><svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5l2.6 2.6L10 3.5"/></svg></span>',
@@ -330,8 +342,142 @@ try {
     }
   })
 
-  await tab.evaluate(() => { window.PagedConfig = { auto: false } })
+  // paged.js checks for overflow every maxChars characters it has laid onto a page; at the
+  // default 1500 the check can land mid-paragraph, with the paragraph's tail not yet on the
+  // page, and the widows handler below needs the whole paragraph in place to count lines.
+  // A page holds about 4 000 characters, so this only defers the check.
+  await tab.evaluate(() => { window.PagedConfig = { auto: false, settings: { maxChars: 20_000 } } })
   await tab.addScriptTag({ path: resolve(root, 'node_modules', 'pagedjs', 'dist', 'paged.polyfill.js') })
+
+  // paged.js 0.4 leaves four things to the document: it ignores orphans/widows, it rebuilds
+  // a split table on the next page without its header row (or its column widths), it pushes
+  // a figure whole to the next page however little it overhangs, and its string(name, start)
+  // takes a heading as opening the page only when the heading's box sits exactly on the page
+  // top. These handlers hook the paginator to cover each. Geometry to know: paged.js lays a
+  // page out as a multi-column box one page wide, so what Chrome cannot fit on the page —
+  // an unbreakable figure, the lines past the bottom — sits in a second column to the right
+  // of it (left ≥ bounds.right), where paged.js then reads the break from.
+  await tab.evaluate(() => {
+    const { Handler, registerHandlers } = window.Paged
+    // Whether any text on the page precedes `el` — i.e. `el` does not open the page.
+    const contentBefore = (el, page) => {
+      const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT)
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        if (el.compareDocumentPosition(n) & (Node.DOCUMENT_POSITION_FOLLOWING | Node.DOCUMENT_POSITION_CONTAINED_BY)) return false
+        if (n.textContent.trim()) return true
+      }
+      return false
+    }
+    const onPage = (rect, bounds) => rect.left < bounds.right
+    const margin = (el, side) => parseFloat(getComputedStyle(el)[`margin${side}`]) || 0
+
+    // The running header names the section in force at the top of the page: the first
+    // heading when nothing precedes it on the page, else the last heading before the page.
+    class Sections extends Handler {
+      afterPageLayout(page) {
+        const heads = [...page.querySelectorAll('.doc h2, .front .contents-title')]
+        let top = this.last
+        if (heads.length && (!top || !contentBefore(heads[0], page))) top = heads[0].textContent
+        page.style.setProperty('--pagedjs-string-start-section', `"${(top || '').replace(/["\\]/g, '\\$&')}"`)
+        if (heads.length) this.last = heads.at(-1).textContent
+      }
+    }
+
+    // A table continued on a new page gets its column widths and header row back.
+    class TableHeads extends Handler {
+      renderNode(clone, node) {
+        if (node.nodeName !== 'TR') return
+        const table = clone.closest('table')
+        if (!table?.dataset.splitFrom || table.tHead) return
+        const source = node.closest('table')
+        const parts = [source.querySelector('colgroup'), source.tHead].filter(Boolean).map(p => p.cloneNode(true))
+        for (const p of parts) for (const el of [p, ...p.querySelectorAll('[data-ref]')]) el.removeAttribute('data-ref')
+        table.prepend(...parts)
+      }
+    }
+
+    // A figure Chrome could not fit under the page's last content shrinks into the room
+    // left there, down to the scale the build allows for it (data-shrink keeps its text
+    // inside the print band); beyond that it moves to the next page whole, as before. The
+    // figure may share a keep-with-next wrapper with its heading, which then moves as one.
+    class FitFigures extends Handler {
+      renderNode(clone, node, layout) {
+        if (node.nodeName !== 'svg' || !node.dataset.shrink) return
+        const { bounds } = layout
+        if (onPage(clone.getBoundingClientRect(), bounds)) return
+        const figure = clone.closest('figure')
+        const box = figure.parentElement.classList.contains('keep') ? figure.parentElement : figure
+        // The last box on the page before this one, and the collapsed margin between them.
+        let prev = box
+        while (!prev.previousElementSibling && !prev.parentElement.classList.contains('pagedjs_page_content')) prev = prev.parentElement
+        prev = prev.previousElementSibling
+        if (!prev || !onPage(prev.getBoundingClientRect(), bounds)) return
+        const gap = Math.max(margin(prev, 'Bottom'), margin(box, 'Top'), margin(box.firstElementChild, 'Top'))
+        const overhead = box.getBoundingClientRect().height - clone.getBoundingClientRect().height
+        const room = bounds.bottom - prev.getBoundingClientRect().bottom - gap - overhead - 2
+        const w = Number(clone.getAttribute('width')), h = Number(clone.getAttribute('height'))
+        for (let k = Math.min(room / h, 0.995); k >= Number(node.dataset.shrink); k -= 0.01) {
+          clone.setAttribute('width', Math.floor(w * k))
+          clone.setAttribute('height', Math.floor(h * k))
+          if (onPage(clone.getBoundingClientRect(), bounds)) return
+        }
+        clone.setAttribute('width', w)
+        clone.setAttribute('height', h)
+      }
+    }
+
+    // Orphans and widows, read from the paragraph's own computed style: when a page break
+    // falls inside a paragraph or list item, move it up so at least `widows` lines follow
+    // it, or take the whole block to the next page if fewer than `orphans` could stay.
+    class Widows extends Handler {
+      onOverflow(overflow, rendered, bounds) {
+        const node = overflow?.startContainer
+        if (!node || node.nodeType !== Node.TEXT_NODE) return
+        const block = node.parentElement.closest('p, li')
+        if (!block) return
+        // The whole block must be on the page (or past its bottom) to count its lines.
+        const source = this.chunker.source.querySelector(`[data-ref="${block.dataset.ref}"]`)
+        if (!source || source.textContent.length !== block.textContent.length) return
+        const style = getComputedStyle(block)
+        const orphans = Number(style.orphans), widows = Number(style.widows), half = parseFloat(style.lineHeight) / 2
+        // Tops of the block's line boxes, on the page and past it; an inline code span's box
+        // sits a little below its line.
+        const all = document.createRange()
+        all.selectNodeContents(block)
+        const rects = [...all.getClientRects()].filter(r => r.width > 0 && r.height > 0)
+        const lines = (rs) => rs.map(r => r.top).sort((a, b) => a - b)
+          .reduce((tops, t) => (!tops.length || t - tops.at(-1) > half) ? [...tops, t] : tops, [])
+        const fits = lines(rects.filter(r => onPage(r, bounds)))
+        const total = fits.length + lines(rects.filter(r => !onPage(r, bounds))).length
+        const keep = Math.min(fits.length, total - widows)
+        if (keep === fits.length && keep >= orphans) return
+        if (keep < orphans) {
+          const whole = block.parentElement.classList.contains('keep') ? block.parentElement : block
+          if (!contentBefore(whole, rendered)) return
+          overflow.setStartBefore(whole)
+          return overflow
+        }
+        // Break at the start of line `keep`: the first character whose box sits on that line.
+        const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+        const range = document.createRange()
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          for (let i = 0; i < n.length; i++) {
+            if (/\s/.test(n.data[i])) continue
+            range.setStart(n, i)
+            range.setEnd(n, i + 1)
+            const r = range.getBoundingClientRect()
+            if (r.height > 0 && onPage(r, bounds) && Math.abs(r.top - fits[keep]) < half) {
+              overflow.setStart(n, i)
+              return overflow
+            }
+          }
+        }
+      }
+    }
+
+    registerHandlers(Sections, TableHeads, FitFigures, Widows)
+  })
+
   const pages = await tab.evaluate(async () => {
     const flow = await window.PagedPolyfill.preview()
     return flow.total
