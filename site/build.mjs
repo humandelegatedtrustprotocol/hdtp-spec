@@ -294,6 +294,11 @@ await writeFile(resolve(out, '404.html'), `<!doctype html>
 
 await cp(resolve(root, 'site', 'assets'), resolve(out, 'assets'), { recursive: true })
 
+// The custom domain, asserted on every deploy. GitHub Pages reads this from the
+// published artifact, so keeping it in the build means the domain survives a settings
+// change or a redeploy rather than living only in repository settings.
+await writeFile(resolve(out, 'CNAME'), 'spec.pact-protocol.com\n')
+
 // Self-hosted so the page makes no third-party request. Only shipped when Mixpanel is
 // actually configured, so an analytics-off build stays byte-for-byte free of it.
 //
