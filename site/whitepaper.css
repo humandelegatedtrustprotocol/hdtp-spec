@@ -1,0 +1,386 @@
+/* PACT whitepaper — print stylesheet for site/build-whitepaper.mjs. Paged through paged.js
+   inside headless Chrome; every rule here targets paper, not a screen. Brand tokens match
+   the marketing site. Fonts are local woff2 only — never system fonts, never a CDN. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url(brand/inter-latin-wght.woff2) format('woff2');
+}
+/* The latin subsets stop short of a few glyphs the spec uses (‖ → ≠ ≤); these two small
+   subsets fill them from the same families so nothing falls back to a system font. ✔ and ✖
+   are not in Inter at all — the build swaps them for inline SVG marks. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url(brand/inter-symbols-wght.woff2) format('woff2');
+  unicode-range: U+2016, U+2192, U+2260, U+2264-2265;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url(brand/jbmono-latin-400.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url(brand/jbmono-latin-500.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: block;
+  src: url(brand/jbmono-symbols-wght.woff2) format('woff2');
+  unicode-range: U+2192, U+2260, U+2264-2265;
+}
+
+:root {
+  --ink: #0B100E;
+  --text: #1F2724;
+  --muted: #6B7671;
+  --line: #E3E8E5;
+  --surface: #F4F6F5;
+  --accent: #0F9B7A;
+  --accent-hi: #2BD4A4;
+  --accent-soft: #E6F7F1;
+  --sans: 'Inter', sans-serif;
+  --mono: 'JetBrains Mono', 'Inter', monospace;
+}
+
+/* ------------------------------------------------------------------ pages */
+
+@page {
+  size: A4 portrait;
+  margin: 24mm 20mm 24mm 20mm;
+
+  @top-left {
+    content: "PACT \2014  Personal Agent Communication & Trust";
+    font-family: 'Inter', sans-serif;
+    font-size: 7.5pt;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: #6B7671;
+    vertical-align: bottom;
+    padding-bottom: 8mm;
+  }
+  @top-right {
+    content: string(section);
+    font-family: 'Inter', sans-serif;
+    font-size: 7.5pt;
+    font-weight: 400;
+    color: #6B7671;
+    vertical-align: bottom;
+    padding-bottom: 8mm;
+    text-align: right;
+  }
+  @bottom-left {
+    content: string(footer);
+    font-family: 'Inter', sans-serif;
+    font-size: 7.5pt;
+    font-weight: 400;
+    color: #6B7671;
+    vertical-align: top;
+    padding-top: 8mm;
+  }
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: 'Inter', sans-serif;
+    font-size: 7.5pt;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    color: #6B7671;
+    vertical-align: top;
+    padding-top: 8mm;
+    text-align: right;
+  }
+}
+
+@page cover {
+  margin: 0;
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+
+/* ------------------------------------------------------------------- base */
+
+html {
+  font-family: var(--sans);
+  font-size: 10.5pt;
+  line-height: 1.5;
+  color: var(--text);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
+body { margin: 0; }
+* { box-sizing: border-box; }
+
+a { color: var(--accent); text-decoration: none; }
+strong { font-weight: 600; color: var(--ink); }
+em { font-style: italic; }
+hr { display: none; }
+
+p { margin: 0 0 8pt; }
+ul, ol { margin: 0 0 8pt; padding-left: 16pt; }
+li { margin: 0 0 3pt; }
+li::marker { color: var(--accent); }
+
+/* Section titles start a page. paged.js keeps one selector per string name, so the running
+   header's source is declared once, below, for every heading that should feed it. */
+.doc h2, .front .contents-title { string-set: section content(text); }
+h2 {
+  break-before: page;
+  font-size: 20pt;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0 0 16pt;
+  padding-bottom: 10pt;
+  position: relative;
+}
+h2::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 26mm;
+  height: 2px;
+  background: var(--accent);
+}
+h3 {
+  font-size: 13pt;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 16pt 0 6pt;
+}
+
+/* keep-with-next wrappers built by the build script */
+.keep { break-inside: avoid; }
+
+/* ------------------------------------------------------------------- code */
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 0.5pt 3.5pt;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.code-block {
+  break-inside: avoid;
+  margin: 0 0 10pt;
+}
+.code-block pre {
+  margin: 0;
+  padding: 9pt 11pt;
+  background: var(--surface);
+  border: 0.5pt solid var(--line);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  color: var(--ink);
+}
+.code-block pre code {
+  font-size: inherit;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+/* Appendix B is a 12 kB JSON literal; let it split rather than leave half a page blank. */
+.code-block.tall { break-inside: auto; }
+.code-block.tall pre { break-inside: auto; }
+
+/* ----------------------------------------------------------------- tables */
+
+.table-wrap { margin: 0 0 12pt; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: 9pt;
+  line-height: 1.4;
+}
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 4.5pt 6pt;
+  border: 0.5pt solid var(--line);
+  overflow-wrap: break-word;
+}
+th {
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--ink);
+}
+td code, th code { font-size: 0.92em; padding: 0 2.5pt; overflow-wrap: break-word; }
+
+/* ------------------------------------------------------------- blockquote */
+
+blockquote {
+  margin: 0 0 10pt;
+  padding: 8pt 12pt;
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  color: var(--ink);
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+/* --------------------------------------------------------------- diagrams */
+
+figure.diagram {
+  break-inside: avoid;
+  margin: 6pt 0 14pt;
+  text-align: center;
+}
+figure.diagram svg { display: inline-block; }
+figure.diagram.wide { margin-left: -10mm; margin-right: -10mm; }
+figure.diagram svg text,
+figure.diagram svg tspan { font-family: 'Inter', sans-serif; }
+.mark { display: inline-block; width: 9pt; height: 9pt; vertical-align: -1pt; }
+.mark.yes { color: var(--accent); }
+.mark.no { color: var(--muted); }
+
+/* ------------------------------------------------------------------ cover */
+
+.cover {
+  page: cover;
+  break-after: page;
+  width: 210mm;
+  height: 297mm;
+  padding: 26mm 24mm 22mm;
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+}
+.cover .brand {
+  display: flex;
+  align-items: center;
+  gap: 6mm;
+}
+.cover .brand svg { width: 28mm; height: 28mm; flex: none; }
+.cover .wordmark {
+  font-size: 44pt;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  color: var(--ink);
+}
+.cover .title-block { margin-top: auto; margin-bottom: 30mm; }
+.cover .rule {
+  width: 26mm;
+  height: 2px;
+  background: var(--accent);
+  margin-bottom: 9mm;
+}
+.cover .title {
+  font-size: 34pt;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+  margin: 0 0 8mm;
+  max-width: 130mm;
+}
+.cover .kind {
+  font-size: 13.5pt;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 3mm;
+}
+.cover .version {
+  font-size: 10.5pt;
+  color: var(--muted);
+  margin: 0;
+}
+.cover .site {
+  font-size: 9pt;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+/* ----------------------------------------------------------- front matter */
+
+.front .about {
+  padding: 10pt 14pt;
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  margin: 0 0 16pt;
+}
+.front .about .about-title {
+  font-size: 9pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 5pt;
+  padding: 0;
+}
+.front .about p { margin: 0 0 5pt; }
+.front .about p:last-child { margin: 0; }
+.front .contents-title {
+  font-size: 20pt;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0 0 10pt;
+  padding-bottom: 8pt;
+  position: relative;
+  break-before: auto;
+}
+.front .contents-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 26mm;
+  height: 2px;
+  background: var(--accent);
+}
+.toc ol { list-style: none; margin: 0; padding: 0; }
+.toc li {
+  display: flex;
+  align-items: baseline;
+  gap: 5pt;
+  margin: 0;
+  break-inside: avoid;
+}
+.toc li.lvl2 { font-weight: 600; color: var(--ink); margin-top: 5pt; }
+.toc li.lvl3 { padding-left: 14pt; color: var(--text); font-size: 9.5pt; margin-top: 1.5pt; }
+.toc li a { color: inherit; }
+.toc li .leader {
+  flex: 1;
+  min-width: 10pt;
+  border-bottom: 1px dotted #A9B3AE;
+  transform: translateY(-3pt);
+}
+.toc li .pg { font-variant-numeric: tabular-nums; font-weight: 400; color: var(--muted); min-width: 14pt; text-align: right; }
+.toc li .pg::after { content: target-counter(attr(href), page); }
+
+/* ------------------------------------------------------- pagedjs plumbing */
+
+.pagedjs_page { background: #fff; }
