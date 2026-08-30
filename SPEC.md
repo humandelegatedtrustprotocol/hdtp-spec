@@ -1,6 +1,6 @@
 # PACT — Personal Agent Communication & Trust Protocol
 
-**Version 1.1.0-draft · 2026-08-24 · adds sealed envelopes (§13), generalized caller identity (§2), relay-mode wording (§9)**
+**Version 1.2.0-draft · 2026-08-30 · adopts the deployed wire contracts — invite landing (§4), thread ownership (§7), relay verbs (§9), SPKI distribution (§2), rotation grace (§2), preset defaults (§8), tunable limits (§12)**
 
 PACT is a deliberate exercise in simplicity. An earlier hardened draft of this protocol (kept on file) was cryptographically thorough but heavy: sealed envelopes, key hierarchies, SAS ceremonies, DIDs, route pseudonyms. This spec keeps the parts that deliver the cause and removes the rest. (1.1 deliberately re-adopted exactly one of the removed pieces — a narrow sealed envelope, §13 — because terminating edges and relays need identity and confidentiality that survive them; everything else stayed removed.):
 
@@ -29,7 +29,8 @@ PACT is a deliberate exercise in simplicity. An earlier hardened draft of this p
 11. Security notes and what was left out
 12. Errors, limits, conformance
 13. Sealed envelopes
-Appendix: examples
+Appendix A: worked examples
+Appendix B: sealed-envelope test vectors
 
 ---
 
@@ -77,11 +78,13 @@ Both sides are symmetric: every participant runs (or is hosted with) an **agent*
 fingerprint = "sha256:" + base64url( SHA-256( SubjectPublicKeyInfo ) )
 ```
 
+**Key distribution:** the card pins a *hash*; sealing (§13) and signature verification need the *key*. The full `spki` — the SubjectPublicKeyInfo, base64url DER — therefore travels wherever a card does: the invite landing's machine view (§4), the `redeem_invite` result, and the `get_card` result each return it beside the signed card, and a sealed request carries the sender's as `spk` (§13.2). A receiver MUST verify that `SHA-256(spki)` equals the card's `X-PACT-KEY` before using distributed key bytes for anything; a key that does not hash to the pin is not the pinned key. The fingerprint remains the identity — the distributed bytes are a convenience the hash makes safe to accept from anywhere.
+
 **Client side (who is calling):** a caller proves an identity in either of two ways — by presenting this keypair as a TLS client certificate (self-signed, long-lived, CN free-form), or by the detached signature on a sealed envelope (§13), which survives pipes that strip client certificates (a terminating tunnel edge, a relay). The receiving server MUST resolve the caller to a fingerprint from whichever proof is present; when **both** are present their fingerprints MUST match, else the call is rejected (`envelope_invalid`). The certificate chain is irrelevant; **the pinned fingerprint is the identity**. Unknown fingerprints get the *guest* tier only (§6.1).
 
 **Server side (who am I calling):** the endpoint URL comes from the contact card. Its TLS server certificate is validated as either (a) normal WebPKI for the URL's hostname — the default, works with Let's Encrypt — or (b) the pinned contact fingerprint itself (self-signed server cert; for P2P/no-domain setups). Rule: if the contact card's key fingerprint matches the server certificate, accept; else require WebPKI validity for the hostname. Either way the *authorization* anchor is the contact-card fingerprint learned at add-contact time.
 
-**Key rotation** is one mechanism: generate the new keypair, then call each contact's `update_contact` tool with the new card plus a signature over the new fingerprint by the **old** key. Receivers verify with the pinned old key, re-pin, done. A contact that missed the rotation (offline too long) re-verifies by receiving the card again over any human channel — same as first add.
+**Key rotation** is one mechanism: generate the new keypair, then call each contact's `update_contact` tool with the new card plus `sig` — the **old** key's signature over the UTF-8 bytes of the new fingerprint string (`sha256:…`), in the old key's signature encoding (§13.1), carried base64url. Receivers verify with the pinned old key, re-pin, done. The same tool with a card that keeps the same key is its everyday job — a card refresh (new endpoint, new gateway), authorized by the same signature, this time over the key's own fingerprint. A rotation runs under a **grace period** — default 14 days, at most 90, one rotation in flight at a time — during which both keys stay live: inbound envelopes select a key by `kid`, either certificate is accepted, and outbound calls to a contact that has not yet re-pinned present the **old** certificate, because that is the identity the peer still recognizes and what lets the announcement itself get through. A receiver holding a fingerprint-only pin (no stored key bytes) verifies the rotation with the key the caller presents, admissible because it hashes to the pin (see key distribution above). When the grace period ends the old private key is destroyed regardless of stragglers; a contact that missed the rotation (offline too long) re-verifies by receiving the card again over any human channel — same as first add.
 
 **Losing the key** = new identity: re-share your card. There is deliberately no recovery ceremony.
 
@@ -89,7 +92,7 @@ fingerprint = "sha256:" + base64url( SHA-256( SubjectPublicKeyInfo ) )
 
 ## 3. Contact cards (vCard)
 
-A PACT contact card is a standard **vCard 4.0** (RFC 6350) with five extension properties (three required), so it saves into phone contact books, syncs like every other contact, and travels over WhatsApp/email/AirDrop/QR unchanged:
+A PACT contact card is a standard **vCard 4.0** (RFC 6350) with five extension properties (two always required, a third required unless a relay stands in), so it saves into phone contact books, syncs like every other contact, and travels over WhatsApp/email/AirDrop/QR unchanged:
 
 ```
 BEGIN:VCARD
@@ -100,16 +103,16 @@ EMAIL:alina@example.com
 X-PACT-VERSION:1
 X-PACT-ENDPOINT:https://agent.alina.example/mcp
 X-PACT-KEY:sha256:rAGyIJ6GNU-4UyN7XeD0-rE8f8v0M6YcAZNpYX_s8Qs
-X-PACT-GATEWAY:https://gw.pact.example/mcp
+X-PACT-GATEWAY:https://gw.pact.example
 END:VCARD
 ```
 
 | Property | Required | Meaning |
 |---|---|---|
 | `X-PACT-VERSION` | yes | Protocol major version (`1`) |
-| `X-PACT-ENDPOINT` | yes | The person's agent MCP server URL |
+| `X-PACT-ENDPOINT` | yes, unless gateway | The person's agent MCP server URL — may be absent when `X-PACT-GATEWAY` is present (a relay-assisted node, §10's T4, has no inbound endpoint at all) |
 | `X-PACT-KEY` | yes | SPKI fingerprint (§2) — the identity to pin |
-| `X-PACT-GATEWAY` | no | Store-and-forward relay to use when the endpoint is unreachable (§9) |
+| `X-PACT-GATEWAY` | no | Store-and-forward relay to use when the endpoint is unreachable — a base URL; the relay surface hangs under it (§9) |
 | `X-PACT-SEAL` | no | Inbound sealing policy: `none`\|`optional`\|`required` (§13). Absent = `none` (a 1.0 peer) |
 
 **`FN` is the sender's own claim, and carries no authority.** The identity is
@@ -126,6 +129,8 @@ bidirectional-format characters before rendering it, and fold confusable scripts
 when deciding whether two names collide. None of this is wire-visible — a card is
 accepted or rejected on its signature and its `X-PACT-KEY`, never on its name.
 
+Intake is strict exactly where identity or reachability is at stake. A receiver MUST reject a card without `X-PACT-KEY`, a card whose `X-PACT-VERSION` names a major version other than `1`, and a card carrying neither `X-PACT-ENDPOINT` nor `X-PACT-GATEWAY` — each with `bad_request`. There is no key to pin, no version in common, or no way to ever reach the peer; accepting such a card only defers the failure to a worse moment. Unknown `X-PACT-*` properties are preserved and ignored, which is how minor versions stay compatible.
+
 The card a phone shares natively as "contact QR" is therefore already a PACT identity. An agent watches the phone book (or an import action): any contact carrying `X-PACT-*` fields is offerable as "connect our agents?" — which triggers the manual flow of §5.2. Ordinary contacts apps preserve unknown `X-` properties, which is exactly why vCard is the carrier: **no new sharing channel is invented**.
 
 ---
@@ -135,10 +140,10 @@ The card a phone shares natively as "contact QR" is therefore already a PACT ide
 An invite is a short URL whose entire state lives server-side with the issuer:
 
 ```
-https://agent.alina.example/mcp#invite=inv_8Qq1xZk3
+https://agent.alina.example/i/inv_8Qq1xZk3
 ```
 
-(The token rides in the URL fragment; the base is the issuer's endpoint. A QR of this URL is the shareable form. A `pact://` deep-link wrapper MAY carry the same two values for app routing.)
+(The token is a path segment on the issuer's host — `/i/<token>` — because the landing below is served by the issuer, and a URL *fragment* never reaches a server. A QR of this URL is the shareable form. A `pact://` deep-link wrapper MAY carry the same two values for app routing.)
 
 Issuer-side settings per invite — because state is server-side, all of this is enforceable and changeable *after* the link is shared:
 
@@ -151,7 +156,7 @@ Issuer-side settings per invite — because state is server-side, all of this is
 | `label` | — | "Pune conference 2026" — shows on incoming requests |
 | revoked | — | Deleting the token invalidates the link at the protocol level; nothing cryptographic to chase |
 
-The invite URL itself contains no personal data and no key — only the bearer token. The URL resolves (over TLS, to the endpoint the issuer personally handed over as QR/link) to a landing page serving the issuer's **signed card**: the vCard plus a signature over it by the issuer's key. The redeemer therefore holds the issuer's card *before* redeeming — which is also what lets a guest seal `redeem_invite` toward a `required` issuer (§13) — and redemption re-returns the same signed card in-band, so the redeemer pins a key that provably belongs to the endpoint the issuer distributed.
+The invite URL itself contains no personal data and no key — only the bearer token. The URL resolves (over TLS, to the endpoint the issuer personally handed over as QR/link) to a landing page serving the issuer's **signed card**: the vCard plus a signature over it by the issuer's key. The same URL serves two audiences by content negotiation: a browser gets the human landing page; a client sending `Accept: application/pact-invite+json` (or appending `?format=json`) gets `{"card","card_sig","spki"}` — the signed card plus the issuer's full public key (`spki`, base64url DER), which the redeemer MUST verify against the card's `X-PACT-KEY` per §2 before use. An unknown, revoked, expired, or used-up token answers with one indistinguishable not-found on both views. The redeemer therefore holds the issuer's card *before* redeeming — which is also what lets a guest seal `redeem_invite` toward a `required` issuer (§13) — and redemption re-returns the same signed card in-band, so the redeemer pins a key that provably belongs to the endpoint the issuer distributed.
 
 ---
 
@@ -165,9 +170,11 @@ stateDiagram-v2
     none --> pending_out : I redeemed an invite /<br/>sent a request
     none --> pending_in : someone requested me
     pending_in --> active : I approve
-    pending_in --> none : I reject / request expires
+    pending_in --> blocked : I reject
+    pending_in --> none : request expires
     pending_out --> active : they approve<br/>(contact_accepted call)
-    pending_out --> none : rejected / expired
+    pending_out --> blocked : rejected<br/>(contact_rejected call)
+    pending_out --> none : expired
     active --> blocked : I block
     blocked --> active : I unblock
     active --> none : remove_contact<br/>(either side)
@@ -227,6 +234,8 @@ sequenceDiagram
 
 The vCard B received out-of-band is the trust anchor: the `contact_accepted` caller must present exactly that key. Trust in the card equals trust in the channel that carried it — which is the same trust people already place in a shared phone number.
 
+**Rejection:** declining a request is a demotion, not a deletion. The requester's row moves to `blocked`, so a rejected stranger cannot simply knock again — their next `request_contact` receives the same `{"status": "pending"}` any stranger gets, while nothing is recorded and the owner is never bothered: blocked MUST be indistinguishable from never-met (§12). The rejecting side MAY tell the peer by calling the pending-tier `contact_rejected` tool (§6.2), the mirror of `contact_accepted`; the default is silence. A requester that receives `contact_rejected` moves its own `pending_out` row to `blocked` — its record that the approach was declined and is not to be repeated.
+
 **Removal / blocking:** `remove_contact` notifies the peer and deletes the pin on both sides (effective locally regardless — enforcement is "your fingerprint is no longer in my list"). Blocking is local-only: the contact silently drops to guest tier; no notification is sent.
 
 ---
@@ -248,13 +257,13 @@ flowchart TD
 
 ### 6.2 Core tools
 
-All tools return MCP tool results; errors use the codes of §12. `msg_id`-bearing calls are idempotent: the same `msg_id` re-sent is acknowledged, not re-executed.
+All tools return MCP tool results; errors use the codes of §12. `msg_id`-bearing calls are idempotent: the same `msg_id` re-sent is acknowledged, not re-executed. A `msg_id` MUST be a non-empty string — idempotency keyed on nothing protects nothing.
 
 **Guest tier**
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `redeem_invite` | `token`, `card` (vCard text) | `status: accepted\|pending`, `card` (signed issuer vCard), `permissions?` |
+| `redeem_invite` | `token`, `card` (vCard text) | `status: accepted\|pending`, `card` (signed issuer vCard), `card_sig`, `spki` (§2), `permissions?` |
 | `request_contact` | `card`, `note?` (≤1 KiB) | `status: pending` |
 | `sealed_call` | `protected`, `enc`, `ct`, `sig` (§13) | the sealed result — present at every tier when `X-PACT-SEAL` ≠ `none` |
 
@@ -270,14 +279,16 @@ All tools return MCP tool results; errors use the codes of §12. `msg_id`-bearin
 | Tool | Permission | Arguments | Returns |
 |---|---|---|---|
 | `send_message` | `message.text` | `msg_id`, `thread_id?`, `topic?`, `text` (≤16 KiB), `reply_to?`, `sender: agent\|human` | `thread_id`, `status: delivered\|queued_for_human` |
-| `send_media` | `message.media` | `msg_id`, `thread_id`, `filename`, `mime`, `data` (base64, ≤5 MiB) or `url` | `thread_id`, `status` |
+| `send_media` | `message.media` | `msg_id`, `thread_id`, `filename`, `mime`, `data` (base64, ≤5 MiB) or `url`, `sender: agent\|human` | `thread_id`, `status` |
 | `get_status` | `status.view` | — | `status: available\|busy\|dnd\|offline`, `note?` |
 | `check_availability` | `calendar.availability` | `window {from,to,tz}`, `duration_min` | `slots: [≤5 of {start,end,tz}]` |
 | `book_slot` | `calendar.book` | `msg_id`, `slot`, `subject`, `thread_id?` | `booking_id`, `ics` |
 | `cancel_booking` | `calendar.book` | `booking_id`, `reason?` | `ok` |
 | `update_contact` | (always) | `card` (new), `sig` (by old key over new fingerprint) | `ok` |
 | `remove_contact` | (always) | — | `ok` |
-| `get_card` | (always) | — | current signed vCard |
+| `get_card` | (always) | — | `card` (current signed vCard), `card_sig`, `spki` (§2), `limits` (§12) |
+
+Small print that keeps the table honest: `sender` on `send_media` labels exactly as on `send_message`, and on both it defaults to `agent` when absent — the safe direction; a node never invents a `human` claim. `get_status` answers from that fixed four-value vocabulary; an implementation whose upstream presence source knows richer states MUST map any state not listed to `busy`. `url` media is recorded, never fetched on receipt: fetching is an explicit owner action, made with resolve-and-vet address guards (private ranges refused), not a side effect a sender can trigger.
 
 This table is the v2 core. Anything else a person wants to expose to contacts — a document dropbox, a task intake, a payment request — is just **another MCP tool on the same server behind the same permission switchboard**. That is the point of building on MCP: the protocol never needs a new verb registry; integrations are tools.
 
@@ -308,7 +319,7 @@ sequenceDiagram
     HB->>AB: (optionally types into T1 manually - sender: human)
 ```
 
-Notes that keep this simple and sane: negotiation is *conversation* between agents inside a thread (no negotiation state machine on the wire) plus two structured calendar tools where structure matters — `check_availability` never returns raw free/busy, only ≤5 policy-filtered candidate slots, and `book_slot` returns the ICS both sides file via their private calendar MCP tools. Multi-party coordination (several employees' agents negotiating) is pairwise calls sharing one `thread_id`/`topic` — like a CC line, no group crypto. Delivery when the peer is unreachable: retry with backoff until `expires` (sender-chosen, default 24 h), then use the contact's gateway (§9) if any, else report failure to the sender's human.
+Notes that keep this simple and sane: negotiation is *conversation* between agents inside a thread (no negotiation state machine on the wire) plus two structured calendar tools where structure matters — `check_availability` never returns raw free/busy, only ≤5 policy-filtered candidate slots, and `book_slot` returns the ICS both sides file via their private calendar MCP tools. A `thread_id` belongs to the contact that first used it: a `send_message` from any other contact carrying that `thread_id` is refused `bad_request` — without this rule, thread placement is an impersonation vector, one contact writing into the middle of another's conversation. Multi-party coordination (several employees' agents negotiating) is therefore parallel per-contact threads sharing a `topic` string — still like a CC line, no group crypto, but each line is its own thread. Delivery when the peer is unreachable: retry with backoff until `expires` (sender-chosen, default 24 h), then use the contact's gateway (§9) if any, else report failure to the sender's human.
 
 ---
 
@@ -325,7 +336,18 @@ Per-contact switchboard, controlled by the owner, enforced at the owner's server
 | `calendar.book` | `book_slot`, `cancel_booking` | ✖ |
 | `integration.<name>` | any additional exposed tool | ✖ |
 
-Presets (e.g., *basic*, *friend*, *work*, *family*) are owner-defined bundles assigned at approval time and editable per contact afterwards. Beyond visibility, the owner's agent applies its own policy on top (auto-reply vs. surface-to-human, auto-book windows, quiet hours) — that is local behavior, not protocol.
+`integration.<name>` is one switch per integration, not per tool: it gates **every** tool that integration exposes, and those tools appear in a contact's `tools/list` under passthrough names of the form `<slug>_<tool>`. Integration grants sit outside preset bundles in both directions — no bundle names them, so applying a preset never grants one and never revokes one; they are always an explicit per-contact decision.
+
+Presets are owner-editable bundles assigned at approval time and adjustable per contact afterwards; four ship as documented defaults:
+
+| Preset | Grants |
+|---|---|
+| `basic` | `message.text` |
+| `work` | `message.text` · `calendar.availability` · `calendar.book` |
+| `friend` | `message.text` · `message.media` · `status.view` · `calendar.availability` · `calendar.book` |
+| `family` | the same bundle as `friend` — the distinction is the owner's to draw, not the protocol's |
+
+A preset is a label for a bundle, not a lock: hand-toggle one switch and the grant is bespoke. Beyond visibility, the owner's agent applies its own policy on top (auto-reply vs. surface-to-human, auto-book windows, quiet hours) — that is local behavior, not protocol.
 
 ```mermaid
 flowchart LR
@@ -362,7 +384,15 @@ sequenceDiagram
     GW--)AB: push "you have mail" (content-free) when queue non-empty
 ```
 
-A gateway exposes three tools — `relay_call`, `fetch_queued`, `ack` — plus an allow-list the recipient syncs (their active contact fingerprints). Senders fall back to the relay automatically after direct retries fail. Retention: until the envelope's `protected.exp` (≤ 30 days, §13).
+A relay is three tools and one control endpoint, mounted under the card's `X-PACT-GATEWAY` base URL: the MCP surface at `<gateway>/relay/mcp`, the allow-list at `<gateway>/relay/allowlist`. All of it requires a client certificate — a relay cannot run behind a terminating edge, because without the certificate key there is nothing to verify a sender's signature with (`identity_required`). Senders fall back to the relay automatically after direct retries fail.
+
+| Tool | Arguments | Returns | Errors |
+|---|---|---|---|
+| `relay_call` | `envelope` (§13.1); `to?` — if present, MUST equal `protected.to` | `status: queued`, `id`, `expires_at` | `envelope_invalid`, `permission_denied`, `rate_limited`, `bad_request` |
+| `fetch_queued` | — | `items: [{id, envelope, queued_at}]`, bounded per fetch | — |
+| `ack` | `id` | `deleted: true\|false` | `bad_request` |
+
+`relay_call` verifies without opening: `sig` MUST verify under the caller's own certificate key, `protected.from` MUST equal the caller's fingerprint, and `from` MUST be on the recipient's allow-list. An unlisted sender and an unknown recipient receive the same `permission_denied` — a relay is not an oracle for who it serves. `fetch_queued` and `ack` answer only for the caller's own queue: identity is the certificate, so nothing in the arguments names a recipient and nothing can be forged. The allow-list is synced by a recipient-authenticated `POST` of `{"senders": [fingerprints]}` to the control endpoint, replacing the previous list — a node's active contacts, and only its own list. A queued item lives `min(protected.exp, 30 days)` from queueing. A relay SHOULD bound per-recipient queue depth and MAY refuse `relay_call` with `rate_limited` when a queue is full. When a recipient is connected the relay MAY push a content-free "you have mail" wake — never the envelope itself; a recipient without push polls.
 
 **Trust note, stated plainly:** the TLS session terminates at the gateway, so an **unsealed** relayed call is readable by it — which is why relayed calls MUST be sealed (§13). A relay verifies the envelope's detached signature **without decrypting** to enforce its allow-list: sealed traffic is unreadable to it, but the protected header — sender, recipient, timing, sizes — is metadata it necessarily sees. Pick a relay you trust with metadata (your own server, a friend's, your platform's), or stay direct. Any pact node can serve the relay role; "gateway" in `X-PACT-GATEWAY` names whichever node plays it.
 
@@ -421,9 +451,9 @@ Also dropped: DIDs and identity records (the vCard is the record), SAS wordlists
 
 ## 12. Errors, limits, conformance
 
-**Errors** (MCP tool errors with `code`): `unknown_contact`, `pending_approval`, `permission_denied`, `invite_invalid` (expired/revoked/used-up), `blocked_or_unknown` (guest-tier catch-all — indistinguishable by design), `too_large`, `rate_limited` (+`retry_after`), `unavailable` (also returned for a tool an implementation is temporarily withholding), `bad_request`; from 1.1 (§13): `seal_required` (unsealed call to a sealing-required recipient), `identity_required` (no usable identity proof where one is needed), `envelope_invalid` (malformed, misdirected, mis-signed, expired, or fingerprint-mismatched envelope).
+**Errors** (MCP tool errors with `code`): `unknown_contact`, `pending_approval`, `permission_denied`, `invite_invalid` (expired/revoked/used-up), `blocked_or_unknown` (guest-tier catch-all — indistinguishable by design), `too_large`, `rate_limited` (+`retry_after`, integer seconds), `unavailable` (also returned for a tool an implementation is temporarily withholding), `bad_request`; from 1.1 (§13): `seal_required` (unsealed call to a sealing-required recipient), `identity_required` (no usable identity proof where one is needed), `envelope_invalid` (malformed, misdirected, mis-signed, expired, or fingerprint-mismatched envelope); from 1.2: `seal_not_accepted` (a sealed call to a recipient whose card says `X-PACT-SEAL: none` — the sender was told not to seal, §13.4).
 
-**Limits (defaults, advertised via `get_card` metadata):** text ≤16 KiB; media ≤5 MiB inline (larger by `url`); ≤5 slots per availability response; invite `expires_at` ≤90 days; queue retention ≤30 days; per-contact rate default 60 calls/hour; guest tier 10/hour/IP+key.
+**Limits are defaults — operator-tunable, and discoverable:** the numbers below are what an untuned node enforces; an operator may raise or lower them, and the values in force are advertised as a `limits` object in the `get_card` result with members `text_bytes`, `note_bytes`, `media_inline_bytes`, `availability_slots`, `invite_ttl_days`, `contact_calls_per_hour`, `guest_calls_per_hour`. Defaults: text ≤16 KiB; media ≤5 MiB inline (larger by `url`); ≤5 slots per availability response; invite `expires_at` ≤90 days; a relayed queue item lives `min(envelope exp, 30 days)` (§9); per-contact rate 60 calls/hour; guest tier 10/hour per IP+key — and when one dimension is missing (no client address behind a relay, no key on a bare probe), the remaining dimension still budgets alone; neither absence buys an unmetered path.
 
 **Conformance checklist — an implementation is a PACT agent server if it:** exposes an MCP server over HTTPS accepting TLS client certificates; identifies callers by SPKI fingerprint against a contact list with guest/pending/contact tiers; implements the guest + pending tools and `send_message`, `update_contact`, `remove_contact`, `get_card`; filters `tools/list` per caller; enforces manual approval for unsolicited requests; supports invite issuance with expiry/uses/revocation; emits and imports vCards with the `X-PACT-*` properties; treats inbound strings as untrusted; honors idempotent `msg_id`. An implementation advertising `X-PACT-SEAL: optional|required` additionally implements §13: `sealed_call` at every tier, the open order, and sealed results for sealed requests.
 
@@ -455,17 +485,19 @@ Canonical JSON: UTF-8, keys sorted lexicographically, no insignificant whitespac
 
 The signature uses the sender's own algorithm regardless of the recipient's suite — which is what lets any two identities interoperate; HPKE **Auth** mode was rejected precisely because a cross-curve pair cannot share an authentication DH. Pinned encodings: ECDSA P-256/SHA-256 signatures are ASN.1 DER; Ed25519 signatures are pure Ed25519 per RFC 8032. The HPKE `info` parameter is the ASCII string `PACT-SEAL-v1`. Ed25519 identities convert to X25519 per the standard maps: the public key by the birational map of RFC 7748 §4.1, the private scalar from the SHA-512-derived, clamped scalar of RFC 8032 §5.1.5.
 
+`msg_id` is REQUIRED and MUST be non-empty — replay protection keyed on an empty string protects nothing. A protected header carrying a member not listed above MUST be rejected (`envelope_invalid`): the header is the AAD, and two implementations that disagree about what was signed cannot interoperate; extensibility, when it comes, arrives as `v: 2`.
+
 ### 13.2 The `sealed_call` tool
 
-Sealing is carried MCP-natively by one wrapper tool, `sealed_call`, present at **every** tier. Its tool arguments are the four envelope members of §13.1 at top level — `{"protected": …, "enc": …, "ct": …, "sig": …}` — and its result is an envelope of the same shape. The plaintext of a request envelope is one bare JSON object `{"method": …, "params": …, "spk": …}` (no JSON-RPC framing) whose method MUST be `tools/call` or `tools/list`; `spk` is the sender's SubjectPublicKeyInfo (base64url DER) — the key that verifies `sig` — and is REQUIRED whenever the recipient does not already pin `from` (§13.3); the inner call is dispatched exactly as if it had arrived directly from the proven identity — same tiers, same permission switchboard (§8). **The result of a sealed request MUST be sealed back to the caller** (same format, `from`/`to` swapped, `kid` naming the caller's key, the request's `msg_id` for correlation, `cty: application/pact-result+json`); result envelopes are never dispatched — the receiving caller decodes, opens, verifies the signature, and correlates, and the request-side steps of §13.3 (idempotency, tiering) do not apply to them. A plaintext request gets a plaintext result. A guest's sealed `redeem_invite`/`request_contact` is bound three ways inside the opened payload: `sig` MUST verify under `spk`, and `SHA-256(spk)` MUST equal both `from` and the `card` argument's `X-PACT-KEY`. The card carries only a fingerprint (§2), so `spk` is what makes an unpinned sender's signature verifiable at all — it is the sealed path's equivalent of the client certificate that carries the key on the mTLS path. A sealed `tools/list` from an unknown sender has no card to bind and is rejected `envelope_invalid` (guests use plain `tools/list`, which always answers).
+Sealing is carried MCP-natively by one wrapper tool, `sealed_call`, present at **every** tier. Its tool arguments are the four envelope members of §13.1 at top level — `{"protected": …, "enc": …, "ct": …, "sig": …}` — and its result is an envelope of the same shape. The plaintext of a request envelope is one bare JSON object `{"method": …, "params": …, "spk": …}` (no JSON-RPC framing) whose method MUST be `tools/call` or `tools/list`; `spk` is the sender's SubjectPublicKeyInfo (base64url DER) — the key that verifies `sig` — and is REQUIRED whenever the recipient does not already pin `from` (§13.3); the inner call is dispatched exactly as if it had arrived directly from the proven identity — same tiers, same permission switchboard (§8). **The result of a sealed request MUST be sealed back to the caller** (same format, `from`/`to` swapped, `kid` naming the caller's key, the request's `msg_id` for correlation, `cty: application/pact-result+json`); result envelopes are never dispatched — the receiving caller decodes, opens, verifies the signature, and correlates, and the request-side steps of §13.3 (idempotency, tiering) do not apply to them. A plaintext request gets a plaintext result. A guest's sealed `redeem_invite`/`request_contact` is bound three ways inside the opened payload: `sig` MUST verify under `spk`, and `SHA-256(spk)` MUST equal both `from` and the `card` argument's `X-PACT-KEY`. The card carries only a fingerprint (§2), so `spk` is what makes an unpinned sender's signature verifiable at all — it is the sealed path's equivalent of the client certificate that carries the key on the mTLS path. A sealed `tools/list` from an unknown sender has no card to bind and is rejected `envelope_invalid` (guests use plain `tools/list`, which always answers). Error results follow the sealing rule too: once a request envelope has been successfully opened, an error result MUST be sealed back like any other result — a plaintext error is only for an envelope that could not be opened at all, where there is no proven key to seal toward. `cty` is what binds direction: `application/pact-call+json` envelopes are dispatched, `application/pact-result+json` envelopes are only ever correlated, and an envelope whose `cty` does not match its position is rejected `envelope_invalid`.
 
 ### 13.3 Opening
 
-Receivers MUST validate in this order, rejecting at the first failure: decode `protected`; check `v` and `suite` supported; check `to` is a local identity; resolve `kid` to a held key; HPKE-open; verify `sig` against the pinned key of `from`, or — when `from` is not pinned — against the payload's `spk`, requiring `SHA-256(spk)` to equal `from` (and the card's `X-PACT-KEY` for guest calls carrying one); a present `spk` from a pinned sender MUST match the pin; enforce time — `now < exp` on every path, plus `|now − ts| ≤ 300 s` for directly delivered envelopes (relay-delivered ones are bounded by `exp` alone; `exp − ts` capped at 30 days, matching §9 retention); enforce `msg_id` idempotency (a replayed envelope is acknowledged with its original result, never re-executed); then dispatch. Failures map to `envelope_invalid`. A *substantive call* is any unsealed `tools/call` other than `sealed_call` itself; from an identified caller to a `required` recipient it fails `seal_required`, and a call carrying no usable identity proof where one is needed fails `identity_required` first (§12). Idempotency records for seen `msg_id`s MUST be retained at least until the envelope's `exp`. A **blocked** sender's envelopes MUST be processed exactly as an unknown sender's — the guest card-binding rules of §13.2 apply and a sealed `tools/list` is rejected `envelope_invalid` — so sealing never becomes an oracle distinguishing blocked from unknown (§12); a guest envelope whose inner call carries no `card` argument is likewise rejected `envelope_invalid`.
+Receivers MUST validate in this order, rejecting at the first failure: decode `protected`; check `v` and `suite` supported; check `to` is a local identity; resolve `kid` to a held key; HPKE-open; verify `sig` against the pinned key of `from`, or — when `from` is not pinned — against the payload's `spk`, requiring `SHA-256(spk)` to equal `from` (and the card's `X-PACT-KEY` for guest calls carrying one); a present `spk` from a pinned sender MUST match the pin; enforce time — `now < exp` on every path, plus `|now − ts| ≤ 300 s` for directly delivered envelopes (relay-delivered ones are bounded by `exp` alone; `exp − ts` capped at 30 days, matching §9 retention); enforce `msg_id` idempotency (a replayed envelope is acknowledged with its original result, never re-executed); then dispatch. Failures map to `envelope_invalid`. A *substantive call* is any unsealed `tools/call` other than `sealed_call` itself; from an identified caller to a `required` recipient it fails `seal_required`, and a call carrying no usable identity proof where one is needed fails `identity_required` first (§12). Idempotency records for seen `msg_id`s MUST be retained at least until the envelope's `exp`, and the recipient MUST enforce envelope idempotency on relay-fetched envelopes too — they are exactly the ones whose freshness is bounded by `exp` alone, so skipping the check there rebuilds the replay window the 300-second rule closes on the direct path. Envelope `msg_id`s and the inner call's `msg_id`s are separate namespaces; implementations SHOULD prefix envelope idempotency keys (`env:`) so one store serves both without collision. A **blocked** sender's envelopes MUST be processed exactly as an unknown sender's — the guest card-binding rules of §13.2 apply and a sealed `tools/list` is rejected `envelope_invalid` — so sealing never becomes an oracle distinguishing blocked from unknown (§12); a guest envelope whose inner call carries no `card` argument is likewise rejected `envelope_invalid`.
 
 ### 13.4 Negotiation
 
-`X-PACT-SEAL` on the card (§3): `none` — the recipient does not accept envelopes (`sealed_call` absent; senders MUST NOT seal); `optional` — both accepted; senders MAY seal; `required` — unsealed substantive calls are refused (plain `tools/list` still answers with whatever the transport identity earns), and senders MUST seal. Relayed calls (§9) to a recipient advertising `optional` or `required` MUST be sealed; a `none` recipient's relay necessarily carries 1.0-style unsealed `relay_call` — and can read it, which is exactly the 1.0 trust note that recipient accepted by staying at `none`.
+`X-PACT-SEAL` on the card (§3): `none` — the recipient does not accept envelopes (`sealed_call` absent; senders MUST NOT seal); `optional` — both accepted; senders MAY seal; `required` — unsealed substantive calls are refused (plain `tools/list` still answers with whatever the transport identity earns), and senders MUST seal. Relayed calls (§9) to a recipient advertising `optional` or `required` MUST be sealed; a `none` recipient's relay necessarily carries 1.0-style unsealed `relay_call` — and can read it, which is exactly the 1.0 trust note that recipient accepted by staying at `none`. A node MAY additionally require transport client certificates (a `client_cert` posture knob) and refuse a certificate-less `sealed_call` with `identity_required`. That is an owner's hardening choice about their own front door, not a protocol contradiction: the envelope still proves who is calling; the certificate requirement decides who may knock at all. Such a node is unreachable through terminating edges by construction — which is sometimes exactly the point.
 
 ### 13.5 Stated trade-offs
 
@@ -473,7 +505,7 @@ Unchanged in spirit from §11, extended by sealing, and documented rather than p
 
 ---
 
-## Appendix: worked examples
+## Appendix A: worked examples
 
 **Invite redeem (MCP tool call, B → A's server):**
 
@@ -486,7 +518,7 @@ Unchanged in spirit from §11, extended by sealing, and documented rather than p
     } } }
 ```
 
-Response: `{ "status": "pending", "card": "<Alina's vCard>", "card_sig": "<b64 sig by Alina's key over the vCard bytes>" }`
+Response: `{ "status": "pending", "card": "<Alina's vCard>", "card_sig": "<b64 sig by Alina's key over the vCard bytes>", "spki": "<b64url DER SubjectPublicKeyInfo of Alina's key>" }`
 
 **Message (A's agent → B's server):**
 
@@ -561,4 +593,4 @@ Four vectors, one per sender/recipient curve pairing. Keys are PKCS#8 DER (hex);
 
 ---
 
-*End of PACT 1.1.0-draft.*
+*End of PACT 1.2.0-draft.*
