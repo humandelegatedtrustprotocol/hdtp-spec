@@ -1,6 +1,6 @@
 # PACT — Personal Agent Communication & Trust Protocol
 
-**Version 1.2.0-draft · 2026-08-30 · adopts the deployed wire contracts — invite landing (§4), thread ownership (§7), relay verbs (§9), SPKI distribution (§2), rotation grace (§2), preset defaults (§8), tunable limits (§12)**
+**Version 1.2.0 · 2026-08-30 · adopts the deployed wire contracts — invite landing (§4), thread ownership (§7), relay verbs (§9), SPKI distribution (§2), rotation grace (§2), preset defaults (§8), tunable limits (§12)**
 
 PACT is a deliberate exercise in simplicity. An earlier hardened draft of this protocol (kept on file) was cryptographically thorough but heavy: sealed envelopes, key hierarchies, SAS ceremonies, DIDs, route pseudonyms. This spec keeps the parts that deliver the cause and removes the rest. (1.1 deliberately re-adopted exactly one of the removed pieces — a narrow sealed envelope, §13 — because terminating edges and relays need identity and confidentiality that survive them; everything else stayed removed.):
 
@@ -593,4 +593,4 @@ Four vectors, one per sender/recipient curve pairing. Keys are PKCS#8 DER (hex);
 
 ---
 
-*End of PACT 1.2.0-draft.*
+*End of PACT 1.2.0.*
