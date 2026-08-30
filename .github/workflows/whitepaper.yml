@@ -36,4 +36,6 @@ jobs:
 
       - name: Publish to R2
         if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
-        run: npx wrangler r2 object put pact-cloud-private/pact-whitepaper.pdf --file dist/pact-whitepaper.pdf --remote
+        run: |
+          npx wrangler r2 object put pact-cloud-private/pact-whitepaper.pdf --file dist/pact-whitepaper.pdf --remote
+          npx wrangler r2 object put pact-cloud-private/pact-whitepaper.meta.json --file dist/pact-whitepaper.meta.json --content-type application/json --remote

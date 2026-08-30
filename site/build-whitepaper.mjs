@@ -3,7 +3,7 @@
 // for page numbers, running headers and the table of contents → headless Chrome for the PDF.
 // Everything is local: fonts from site/brand/, mermaid and paged.js from node_modules.
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import puppeteer from 'puppeteer'
@@ -79,7 +79,7 @@ const page = `<!doctype html>
   <div class="about">
     <p class="about-title">About this document</p>
     <p>This is the normative specification of PACT, the Personal Agent Communication &amp; Trust
-    protocol. Its status is <strong>draft</strong>: version ${esc(version)}, dated ${esc(date)}.${
+    protocol. Its status is <strong>${version.includes('-draft') ? 'draft' : 'released'}</strong>: version ${esc(version)}, dated ${esc(date)}.${
       revisionNote ? ` This revision ${esc(revisionNote)}.` : ''}</p>
     <p>The reference gateway is in private development.</p>
   </div>
@@ -501,8 +501,15 @@ try {
     timeout: 120_000,
   })
 
+  const { size: bytes } = await stat(pdfPath)
+  const metaPath = pdfPath.replace(/\.pdf$/, '.meta.json')
+  await writeFile(metaPath, JSON.stringify({
+    version, date, pages, headings: headings.length, diagrams: rendered, bytes,
+    status: version.includes('-draft') ? 'draft' : 'released',
+  }) + '\n')
+
   console.log(`diagrams: ${diagrams.join(' · ')}`)
-  console.log(`built ${pdfPath} — ${pages} pages, ${headings.length} headings, ${rendered} diagrams, spec ${version} (${date})`)
+  console.log(`built ${pdfPath} — ${pages} pages, ${headings.length} headings, ${rendered} diagrams, spec ${version} (${date}) · meta ${metaPath}`)
 } finally {
   await browser.close()
 }

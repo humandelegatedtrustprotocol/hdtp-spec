@@ -5,7 +5,7 @@
   "description": "Whitepaper PDF build for the PACT specification.",
   "scripts": {
     "build": "node site/build-whitepaper.mjs",
-    "publish": "wrangler r2 object put pact-cloud-private/pact-whitepaper.pdf --file dist/pact-whitepaper.pdf --remote"
+    "publish": "wrangler r2 object put pact-cloud-private/pact-whitepaper.pdf --file dist/pact-whitepaper.pdf --remote && wrangler r2 object put pact-cloud-private/pact-whitepaper.meta.json --file dist/pact-whitepaper.meta.json --content-type application/json --remote"
   },
   "dependencies": {
     "markdown-it": "14.1.0",
