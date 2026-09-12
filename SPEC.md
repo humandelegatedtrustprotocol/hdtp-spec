@@ -1,35 +1,35 @@
 # PACT — Personal Agent Communication & Trust Protocol
 
-**Version 2.0.0-draft · 2026-09-12 · the identity generation: a person-held root, hosting by grant, and a self-certifying identity log (§2, §3, §13, §14, Appendix C)**
+**Version 2.0.0-draft · 2026-09-13 · the identity generation: the person is the certificate authority, the host holds a leaf (§2, §3, §5.3, §9, §13, §14, Appendix C)**
 
-PACT is a deliberate exercise in simplicity. An earlier hardened draft of this protocol (kept on file) was cryptographically thorough but heavy: sealed envelopes, key hierarchies, SAS ceremonies, DIDs, route pseudonyms. This spec keeps the parts that deliver the cause and removes the rest. 1.1 re-adopted exactly one of the removed pieces — a narrow sealed envelope, §13 — because terminating edges and relays need identity and confidentiality that survive them. 2.0 re-adopts a second, for a reason of the same kind: an identity that belongs to a person rather than to whoever hosts it needs the key that *controls* it separated from the keys that *serve* it, and a record of that control anyone can verify. That is §14: a root key the person holds, a grant that lets a host serve the identity for a time, and a small signed log. Still no DIDs, no SAS, no prekeys, no ceremonies, no directory.
+PACT is a deliberate exercise in simplicity. An earlier hardened draft of this protocol (kept on file) was cryptographically thorough but heavy: sealed envelopes, key hierarchies, SAS ceremonies, DIDs, route pseudonyms. This spec keeps the parts that deliver the cause and removes the rest. 1.1 re-adopted exactly one of the removed pieces — a narrow sealed envelope, §13 — because terminating edges need identity and confidentiality that survive them. 2.0 changes one thing more, and it is older than any of the dropped machinery: an identity that belongs to a person rather than to whoever hosts it needs the key that *controls* it separated from the key that *serves* it, and X.509 has expressed exactly that separation since 1988. In 2.0 **the person is a certificate authority**. The root certificate in their wallet is the identity; the host they choose holds a leaf certificate the root issued, naming the address it serves and the date its authority ends. Still no DIDs, no SAS, no prekeys, no ceremonies, no directory — and no log, no sequence numbers, no relay.
 
-- **The identity is the person's; the host serves it.** An identity is the hash of a genesis operation the person signed with a root key that lives in their wallet and does nothing else. The host they choose holds the online keys — one for TLS and signatures, one for sealing — under a grant the root signed, scoped and expiring. Contacts pin the identity, learn its current keys and address from its log, and never have to be told when any of them change. Moving to another host is one signature, and no host can delay or block it (§14).
+- **The identity is the person's; the host serves it.** An identity is the fingerprint of a self-signed root certificate whose private key lives in the person's wallet and signs nothing but certificates. The host — their own machine, or a provider — holds a leaf the root issued for one address, valid for at most a year, and that leaf's key is the one that speaks: it is the TLS certificate, it signs every call, contacts seal to it. Contacts pin the root, learn the current leaf from every exchange, and never have to be told when it is renewed. Moving is a new leaf for a new address, and a contact request from there (§5.3, §9).
 - **Your agent is a publicly exposed MCP server.** Sending a message *is* calling the other party's `send_message` tool. Everything a contact may do — messages, media, status, availability, calendar booking — is an MCP tool that is visible and callable only per your permission settings for that contact.
-- **Contacts are vCards in your phone book.** A contact card is a standard vCard with a few extra `X-PACT-*` fields. Share it over WhatsApp, email, AirDrop, or as a QR — the channels people already use. Adding a contact is always a manual, human approval.
+- **Contacts are vCards in your phone book.** A contact card is a standard vCard with two extra `X-PACT-*` fields, one of them the leaf certificate. Share it over WhatsApp, email, AirDrop, or as a QR — the channels people already use. Adding a contact is always a manual, human approval.
 - **Invites are short URLs.** All settings (expiry, max uses, auto-accept, permission preset) live on the *sender's* server, so a link is revocable at the protocol level by deleting it. A QR of the link invites a room full of people.
-- **Threads like a messenger.** Conversations carry a `thread_id` and optional `topic`, shared by both sides. Agents talk to agents; a human can type into the same thread manually. WhatsApp, but the participants are agents — direct, or via a gateway when a party is behind NAT or offline.
+- **Threads like a messenger.** Conversations carry a `thread_id` and optional `topic`, shared by both sides. Agents talk to agents; a human can type into the same thread manually. WhatsApp, but the participants are agents, and each one is reachable because it is hosted, not because a server in the middle holds its mail.
 
-**Non-goals (accepted trade-offs, stated honestly):** no forward secrecy at the envelope layer (§13) — a later key compromise decrypts recorded sealed traffic, bounded in 2.0 by the sealing key's turnover; carriers always see metadata (sender, recipient, timing, sizes), and an unsealed call is readable by whatever carries it; no anonymity or traffic-analysis resistance; no directory — a bare identifier resolves to nothing, every relationship starts from a card or an invite; no recovery of a lost root — the person's backups are the only copy. §11 records what was dropped from the hardened draft and what each drop costs.
+**Non-goals (accepted trade-offs, stated honestly):** no forward secrecy at the envelope layer (§13) — a later key compromise decrypts recorded sealed traffic, bounded in 2.0 by a leaf's lifetime; edges always see metadata (sender, recipient, timing, sizes), and an unsealed call is readable by whatever carries it; no anonymity or traffic-analysis resistance; no directory — a bare fingerprint resolves to nothing, every relationship starts from a card or an invite; no store-and-forward — a person who must be reachable while their own machine is off is hosted (§9), and 2.0 has no relay role; no recovery and no rotation of a lost or compromised root — the person's backups are the only copy. §11 records what was dropped from the hardened draft and what each drop costs.
 
 ---
 
 ## Table of contents
 
 1. Architecture
-2. Identity and mTLS
+2. Identity, certificates and mTLS
 3. Contact cards (vCard)
 4. Invites
 5. Adding contacts (flows)
 6. The agent MCP server and its tools
 7. Messaging and threads
 8. Permissions
-9. Relay mode
+9. Hosting
 10. Deployment
 11. Security notes and what was left out
 12. Errors, limits, conformance
 13. Sealed envelopes
-14. Identity operations and the log
+14. Certificates
 Appendix A: worked examples
 Appendix B: sealed-envelope test vectors
 Appendix C: coexistence with 1.x
@@ -41,7 +41,7 @@ Appendix C: coexistence with 1.x
 ```mermaid
 flowchart LR
     subgraph SA["Person A"]
-        HA["Human A<br/>(phone app + contact book)"]
+        HA["Human A<br/>(phone app + contact book + wallet)"]
         AA["Agent A<br/>(LLM + policies)"]
         MA["MCP server A<br/>https://a.example/mcp"]
         TA["A's private tools<br/>calendar, mail (MCP)"]
@@ -51,7 +51,7 @@ flowchart LR
     end
 
     subgraph SB["Person B"]
-        HB["Human B<br/>(phone app + contact book)"]
+        HB["Human B<br/>(phone app + contact book + wallet)"]
         AB["Agent B<br/>(LLM + policies)"]
         MB["MCP server B<br/>https://b.example/mcp"]
         TB["B's private tools<br/>calendar, mail (MCP)"]
@@ -62,48 +62,46 @@ flowchart LR
 
     AA -- "mTLS · calls B's tools<br/>send_message, book_slot…" --> MB
     AB -- "mTLS · calls A's tools" --> MA
-
-    GW["Gateway (optional)<br/>store-and-forward relay"]
-    AA -. "when B offline / NATed" .-> GW
-    GW -. "B fetches queued calls" .-> AB
 ```
 
-Both sides are symmetric: every participant runs (or is hosted with) an **agent** and exposes an **MCP server** over HTTPS. "A messages B" = A's agent makes one mTLS-authenticated MCP tool call to B's server. B's server identifies the caller by the key it proves — from the client certificate, or from a sealed envelope's signature (§2, §13) — resolves that key to a pinned identity through B's contact list, and shows/allows exactly the tools B's permission settings grant that contact. Humans sit above their agents: they approve contacts, set permissions, and can type messages that travel the same rails.
+Both sides are symmetric: every participant runs (or is hosted with) an **agent** and exposes an **MCP server** over HTTPS. "A messages B" = A's agent makes one mTLS-authenticated MCP tool call to B's server. B's server identifies the caller by the certificate chain it proves — as the client certificate, or inside a sealed envelope's signature (§2, §13) — validates that chain to a root pinned in B's contact list, and shows/allows exactly the tools B's permission settings grant that contact. Humans sit above their agents: they approve contacts, set permissions, hold the wallet that issues their host its certificate, and can type messages that travel the same rails.
 
 ---
 
-## 2. Identity, keys and mTLS
+## 2. Identity, certificates and mTLS
 
-An identity is a **pid**: the hash of a signed genesis operation (§14). The person who signed it holds the **root** key that controls it. A **host** — the person's own machine, or a platform — serves the identity under a **grant** the root signed, and holds two online keys for it: the **signing key** `S`, which is the TLS keypair and signs every call, and the **sealing key** `E`, which contacts seal to (§13). What 1.x called *the* keypair is `S`; what 1.x pinned is now learned from the log and re-learned whenever it changes.
-
-| Key | Held by | Algorithm | Does |
-|---|---|---|---|
-| root, one or two in priority order | the person, in a wallet | Ed25519; P-256 permitted for a root held in a passkey | signs operations, nothing else |
-| delegate | the host, one per identity | Ed25519 | signs the host's operations within its grant |
-| `S` | the host | ECDSA P-256 or Ed25519 | TLS client and server certificate; the detached signature on envelopes |
-| `E` | the host | X25519 | the HPKE recipient key; turned over on demand and on every move, the previous kept 30 days |
-
-Fingerprints keep their 1.x form and name keys everywhere — a key id (`kid`) is:
+An identity is a **root certificate**: self-signed X.509, its private key held by the person in a wallet and used for one thing, issuing certificates. The root's fingerprint is the identity's name everywhere — in pins, in envelopes, on screen — and keeps the 1.x form, applied to the root's key:
 
 ```
-kid = "sha256:" + base64url( SHA-256( SubjectPublicKeyInfo ) )
+fingerprint = "sha256:" + base64url( SHA-256( SubjectPublicKeyInfo ) )
 ```
 
-**Key distribution:** the card pins the pid and states the current head; sealing (§13) and signature verification need the *keys*, which the log at the identity's endpoint carries in full (§14.4). The full `spki` of `S` still travels wherever a card does — the invite landing's machine view (§4), the `redeem_invite` result, the `get_card` result, and a sealed request's `spk` (§13.2) — so that a receiver holding only a card can verify a first signature before it has fetched the log. A receiver MUST verify that `SHA-256(spki)` equals the card's `X-PACT-KEY` before using distributed key bytes for anything, and MUST verify the log before pinning.
+A **host** — the person's own machine, or a provider — serves the identity under a **leaf certificate** the root issued. The leaf carries the host's own key, the one address the identity answers at, and the dates between which the host's authority runs. The leaf's key does the three jobs the 1.x identity key did: it is the TLS certificate, it signs every envelope, and contacts seal to it (§13). What 1.x pinned was that key; 2.0 pins the root above it and learns the leaf. §14 gives both certificates' profile and the validation rules; this section is what they mean.
 
-**Client side (who is calling):** a caller proves possession of `S` in either of two ways — by presenting it as a TLS client certificate (self-signed, long-lived, CN free-form), or by the detached signature on a sealed envelope (§13), which survives pipes that strip client certificates. The receiving server MUST resolve the proven key to a pid through its pins: the key is `S` at the pinned head, or a retired `S` still within its grace (§14.3), of exactly one pinned identity. When both proofs are present their keys MUST match, else `envelope_invalid`. **The pid is the identity; the proven key is how it speaks today.** A key that resolves to no pin gets the *guest* tier only (§6.1).
+| Certificate | Key held by | Algorithm | Names | Lives |
+|---|---|---|---|---|
+| root | the person, in a wallet | Ed25519; P-256 permitted | the identity, by fingerprint | as long as the identity; never rotated |
+| leaf | the host, one per identity | Ed25519 or ECDSA P-256 | the endpoint, as its subject alternative name | at most 398 days, RECOMMENDED one year; renewed by the wallet |
 
-**Server side (who am I calling):** the endpoint URL comes from the log (§14.4), seeded by the card. Its TLS server certificate is validated as either (a) normal WebPKI for the URL's hostname — the default, works with Let's Encrypt — or (b) the contact's `S` itself (self-signed server certificate; for P2P/no-domain setups). Rule: if the certificate's key is the contact's `S` at the pinned head, or a retired `S` still within its grace, accept; else require WebPKI validity for the hostname. Either way the *authorization* anchor is the pid pinned at add-contact time, which no key change moves.
+A **chain** is exactly two certificates, leaf then root. It travels wherever a key had to travel in 1.x: as the TLS client certificate chain, inside every sealed envelope (§13.2), in the `redeem_invite` and `get_card` results, and on the invite landing (§4). A card carries the leaf alone (§3); the root arrives with the first exchange, and nothing about it needs to be trusted in advance, because it must hash to the fingerprint the leaf names as its issuer.
 
-**Key turnover** is a `keys` operation in the log (§14.2), signed by the host's delegate under its grant or by the root: the new `S` or `E` is published with its kid, the previous `E` keeps a grace of 30 days so late envelopes still open, and the previous `S` keeps the same grace so calls in flight still verify. Nothing is announced. Every request and every response carries its author's current head (§13.1), so a contact learns of the turnover on the next exchange in either direction and re-verifies the log from its pinned genesis before accepting the new key. The 1.x `update_contact` rotation remains for 1.x peers (Appendix C) and for a 2.0 host that chooses to send it as a courtesy; it is never what authorizes a 2.0 key.
+**Verification**, in full in §14.2: the root is self-signed and hashes to the fingerprint the verifier holds or is about to pin; the leaf is signed by that root, within its validity now, no longer than 398 days, and names exactly one endpoint; that endpoint equals the address in question, byte for byte. Then the leaf's key is the identity's voice at that address — until a newer leaf says otherwise (§14.3).
 
-**Losing keys.** A lost or compromised `S` or `E` is a turnover: the host publishes new ones, and a revoked or lapsed host cannot (§14.3). A lost **root** is the end of the identity: re-share a new card from a new identity. There is deliberately no recovery ceremony; the person's own backups of the wallet are the only copy, and the wallet says so once, when the root is made.
+**Client side (who is calling):** a caller proves possession of its leaf key in either of two ways — by presenting the chain as its TLS client certificate, or by the detached signature on a sealed envelope (§13), which survives pipes that strip client certificates. The receiver validates the chain, takes the root's fingerprint as the caller's identity, and resolves it through its pins (§6.1). A pin records the root, the endpoint and the leaf last accepted: the caller's leaf must name the pinned endpoint and be no older than the pinned leaf. An older leaf proves nothing (§14.3); a different endpoint is a request to change it (§5.3). When both proofs are present their leaf keys MUST match, else `envelope_invalid`. **The root is the identity; the leaf is how it speaks today, and from where.** A chain whose root resolves to no pin gets the *guest* tier only (§6.1).
+
+**Server side (who am I calling):** the endpoint is the pinned leaf's subject alternative name — a card carries no separate address, and a wallet signs no leaf without one. The endpoint's TLS server certificate is validated as either (a) normal WebPKI for the URL's hostname — the default, works with Let's Encrypt and behind terminating edges — or (b) the contact's own chain, which a self-hosted node MAY present as its server certificate and which the caller validates to the pinned root. Either way the name in the certificate equals the host dialed, and the *authorization* anchor is the root pinned at add-contact time, which no leaf moves.
+
+**Renewal.** A leaf is renewed by the wallet issuing a new one for the same endpoint — with the same key or a new one — before the old expires; a host SHOULD ask thirty days ahead, at a moment the person is already present. Nothing is announced: every request and every result carries its author's chain, so a contact learns the new leaf on the next exchange in either direction, and because the endpoint is unchanged it needs no one's approval to accept it. A host keeps a superseded leaf's private key until that leaf's `notAfter`, so an envelope sealed to it by a contact that has not yet heard still opens; an envelope sealed to a key the host once held and holds no longer is answered `certificate_renewed` with the current chain (§14.4). A contact that sealed to an expired leaf learns the current one the same way — which is what keeps a card printed a year ago usable, as long as the address on it still stands.
+
+**Moving** is a new leaf for a new endpoint, a contact request from there, and the old host forgetting: §5.3 and §9.
+
+**Losing keys.** A lost or compromised leaf key is a renewal with a new key. A lost **root** is the end of the identity: re-share a new card from a new identity. A compromised root is the same, because whoever holds it can issue leaves, and no rotation ceremony could tell the two holders apart. There is deliberately no recovery and no rotation; the person's own backups of the wallet are the only copy, and the wallet says so once, when the root is made.
 
 ---
 
 ## 3. Contact cards (vCard)
 
-A PACT contact card is a standard **vCard 4.0** (RFC 6350) with a few extension properties, so it saves into phone contact books, syncs like every other contact, and travels over WhatsApp/email/AirDrop/QR unchanged. It is a summary of the identity's current state and a bootstrap for fetching its log; it is never a proof on its own (§14.4):
+A PACT contact card is a standard **vCard 4.0** (RFC 6350) with two extension properties, so it saves into phone contact books, syncs like every other contact, and travels over WhatsApp/email/AirDrop/QR unchanged:
 
 ```
 BEGIN:VCARD
@@ -112,12 +110,7 @@ FN:Alina Rao
 TEL:+91 98x xx xx xxx
 EMAIL:alina@example.com
 X-PACT-VERSION:2
-X-PACT-ID:pact:k7q3xw2m5p4r6t8y9a2b3c4d
-X-PACT-HEAD:u1B9vQ2ZkXo3mE8tR6yL1cN4pS7wA0dF9gH2jK5nB8s
-X-PACT-ENDPOINT:https://agent.alina.example/mcp
-X-PACT-KEY:sha256:rAGyIJ6GNU-4UyN7XeD0-rE8f8v0M6YcAZNpYX_s8Qs
-X-PACT-ENC:sha256:9hZtQ1mVb3xR7cL0pW4nY8sD2fG6kJ5aE1iO3uT9lM0
-X-PACT-GATEWAY:https://gw.pact.example
+X-PACT-CERT:MIIBkTCCAUOgAwIBAgIUX7…(the leaf certificate, base64url DER, folded per RFC 6350)…
 X-PACT-SEAL:required
 END:VCARD
 ```
@@ -125,31 +118,29 @@ END:VCARD
 | Property | Required | Meaning |
 |---|---|---|
 | `X-PACT-VERSION` | yes | Protocol major version: `2`. A 2.0 receiver also accepts `1` (Appendix C) |
-| `X-PACT-ID` | yes in 2.0 | The pid (§14.1) — the identity to pin |
-| `X-PACT-HEAD` | yes in 2.0 | The hash of the log's head when the card was made; a receiver that holds a newer head keeps it |
-| `X-PACT-ENDPOINT` | yes, unless gateway | The identity's agent MCP server URL; the log is served under it (§14.4). May be absent when `X-PACT-GATEWAY` is present (a relay-assisted node, §10's T4) |
-| `X-PACT-KEY` | yes | Fingerprint of `S`, the current signing key (§2). In 1.x this was the identity; in 2.0 it is what the identity currently speaks with |
-| `X-PACT-ENC` | yes in 2.0 | Fingerprint of `E`, the current sealing key |
-| `X-PACT-GATEWAY` | no | Store-and-forward relay to use when the endpoint is unreachable — a base URL; the relay surface hangs under it (§9) |
+| `X-PACT-CERT` | yes in 2.0 | The identity's current leaf certificate, base64url DER (§14.1). It carries the endpoint, the leaf key, the issuing root's fingerprint and the validity dates — everything a 1.x card spelled out in separate properties, and the signature that binds them, in one |
 | `X-PACT-SEAL` | no | Inbound sealing policy: `none`\|`optional`\|`required` (§13). Absent = `none` |
 
-Every value is short by design: 32-byte keys and 32-byte hashes, so a full card stays near 500 bytes and fits a QR code that scans at arm's length. Anything larger — a post-quantum key, when one arrives — belongs in the log, which is fetched, never scanned.
+A leaf is 400–500 bytes of DER, so a card stays under a kilobyte and in a QR code a phone reads. A root is never in a card: the leaf names it by fingerprint (its issuer key identifier, §14.1), and the root itself arrives with the first exchange. `X-PACT-ENDPOINT`, `X-PACT-KEY` and `X-PACT-GATEWAY` are 1.x properties; a 2.0 implementation writes the first two only on a compatibility card toward a peer it knows to be 1.x (Appendix C), and the third never.
 
-**`FN` is the sender's own claim, and carries no authority.** The identity is
-`X-PACT-ID`; the name beside it is whatever the card's author typed. Two contacts
-may therefore carry the same `FN` — usually because two people really are called
-the same thing, occasionally because one of them chose it. A receiving
-implementation MUST NOT treat `FN` as identifying, and SHOULD NOT present it as a
-contact's whole identity: where two pinned contacts render alike, show the
-fingerprint alongside. Implementations SHOULD also let the owner assign their own
-local name for a contact, which is the only name no peer can influence.
+What a card anchors is the **root fingerprint** and the **endpoint** — both read from the leaf, and both outliving it. A card whose leaf has expired is still a valid bootstrap for that root at that address: the first exchange brings the current leaf (§2, §14.4). *Pinning* a card means recording those two things; trust in them equals trust in the channel that carried the card, exactly as in 1.x, and the first chain that validates to that root at that endpoint is the proof of possession.
+
+**`FN` is the sender's own claim, and carries no authority.** The identity is the
+root's fingerprint; the name beside it is whatever the card's author typed, and so
+is the `commonName` inside the certificate. Two contacts may therefore carry the
+same `FN` — usually because two people really are called the same thing,
+occasionally because one of them chose it. A receiving implementation MUST NOT
+treat `FN` as identifying, and SHOULD NOT present it as a contact's whole
+identity: where two pinned contacts render alike, show the fingerprint alongside.
+Implementations SHOULD also let the owner assign their own local name for a
+contact, which is the only name no peer can influence.
 
 Treat `FN` as untrusted display input: cap its length, strip control and
 bidirectional-format characters before rendering it, and fold confusable scripts
 when deciding whether two names collide. None of this is wire-visible — a card is
-accepted or rejected on its signature and its `X-PACT-KEY`, never on its name.
+accepted or rejected on its certificate, never on its name.
 
-Intake is strict exactly where identity or reachability is at stake. A receiver MUST reject a card without `X-PACT-KEY`, a card whose `X-PACT-VERSION` names a major version it does not implement, a `2` card without `X-PACT-ID`, and a card carrying neither `X-PACT-ENDPOINT` nor `X-PACT-GATEWAY` — each with `bad_request`. There is no key to pin, no version in common, or no way to ever reach the peer; accepting such a card only defers the failure to a worse moment. A `2` card is not pinned on receipt: the receiver fetches the log at the endpoint, verifies it from the genesis that hashes to `X-PACT-ID` (§14.3), and pins the head; a card whose keys or endpoint disagree with the verified head is rejected `bad_request`. Unknown `X-PACT-*` properties are preserved and ignored, which is how minor versions stay compatible — and how a 2.0 identity's card reaches a 1.x phone book intact (Appendix C).
+Intake is strict exactly where identity or reachability is at stake. A receiver MUST reject a card without `X-PACT-CERT`, one whose certificate does not parse as §14.1 describes — no issuer key identifier, no endpoint or several, a validity longer than 398 days — and a card whose `X-PACT-VERSION` names a major version it does not implement, each with `bad_request`. There is no root to pin, no address to reach, or no version in common; accepting such a card only defers the failure to a worse moment. An *expired* leaf is not a reason to reject: the root and the endpoint are what the card is for. Unknown `X-PACT-*` properties are preserved and ignored, which is how minor versions stay compatible — and how a 2.0 identity's card reaches a 1.x phone book intact (Appendix C).
 
 The card a phone shares natively as "contact QR" is therefore already a PACT identity. An agent watches the phone book (or an import action): any contact carrying `X-PACT-*` fields is offerable as "connect our agents?" — which triggers the manual flow of §5.2. Ordinary contacts apps preserve unknown `X-` properties, which is exactly why vCard is the carrier: **no new sharing channel is invented**.
 
@@ -176,7 +167,7 @@ Issuer-side settings per invite — because state is server-side, all of this is
 | `label` | — | "Pune conference 2026" — shows on incoming requests |
 | revoked | — | Deleting the token invalidates the link at the protocol level; nothing cryptographic to chase |
 
-The invite URL itself contains no personal data and no key — only the bearer token. The URL resolves (over TLS, to the endpoint the issuer personally handed over as QR/link) to a landing page serving the issuer's **signed card**: the vCard plus a signature over it by the issuer's signing key `S`. The same URL serves two audiences by content negotiation: a browser gets the human landing page; a client sending `Accept: application/pact-invite+json` (or appending `?format=json`) gets `{"card","card_sig","spki","head","enc_spki"}` — the signed card, the issuer's full `S` (`spki`, base64url DER), which the redeemer MUST verify against the card's `X-PACT-KEY` per §2 before use, the log head the card was made at, and the full `E` (`enc_spki`), which MUST hash to the card's `X-PACT-ENC`, so a redeemer can seal its very first call without a log fetch. An unknown, revoked, expired, or used-up token answers with one indistinguishable not-found on both views. The redeemer therefore holds the issuer's card *before* redeeming — which is also what lets a guest seal `redeem_invite` toward a `required` issuer (§13) — and redemption re-returns the same signed card in-band, so the redeemer pins a key that provably belongs to the endpoint the issuer distributed.
+The invite URL itself contains no personal data and no key — only the bearer token. The URL resolves (over TLS, to the endpoint the issuer personally handed over as QR/link) to a landing page serving the issuer's **signed card**: the vCard plus a signature over it by the issuer's leaf key. The same URL serves two audiences by content negotiation: a browser gets the human landing page; a client sending `Accept: application/pact-invite+json` (or appending `?format=json`) gets `{"card","card_sig","chain"}` — the signed card and the issuer's chain (§2), whose leaf MUST byte-equal the card's `X-PACT-CERT` and which the redeemer MUST validate (§14.2) before use, so it can seal its very first call. An unknown, revoked, expired, or used-up token answers with one indistinguishable not-found on both views. The redeemer therefore holds the issuer's card *before* redeeming — which is also what lets a guest seal `redeem_invite` toward a `required` issuer (§13) — and redemption re-returns the same signed card in-band, so the redeemer pins a root that provably serves the endpoint the issuer distributed.
 
 ---
 
@@ -213,22 +204,22 @@ sequenceDiagram
     A->>A: create invite (expiry, uses, preset)
     A-->>B: QR / link via any channel
     B->>BA: scan QR
-    BA->>AS: redeem_invite(token, card_B)  [mTLS: B's client cert]
-    Note over AS: cert fingerprint MUST equal card_B's X-PACT-KEY<br/>token valid? not expired / revoked / uses left?
+    BA->>AS: redeem_invite(token, card_B)  [mTLS: B's chain]
+    Note over AS: chain valid (§14.2)? leaf = card_B's X-PACT-CERT?<br/>token valid? not expired / revoked / uses left?
     alt auto_accept invite
-        AS-->>BA: accepted + signed card_A + granted permissions
-        Note over BA: fetch and verify A's log, pin A's identity · save vCard to phone book
+        AS-->>BA: accepted + signed card_A + chain_A + granted permissions
+        Note over BA: validate chain_A · pin A's root and endpoint · save vCard to phone book
     else manual approval
-        AS-->>BA: pending + signed card_A
+        AS-->>BA: pending + signed card_A + chain_A
         AS->>A: notify: contact request (Bharat, via "Pune conference" invite)
         A->>AS: approve
-        AS->>BA: contact_accepted(card_A, permissions)  [mTLS: A's client cert = card_A key]
-        Note over BA: verify caller fingerprint = pinned card_A key
+        AS->>BA: contact_accepted(card_A, permissions)  [mTLS: A's chain]
+        Note over BA: caller's root = pinned root · endpoint = pinned endpoint
     end
     Note over AS,BA: both sides active · both phone books updated
 ```
 
-Key exchange is complete with zero extra ceremony: **B proved possession of B's key** in step 4 — by presenting it as the client certificate, or by the signature on a sealed `redeem_invite` (§13); either way the server checks the proven key matches the submitted card — and **A's key reached B signed, over the endpoint A personally handed out** in the QR. Mutual mTLS (or sealed calls) from here on.
+Key exchange is complete with zero extra ceremony: **B proved possession of B's leaf key** in step 4 — by presenting the chain as the client certificate, or by the signature on a sealed `redeem_invite` (§13); either way the server validates the chain and checks its leaf is the one in the submitted card — and **A's chain reached B signed, over the endpoint A personally handed out** in the QR. Mutual mTLS (or sealed calls) from here on.
 
 ### 5.2 Manual flow (vCard shared over existing channels)
 
@@ -244,38 +235,52 @@ sequenceDiagram
     B->>B: saved to phone contact book
     BA->>B: "This contact has a PACT agent - connect?"
     B->>BA: yes
-    BA->>AS: request_contact(card_B, note)  [mTLS: B's cert = card_B key]
+    BA->>AS: request_contact(card_B, note)  [mTLS: B's chain]
     AS-->>BA: pending
     AS->>A: notify: request from Bharat (unsolicited - always manual)
     A->>AS: approve + choose permission preset
-    AS->>BA: contact_accepted(card_A, permissions)
-    Note over BA: verify caller fingerprint = X-PACT-KEY<br/>from the vCard B already holds
+    AS->>BA: contact_accepted(card_A, permissions)  [mTLS: A's chain]
+    Note over BA: caller's root = the issuer of the certificate<br/>in the vCard B already holds · endpoint = the card's
 ```
 
-The vCard B received out-of-band is the trust anchor: the `contact_accepted` caller must present exactly that key. Trust in the card equals trust in the channel that carried it — which is the same trust people already place in a shared phone number.
+The vCard B received out-of-band is the trust anchor: the `contact_accepted` caller must present a chain that validates to the root the card's certificate names, at the endpoint it names. Trust in the card equals trust in the channel that carried it — which is the same trust people already place in a shared phone number.
 
-**What "pin" means in 2.0.** In both flows the thing pinned is the card's `X-PACT-ID`, and pinning has one more step than in 1.x: before an agent stores the pin it fetches the identity's log from the card's endpoint, verifies it from the genesis that hashes to that pid (§14.3), and records the head. The key a caller proves — as a client certificate or an envelope signature — is checked against `S` at that head, and "the same key" in the notes above means the key the verified log names, not merely the key the card shows. A card that cannot be verified is not a contact; it is a piece of paper.
+**What "pin" means in 2.0.** In both flows the thing pinned is the **root fingerprint** the card's leaf names as its issuer, together with the **endpoint** the leaf names, and the leaf itself as the latest one seen. The chain a caller proves — as a client certificate or inside an envelope — is validated to that root and checked against that endpoint, and "the same key" in the notes above means the leaf key of a chain that passes, not merely the key the card shows. A card whose chain never validates is not a contact; it is a piece of paper.
 
 **Rejection:** declining a request is a demotion, not a deletion. The requester's row moves to `blocked`, so a rejected stranger cannot simply knock again — their next `request_contact` receives the same `{"status": "pending"}` any stranger gets, while nothing is recorded and the owner is never bothered: blocked MUST be indistinguishable from never-met (§12). The rejecting side MAY tell the peer by calling the pending-tier `contact_rejected` tool (§6.2), the mirror of `contact_accepted`; the default is silence. A requester that receives `contact_rejected` moves its own `pending_out` row to `blocked` — its record that the approach was declined and is not to be repeated.
 
-**Removal / blocking:** `remove_contact` notifies the peer and deletes the pin on both sides (effective locally regardless — enforcement is "your fingerprint is no longer in my list"). Blocking is local-only: the contact silently drops to guest tier; no notification is sent.
+**Removal / blocking:** `remove_contact` notifies the peer and deletes the pin on both sides (effective locally regardless — enforcement is "your root is no longer in my list"). Blocking is local-only: the contact silently drops to guest tier; no notification is sent.
+
+### 5.3 A contact at a new address
+
+When a person moves to another host, the new host holds a fresh leaf naming its own endpoint and a copy of the person's contact book (§9), and nothing of the old host's. It reaches each contact from the new address by calling `update_contact` with the new card, over a client certificate or a sealed envelope carrying the new chain. The receiver validates the chain to the root it has pinned — so this is provably the same person — and finds an endpoint different from the one it pinned and a leaf newer than the one it holds. What happens next is the owner's setting, **`accept_new_hosts`**:
+
+- `auto`, the default: the pin's endpoint and leaf are replaced, the call answers `ok`, and the next message flows to the new address; the change is recorded in the owner's audit. The default is `auto` because the root's signature on the new leaf is the person's own authorisation of the new host, and asking their contact to confirm what they already signed adds a human step to a question the cryptography has settled.
+- `ask`: the call answers `{"status": "pending"}`; the request appears beside contact requests, naming the contact, the old address and the new one; until the owner decides, every other call from the new address answers `pending_approval`, and messages to the contact keep going to the old address, where they may fail. Approving re-pins as `auto` would have; rejecting leaves the pin as it was, and the new address is a stranger the owner MAY block.
+
+Either way the old host's leaf — still within its validity, and still in the old host's hands unless it has done what §9 requires — is now *older* than the one pinned, so a call from the old address proves nothing (§14.3). A contact the new host could not reach — asleep for the whole validity of the old leaf, or absent from the contact book — needs the card again over a human channel, as a contact that missed a rotation always did: the person re-shares it, or publishes the QR where people find them, and the next exchange carries the current leaf.
 
 ---
 
 ## 6. The agent MCP server and its tools
 
-Every participant exposes one MCP server (Streamable HTTP, current MCP spec) over HTTPS with the mTLS rules of §2. **Authorization is the proven key, resolved to a pinned identity** (§2) — client certificate or envelope signature, never OAuth on this surface; that identity selects a tier and a permission profile, and MCP `tools/list` returns only what that caller may use. (Consumer MCP clients such as hosted chat apps cannot present client certificates; that is fine — callers here are agents. A separate OAuth-protected façade for third-party assistants can be added later without touching this protocol.)
+Every participant exposes one MCP server (Streamable HTTP, current MCP spec) over HTTPS with the mTLS rules of §2. **Authorization is the proven chain, resolved to a pinned root** (§2) — client certificate or envelope signature, never OAuth on this surface; that identity selects a tier and a permission profile, and MCP `tools/list` returns only what that caller may use. (Consumer MCP clients such as hosted chat apps cannot present client certificates; that is fine — callers here are agents. A separate OAuth-protected façade for third-party assistants can be added later without touching this protocol.)
 
 ### 6.1 Tiers
 
 ```mermaid
 flowchart TD
-    C["Incoming call<br/>proven key S<br/>(cert or envelope sig, §2)"] --> F{"S at a pinned head,<br/>or in grace?"}
+    C["Incoming call<br/>chain: leaf + root<br/>(client cert or envelope sig, §2)"] --> V{"chain valid?<br/>(§14.2)"}
+    V -- no --> R["refused<br/>envelope_invalid · handshake"]
+    V -- yes --> F{"root pinned?"}
     F -- no --> G["GUEST tier<br/>redeem_invite · request_contact"]
+    F -- "blocked, or the leaf is older<br/>than the pinned one (§14.3)" --> G
     F -- "yes, pending_out" --> P["PENDING tier<br/>contact_accepted · contact_rejected"]
-    F -- "yes, blocked" --> G
-    F -- "yes, active" --> A["CONTACT tier<br/>tools filtered by this contact's<br/>permission profile (§8)"]
+    F -- "active, other endpoint" --> N["NEW ADDRESS (§5.3)<br/>auto: re-pin · ask: pending"]
+    F -- "active, pinned endpoint" --> A["CONTACT tier<br/>tools filtered by this contact's<br/>permission profile (§8)"]
 ```
+
+A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way through: that is a renewal, learned (§2).
 
 ### 6.2 Core tools
 
@@ -285,10 +290,9 @@ All tools return MCP tool results; errors use the codes of §12. `msg_id`-bearin
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `redeem_invite` | `token`, `card` (vCard text) | `status: accepted\|pending`, `card` (signed issuer vCard), `card_sig`, `spki` (§2), `head`, `enc_spki` (§14), `permissions?` |
+| `redeem_invite` | `token`, `card` (vCard text) | `status: accepted\|pending`, `card` (signed issuer vCard), `card_sig`, `chain` (§2), `permissions?` |
 | `request_contact` | `card`, `note?` (≤1 KiB) | `status: pending` |
 | `sealed_call` | `protected`, `enc`, `ct`, `sig` (§13) | the sealed result — present at every tier when `X-PACT-SEAL` ≠ `none` |
-| `resolve_identity` | `kid` or `pid` | `pid`, `head`, `endpoints` — the lineage of §14.5; present at every tier but answered only to a caller who proved a key, `identity_required` otherwise |
 
 **Pending tier** (caller is someone I asked to be my contact)
 
@@ -307,9 +311,9 @@ All tools return MCP tool results; errors use the codes of §12. `msg_id`-bearin
 | `check_availability` | `calendar.availability` | `window {from,to,tz}`, `duration_min` | `slots: [≤5 of {start,end,tz}]` |
 | `book_slot` | `calendar.book` | `msg_id`, `slot`, `subject`, `thread_id?` | `booking_id`, `ics` |
 | `cancel_booking` | `calendar.book` | `booking_id`, `reason?` | `ok` |
-| `update_contact` | (always) | `card` (new), `sig` (by old key over new fingerprint) | `ok` — a 1.x rotation or card refresh; a 2.0 receiver treats it as a hint to fetch the caller's log and never as authority for a key (§2, Appendix C) |
+| `update_contact` | (always) | `card` (new); `sig` only in a 1.x exchange (Appendix C) | `ok` — a card refresh, or `status: pending` from a new address under `ask` (§5.3). The caller's chain is the authority: the card's certificate MUST equal the chain's leaf |
 | `remove_contact` | (always) | — | `ok` |
-| `get_card` | (always) | — | `card` (current signed vCard), `card_sig` (by `S`), `spki` (§2), `head`, `enc_spki` (§14), `limits` (§12) |
+| `get_card` | (always) | — | `card` (current signed vCard), `card_sig` (by the leaf key), `chain` (§2), `limits` (§12) |
 
 Small print that keeps the table honest: `sender` on `send_media` labels exactly as on `send_message`, and on both it defaults to `agent` when absent — the safe direction; a node never invents a `human` claim. `get_status` answers from that fixed four-value vocabulary; an implementation whose upstream presence source knows richer states MUST map any state not listed to `busy`. `url` media is recorded, never fetched on receipt: fetching is an explicit owner action, made with resolve-and-vet address guards (private ranges refused), not a side effect a sender can trigger.
 
@@ -342,7 +346,7 @@ sequenceDiagram
     HB->>AB: (optionally types into T1 manually - sender: human)
 ```
 
-Notes that keep this simple and sane: negotiation is *conversation* between agents inside a thread (no negotiation state machine on the wire) plus two structured calendar tools where structure matters — `check_availability` never returns raw free/busy, only ≤5 policy-filtered candidate slots, and `book_slot` returns the ICS both sides file via their private calendar MCP tools. A `thread_id` belongs to the contact that first used it: a `send_message` from any other contact carrying that `thread_id` is refused `bad_request` — without this rule, thread placement is an impersonation vector, one contact writing into the middle of another's conversation. Multi-party coordination (several employees' agents negotiating) is therefore parallel per-contact threads sharing a `topic` string — still like a CC line, no group crypto, but each line is its own thread. Delivery when the peer is unreachable: retry with backoff until `expires` (sender-chosen, default 24 h), then use the contact's gateway (§9) if any, else report failure to the sender's human.
+Notes that keep this simple and sane: negotiation is *conversation* between agents inside a thread (no negotiation state machine on the wire) plus two structured calendar tools where structure matters — `check_availability` never returns raw free/busy, only ≤5 policy-filtered candidate slots, and `book_slot` returns the ICS both sides file via their private calendar MCP tools. A `thread_id` belongs to the contact that first used it: a `send_message` from any other contact carrying that `thread_id` is refused `bad_request` — without this rule, thread placement is an impersonation vector, one contact writing into the middle of another's conversation. Multi-party coordination (several employees' agents negotiating) is therefore parallel per-contact threads sharing a `topic` string — still like a CC line, no group crypto, but each line is its own thread. Delivery when the peer is unreachable: retry with backoff until `expires` (sender-chosen, default 24 h), then report failure to the sender's human. 2.0 has no store-and-forward role: a peer that must be reachable while its own machine is off is hosted (§9).
 
 ---
 
@@ -386,40 +390,40 @@ flowchart LR
 
 ---
 
-## 9. Relay mode
+## 9. Hosting
 
-Direct calls need the recipient's server reachable. When it is not (NAT without tunnel, phone asleep, laptop closed), the contact card's `X-PACT-GATEWAY` names a relay the recipient has chosen — the WhatsApp-server role, made explicit and swappable:
+Direct calls need the recipient's server reachable. 1.x answered the hours it is not with a relay the recipient chose — a store-and-forward gateway that verified sealed traffic without reading it, and saw every sender, recipient and timestamp for its trouble. 2.0 removes that role, because the same need is met more simply by the thing 2.0 makes safe: **being hosted**. A host runs the identity's server all the time, under a leaf the person issued, and can be replaced without the person losing anything. This section is what a host holds, what it must do when the person leaves, and how the wallet on the other side behaves.
+
+**What a host holds.** The leaf certificate for the identity at its endpoint and that leaf's private key; a superseded leaf's key until its `notAfter` (§2); the identity's data — contacts, threads, media, invites, settings, audit chain. Never the root. A host obtains a leaf by sending the wallet a certificate signing request (PKCS #10, RFC 2986) carrying the host's key and the endpoint it will serve; the wallet shows the person the endpoint and the validity, and signs or does not. A provider's sign-up page for a person who has no wallet runs the same ceremony in the browser: the root is generated there, the first leaf is issued there, the wallet is downloaded before anything else happens, and no server sees a root.
+
+**Renewal** is §2: a CSR again, for the same endpoint, before the old leaf expires. **Moving** is the person issuing a leaf to the new host, the data carried across as an archive — contacts, messages, media, invites, settings; the archive's format is each host's own, and a host that imports one MUST refuse any key material in it — and the new host reaching every contact by §5.3.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant AA as Agent A
-    participant GW as B's gateway
-    participant AB as Agent B (offline, later online)
-
-    AA->>GW: relay_call(envelope)  [sealed to B, signed by A - §13, over mTLS]
-    Note over GW: verifies sig with A's presented cert key<br/>protected.from == cert fingerprint?<br/>on B's allow-list? quota ok?<br/>cannot decrypt - queues ciphertext
-    GW-->>AA: queued
-    AB->>GW: fetch_queued()  [mTLS: B's cert]
-    GW-->>AB: queued calls
-    AB->>AB: execute locally as if called directly
-    AB->>GW: ack (delete)
-    GW--)AB: push "you have mail" (content-free) when queue non-empty
+    actor P as Person (wallet)
+    participant O as Old host
+    participant N as New host
+    participant C as A contact
+    N->>P: CSR (new host key, new endpoint)
+    P->>N: leaf, signed by the root
+    O-->>N: archive (data, never keys)
+    P->>O: leave
+    O->>O: delete the leaf key and every record
+    N->>C: update_contact(new card)  [chain: new leaf + root]
+    C->>C: chain valid · root pinned · endpoint differs · leaf newer
+    alt accept_new_hosts = auto
+        C-->>N: ok (re-pinned)
+    else ask
+        C-->>N: pending
+        C->>C: owner approves
+    end
+    C->>N: send_message  [sealed to the new leaf]
 ```
 
-A relay is three tools and one control endpoint, mounted under the card's `X-PACT-GATEWAY` base URL: the MCP surface at `<gateway>/relay/mcp`, the allow-list at `<gateway>/relay/allowlist`. All of it requires a client certificate — a relay cannot run behind a terminating edge, because without the certificate key there is nothing to verify a sender's signature with (`identity_required`). Senders fall back to the relay automatically after direct retries fail.
+**What a host must do when the person leaves.** Destroy the leaf's private key and delete every record of the identity — data, keys, the fingerprints of former leaves — at once, keep nothing beyond what law compels, and answer calls at the old address exactly as it answers calls for an address it never served. The protocol's backstop against a host that does not is the leaf's own expiry, and the fact that a newer leaf outranks it with every contact it reaches (§14.3). The person's backstop is the regime the provider is audited under: a provider that hosts other people's identities is their data processor, and certifications such as SOC 2 together with the obligations of the GDPR are what make "deleted" a checkable claim rather than a promise.
 
-| Tool | Arguments | Returns | Errors |
-|---|---|---|---|
-| `relay_call` | `envelope` (§13.1); `to?` — if present, MUST equal `protected.to` | `status: queued`, `id`, `expires_at` | `envelope_invalid`, `permission_denied`, `rate_limited`, `bad_request` |
-| `fetch_queued` | — | `items: [{id, envelope, queued_at}]`, bounded per fetch | — |
-| `ack` | `id` | `deleted: true\|false` | `bad_request` |
-
-`relay_call` verifies without opening: `sig` MUST verify under the caller's own certificate key, and that key's fingerprint MUST be on the recipient's allow-list. In 2.0 `protected.from` is a pid (§13.1) and the allow-list is a list of key fingerprints — the recipient syncs the current `S` of each active contact, and refreshes it when a contact's head moves — so the relay checks the key it can see and never has to resolve a pid. An unlisted sender and an unknown recipient receive the same `permission_denied` — a relay is not an oracle for who it serves. A queue belongs to a recipient pid, named by `protected.to`; `fetch_queued` and `ack` answer only for the queue of the pid whose registered `S` the caller presents, so nothing in the arguments names a recipient and nothing can be forged. The allow-list is synced by a recipient-authenticated `POST` of `{"pid", "keys": [the recipient's current and grace S fingerprints], "senders": [fingerprints]}` to the control endpoint, replacing the previous lists — a node's own keys and its active contacts, nothing else; a recipient re-syncs when its `S` turns over, and until it does the retired `S` within grace still fetches. A queued item lives `min(protected.exp, 30 days)` from queueing, and a recipient's `E` grace MUST be at least that long, or a relayed envelope sealed to a retired `E` would fail on fetch.
-
-**A relay-assisted identity's log.** A node with no inbound endpoint (§10's T4) has nowhere to serve its log, so its relay serves it: the node uploads each new head to the control endpoint beside its allow-list, and the relay answers `GET <gateway>/relay/identity/<pid>` exactly as an endpoint would answer §14.4, and `resolve_identity` for that pid. The card of such an identity carries `X-PACT-GATEWAY` and no `X-PACT-ENDPOINT`, and a verifier derives the log's location from the gateway instead. A relay SHOULD bound per-recipient queue depth and MAY refuse `relay_call` with `rate_limited` when a queue is full. When a recipient is connected the relay MAY push a content-free "you have mail" wake — never the envelope itself; a recipient without push polls.
-
-**Trust note, stated plainly:** the TLS session terminates at the gateway, so an **unsealed** relayed call is readable by it — which is why relayed calls MUST be sealed (§13). A relay verifies the envelope's detached signature **without decrypting** to enforce its allow-list: sealed traffic is unreadable to it, but the protected header — sender, recipient, timing, sizes — is metadata it necessarily sees. Pick a relay you trust with metadata (your own server, a friend's, your platform's), or stay direct. Any pact node can serve the relay role; "gateway" in `X-PACT-GATEWAY` names whichever node plays it.
+**The wallet** holds the root and nothing a host holds. It signs certificates only from an explicit user action, shows the endpoint and the validity of every leaf before signing, and issues one live leaf per identity at a time — a second endpoint is a move, not a second home, because contacts keep one pin and the newest leaf wins. It keeps its own copy of the person's contact book, so the book outlives any host and any identity, and it is backed up as a file, to a drive, or to a hardware key, at the person's choice. Losing every copy ends the identity; the wallet says so once, when the root is made.
 
 ---
 
@@ -428,27 +432,24 @@ A relay is three tools and one control endpoint, mounted under the card's `X-PAC
 ```mermaid
 flowchart TB
     subgraph SH["Self-hosted at home"]
-        N1["Agent + MCP server<br/>on home machine"]
+        N1["Agent + MCP server<br/>on home machine<br/>leaf issued by the owner's wallet"]
     end
     subgraph TU["Reachability options"]
-        T1["Port forward / static IP<br/>full mTLS end-to-end"]
+        T1["Port forward / static IP<br/>full mTLS end-to-end<br/>the chain is the server certificate"]
         T2["TCP/TLS passthrough tunnel<br/>Tailscale Funnel · ngrok TLS · frp<br/>rathole · Pangolin raw-TCP<br/>full mTLS end-to-end"]
         T3["Edge-terminating tunnel<br/>Cloudflare Tunnel · ngrok HTTPS<br/>identity + confidentiality ride<br/>the sealed envelope (§13)"]
-        T4["No inbound at all -<br/>rely on gateway (§9)"]
     end
-    subgraph PF["Platform-hosted"]
-        H1["Operator runs MCP servers,<br/>contact stores, gateway,<br/>invite pages for customers"]
+    subgraph PF["Provider-hosted"]
+        H1["Provider runs MCP servers,<br/>contact stores, invite pages<br/>under leaves its customers issued"]
     end
     N1 --> T1
     N1 --> T2
     N1 --> T3
-    N1 --> T4
-    H1 --- GW2["Operator gateway =<br/>default X-PACT-GATEWAY"]
 ```
 
-**Self-hosting:** anything that passes raw TLS through to your machine preserves true end-to-end mTLS — verified as of 2026-08: port forward; **Tailscale Funnel** (relays without decrypting; client certificates reach your server); ngrok **TLS** endpoints (unterminated by default; paid); frp's SNI-routed vhost; rathole; Pangolin raw-TCP resources. Cloudflare Tunnel and ngrok's HTTPS endpoints terminate TLS at the edge and strip client certificates — behind such an edge, caller identity and confidentiality ride the sealed envelope instead (`X-PACT-SEAL: required`, §13), and the edge sees ciphertext plus metadata only. A custom domain + Let's Encrypt on the tunnel/host gives contacts a clean `X-PACT-ENDPOINT`.
+**Self-hosting:** anything that passes raw TLS through to your machine preserves true end-to-end mTLS — verified as of 2026-08: port forward; **Tailscale Funnel** (relays without decrypting; client certificates reach your server); ngrok **TLS** endpoints (unterminated by default; paid); frp's SNI-routed vhost; rathole; Pangolin raw-TCP resources. Cloudflare Tunnel and ngrok's HTTPS endpoints terminate TLS at the edge and strip client certificates — behind such an edge, caller identity and confidentiality ride the sealed envelope instead (`X-PACT-SEAL: required`, §13), and the edge sees ciphertext plus metadata only. A custom domain + Let's Encrypt on the tunnel/host gives contacts a clean endpoint; a self-hosted node on its own domain MAY instead present its chain as the server certificate (§2). A machine that is not always on is not a PACT host; the answer to that is a provider, not a mailbox.
 
-**Platform mode:** the operator hosts each customer's MCP server (per-tenant paths), runs the shared gateway, and renders invite links/QRs. It holds the customer's online keys `S` and `E` under a grant the customer's root signed (§14), and never the root: a customer who leaves signs a grant for the next host, that host publishes its own keys and endpoint in the log, and every contact learns of it on the next exchange. The operator keeps the lineage of every key it ever served (§14.5) so a contact who calls the old address is pointed onward. A platform that has no wallet to ask — a person arriving with nothing — makes the first identity in the person's browser: the root is generated, the genesis and the first grant are signed, and the wallet is downloaded before anything else happens; no server sees a root. The same front-door machinery scales down to one person: an *ingress* — a pact node on a VPS routing per-subdomain, either passing TLS through untouched or terminating public TLS and re-originating over mutually pinned mTLS to the home node — is the self-hosted form of platform mode, and a platform is that ingress run for many tenants.
+**Provider mode:** the operator hosts each customer's MCP server (per-tenant paths or hostnames) and renders invite links/QRs. It holds one leaf per identity, issued by the customer's own root for the address the operator serves it at, and never the root: a customer who leaves issues a leaf to the next host, that host reaches every contact from its own address (§5.3), and the operator deletes what it held (§9). A person arriving with nothing makes their first identity in the browser on the operator's sign-up page: the root is generated there, the first leaf issued there, the wallet downloaded before anything else happens. The same front-door machinery scales down to one person: an *ingress* — a pact node on a VPS routing per-subdomain, either passing TLS through untouched or terminating public TLS and re-originating over mutually pinned mTLS to the home node — is the self-hosted form of provider mode, and a provider is that ingress run for many tenants.
 
 ---
 
@@ -458,29 +459,29 @@ What this spec relies on, and what it consciously gave up relative to the earlie
 
 | Property | This spec's answer | Given up vs the hardened draft |
 |---|---|---|
-| Who am I talking to | A pid pinned from a vCard/invite exchanged human-to-human, its current keys learned from a log verified from the genesis hash; proof of possession of the current `S` on every call | Directory + SAS ceremonies. 2.0 re-adopted a self-certifying log — the transparency of one identity, verified by its contacts, with no directory to trust |
-| Consent | Manual approval on both sides, always; invites = pre-approval by the issuer | Same property, much less machinery |
-| Wire privacy | TLS 1.3 between the two endpoints; sealed envelopes past edges and relays (§13, added in 1.1) | Forward secrecy at the envelope layer: **none** — and carriers always see metadata (§13.5) |
-| Impersonation of a link | Invite redemption anchored to the issuer-distributed URL; card signature by issuer key | Commit-reveal SAS (residual: whoever controls the sharing channel can swap the card/URL — same trust as sharing a phone number) |
-| Impersonation by name | Nothing at the protocol layer: `FN` is the sender's claim (§3). Attribution is cryptographic — an envelope verifies against the pinned key or it is refused — so a contact can never *send as* another. What it can do is call itself what another calls itself | Petnames are a UI answer, not a wire one (residual: on first contact, before the owner has named anyone, the only name on screen is the one the peer chose) |
-| Revocation | Delete contact/invite server-side — instant, local, nothing cryptographic outstanding | Delegation expiry machinery |
-| Rotation | A `keys` operation in the log, learned on the next exchange; the root outranks the host and the host outranks nobody | Nothing further; 2.0 is the small hierarchy the hardened draft wanted, three keys deep and no wider |
+| Who am I talking to | A root pinned from a vCard/invite exchanged human-to-human; every call proves the leaf key of a chain that validates to it and names the address in use | Directory + SAS ceremonies. 2.0 re-invented nothing here: X.509 chain validation with the person as the authority, and one rule about which leaf is newest |
+| Consent | Manual approval on both sides, always; invites = pre-approval by the issuer; a contact's new address is accepted on the strength of their own root's signature, or on the owner's say-so (§5.3) | Same property, much less machinery |
+| Wire privacy | TLS 1.3 between the two endpoints; sealed envelopes past terminating edges (§13, added in 1.1) | Forward secrecy at the envelope layer: **none** — and carriers always see metadata (§13.5) |
+| Impersonation of a link | Invite redemption anchored to the issuer-distributed URL; card signature by the issuer's leaf key; the card's certificate names its issuer | Commit-reveal SAS (residual: whoever controls the sharing channel can swap the card/URL — same trust as sharing a phone number) |
+| Impersonation by name | Nothing at the protocol layer: `FN` is the sender's claim (§3). Attribution is cryptographic — a chain validates to the pinned root or it is refused — so a contact can never *send as* another. What it can do is call itself what another calls itself | Petnames are a UI answer, not a wire one (residual: on first contact, before the owner has named anyone, the only name on screen is the one the peer chose) |
+| Revocation | Delete contact/invite server-side — instant, local, nothing cryptographic outstanding. A host's authority ends at its leaf's `notAfter`, or the moment a newer leaf reaches a contact — no CRL, no OCSP | Delegation expiry machinery; 2.0 has one, the one X.509 always had |
+| Renewal | A new leaf from the wallet, learned on the next exchange; the root is never rotated | Root rotation: a compromised root's holder could rotate too, so rotation would not tell the person from the thief; a lost root is a new identity |
 | Replay/dup | Idempotent `msg_id` per call; TLS prevents third-party replay | Sequence windows |
 | Spam | Guest tier is two tools; invites carry expiry/uses; per-contact rate limits (§12) | Admission tokens |
 | Prompt injection | Unchanged and still required: every inbound string (`text`, `note`, `topic`, filenames) is untrusted data — length-capped, never concatenated into the agent's instructions, rendered to humans as quoted content | — |
-| Custodial hosting | The host holds `S` and `E` and can act as you while its grant lives — as every hosted service can — but never the root: its grant is scoped, expires, is revocable, and every key it publishes is in a log the person's wallet can compare against | A platform-run transparency log; 2.0 puts the log with the identity instead |
+| Custodial hosting | The host holds the leaf key and can act as you while the leaf is valid — as every hosted service can — but never the root: its authority is written on a certificate you signed, for an address you saw, until a date you chose, and is outranked by the next leaf you sign (§9) | A platform-run transparency log; 2.0 keeps no log anywhere — the certificate is the record |
 
-Also dropped: DIDs, SAS wordlists, per-pact route/gateway keys, the verb registry and negotiation state machine (threads + two calendar tools instead), sequence/window replay machinery (idempotency keys suffice at this trust level), conformance classes (checklist below instead). Two drops were reversed, each for a reason stated where it lives: 1.1 re-adopted the sealed envelope in reduced form as §13; 2.0 re-adopted an identity record, in the smallest form that lets a person leave a host — a root, a grant, and a log, §14 — with no directory, no prekeys and no ceremony.
+Also dropped: DIDs, SAS wordlists, per-pact route/gateway keys, the verb registry and negotiation state machine (threads + two calendar tools instead), sequence/window replay machinery (idempotency keys suffice at this trust level), conformance classes (checklist below instead). One drop was reversed, for a reason stated where it lives: 1.1 re-adopted the sealed envelope in reduced form as §13. 2.0 adopted an identity hierarchy in the smallest form that lets a person leave a host — a root that issues, a leaf that serves, and nothing else, expressed as the certificates every TLS stack already validates — and removed the relay role, because hosting under a leaf serves the same need without a third party reading everyone's metadata.
 
 ---
 
 ## 12. Errors, limits, conformance
 
-**Errors** (MCP tool errors with `code`): `unknown_contact`, `pending_approval`, `permission_denied`, `invite_invalid` (expired/revoked/used-up), `blocked_or_unknown` (guest-tier catch-all — indistinguishable by design), `too_large`, `rate_limited` (+`retry_after`, integer seconds), `unavailable` (also returned for a tool an implementation is temporarily withholding), `bad_request`; from 1.1 (§13): `seal_required` (unsealed call to a sealing-required recipient), `identity_required` (no usable identity proof where one is needed), `envelope_invalid` (malformed, misdirected, mis-signed, expired, or fingerprint-mismatched envelope); from 1.2: `seal_not_accepted` (a sealed call to a recipient whose card says `X-PACT-SEAL: none` — the sender was told not to seal, §13.4); from 2.0: `identity_switched` (the call reached a retired key or an old address; the error's data carries `pid`, `head` and `endpoints`, which the caller verifies against the log before re-pinning and resending, §14.5) and `log_invalid` (a log that fails §14.3, named with the failing rule).
+**Errors** (MCP tool errors with `code`): `unknown_contact`, `pending_approval`, `permission_denied`, `invite_invalid` (expired/revoked/used-up), `blocked_or_unknown` (guest-tier catch-all — indistinguishable by design), `too_large`, `rate_limited` (+`retry_after`, integer seconds), `unavailable` (also returned for a tool an implementation is temporarily withholding), `bad_request`; from 1.1 (§13): `seal_required` (unsealed call to a sealing-required recipient), `identity_required` (no usable identity proof where one is needed), `envelope_invalid` (malformed, misdirected, mis-signed, expired, or fingerprint-mismatched envelope — in 2.0 also one whose chain fails §14.2); from 1.2: `seal_not_accepted` (a sealed call to a recipient whose card says `X-PACT-SEAL: none` — the sender was told not to seal, §13.4); from 2.0: `certificate_renewed` (an envelope sealed to a leaf key this endpoint once held and holds no longer; the error's data carries `chain`, the current one, which the caller validates against its pin before re-sealing, §14.4). A contact at a new address under `ask` receives `pending_approval` (§5.3), which 1.0 already had.
 
-**Limits are defaults — operator-tunable, and discoverable:** the numbers below are what an untuned node enforces; an operator may raise or lower them, and the values in force are advertised as a `limits` object in the `get_card` result with members `text_bytes`, `note_bytes`, `media_inline_bytes`, `availability_slots`, `invite_ttl_days`, `contact_calls_per_hour`, `guest_calls_per_hour`. Defaults: text ≤16 KiB; media ≤5 MiB inline (larger by `url`); ≤5 slots per availability response; invite `expires_at` ≤90 days; a relayed queue item lives `min(envelope exp, 30 days)` (§9); per-contact rate 60 calls/hour; guest tier 10/hour per IP+key — and when one dimension is missing (no client address behind a relay, no key on a bare probe), the remaining dimension still budgets alone; neither absence buys an unmetered path.
+**Limits are defaults — operator-tunable, and discoverable:** the numbers below are what an untuned node enforces; an operator may raise or lower them, and the values in force are advertised as a `limits` object in the `get_card` result with members `text_bytes`, `note_bytes`, `media_inline_bytes`, `availability_slots`, `invite_ttl_days`, `contact_calls_per_hour`, `guest_calls_per_hour`. Defaults: text ≤16 KiB; media ≤5 MiB inline (larger by `url`); ≤5 slots per availability response; invite `expires_at` ≤90 days; per-contact rate 60 calls/hour; guest tier 10/hour per IP+key — and when one dimension is missing (no client address behind an edge, no key on a bare probe), the remaining dimension still budgets alone; neither absence buys an unmetered path.
 
-**Conformance checklist — an implementation is a PACT agent server if it:** exposes an MCP server over HTTPS accepting TLS client certificates; identifies callers by SPKI fingerprint against a contact list with guest/pending/contact tiers; implements the guest + pending tools and `send_message`, `update_contact`, `remove_contact`, `get_card`; filters `tools/list` per caller; enforces manual approval for unsolicited requests; supports invite issuance with expiry/uses/revocation; emits and imports vCards with the `X-PACT-*` properties; treats inbound strings as untrusted; honors idempotent `msg_id`. An implementation advertising `X-PACT-SEAL: optional|required` additionally implements §13: `sealed_call` at every tier, the open order, and sealed results for sealed requests. **A 2.0 implementation** additionally: serves each identity's log under its endpoint (or through its relay, §9) and verifies every log it pins with the acceptance and fork rules of §14.3, passing the shared vectors; carries its head in every envelope it emits and catches up on every newer head it receives; publishes its keys and endpoint through `keys` and `endpoint` operations under a grant; keeps the lineage of every key and address it ever served, answers `resolve_identity` to identified callers, and answers identified calls at retired keys or addresses with `identity_switched`; continues to accept `v: 1` envelopes and `1` cards from contacts pinned as 1.x, per Appendix C. A wallet is a 2.0 implementation if it holds a root and nothing a host holds, signs only from an explicit user action, and renders every operation as text the person can read before signing.
+**Conformance checklist — an implementation is a PACT agent server if it:** exposes an MCP server over HTTPS accepting TLS client certificates; identifies callers by fingerprint against a contact list — of the identity key in 1.x, of the root of a validated chain in 2.0 — with guest/pending/contact tiers; implements the guest + pending tools and `send_message`, `update_contact`, `remove_contact`, `get_card`; filters `tools/list` per caller; enforces manual approval for unsolicited requests; supports invite issuance with expiry/uses/revocation; emits and imports vCards with the `X-PACT-*` properties; treats inbound strings as untrusted; honors idempotent `msg_id`. An implementation advertising `X-PACT-SEAL: optional|required` additionally implements §13: `sealed_call` at every tier, the open order, and sealed results for sealed requests. **A 2.0 implementation** additionally: validates every chain by §14.2 and passes the shared vectors; carries its chain in every envelope it emits, request and result; keeps one pin per root — endpoint and latest leaf — treats an older leaf as no proof (§14.3), and learns a newer leaf at the pinned endpoint from any exchange; runs the new-address flow of §5.3 under `accept_new_hosts`; holds a superseded leaf's key until its `notAfter` and answers a former key with `certificate_renewed` (§14.4); deletes everything it held for an identity that has left (§9); continues to accept `v: 1` envelopes and `1` cards from contacts pinned as 1.x, per Appendix C. A wallet is a 2.0 implementation if it holds a root and nothing a host holds, signs a certificate only from an explicit user action, and shows the endpoint and the validity before signing.
 
 ---
 
@@ -488,7 +489,7 @@ Also dropped: DIDs, SAS wordlists, per-pact route/gateway keys, the verb registr
 
 *Added in 1.1. Optional at the protocol level, negotiated per §3's `X-PACT-SEAL`; an implementation that never seals remains a conforming 1.0 peer toward `none` recipients.*
 
-Plain mTLS ends where TLS ends. A terminating tunnel edge or a relay (§9) reads whatever crosses it and sees no client certificate — so behind those pipes, both confidentiality and caller identity need a carrier that survives termination. The sealed envelope is that carrier: HPKE encryption to the recipient's sealing key `E` plus a detached signature by the sender's signing key `S`. In 1.x one keypair did all three jobs and `kid` was the seam for a separate sealing key; 2.0 takes the seam — `E` is its own key, turned over without touching `S` — and the signature stays detached, because a relay must verify a sender without opening what it carries (§9).
+Plain mTLS ends where TLS ends. A terminating tunnel edge reads whatever crosses it and sees no client certificate — so behind such a pipe, both confidentiality and caller identity need a carrier that survives termination. The sealed envelope is that carrier: HPKE encryption to the recipient's leaf key plus a detached signature by the sender's leaf key. One key does all three jobs — TLS, signature, sealing — in 2.0 as in 1.x; what 2.0 changes is who the key belongs to (a leaf under a root, §2) and that the sender's chain rides inside every envelope, which is how a renewed leaf travels.
 
 ### 13.1 Format
 
@@ -496,121 +497,87 @@ An envelope is a JSON object of four members:
 
 | Member | Content |
 |---|---|
-| `protected` | base64url of the canonical-JSON header bytes (the HPKE AAD): `v` (=2), `suite`, `from`, `to` (pids, §14.1), `head` (the author's current log head, §14), `ekid` (the recipient `E` this is sealed to), `msg_id`, `ts`, `exp` (integer Unix seconds; `exp − ts` ≤ 30 days), `cty` (`application/pact-call+json` for requests, `application/pact-result+json` for results). A `v: 1` header carries the 1.x members instead — `from`, `to` as key fingerprints and `kid` in place of `ekid` — and is accepted from a pinned 1.x contact (Appendix C) |
+| `protected` | base64url of the canonical-JSON header bytes (the HPKE AAD): `v` (=2), `suite`, `from`, `to` (root fingerprints, §2), `kid` (the fingerprint of the recipient leaf key this is sealed to), `msg_id`, `ts`, `exp` (integer Unix seconds; `exp − ts` ≤ 30 days), `cty` (`application/pact-call+json` for requests, `application/pact-result+json` for results). A `v: 1` header has the same members with `from`, `to` and `kid` naming 1.x identity keys, and is accepted from a pinned 1.x contact (Appendix C) |
 | `enc` | base64url HPKE encapsulated key |
 | `ct` | base64url ciphertext of the plaintext payload |
-| `sig` | base64url detached signature by the sender's `S` over `protected ‖ enc ‖ ct` (the raw byte concatenation of the three decoded members) |
+| `sig` | base64url detached signature by the sender's leaf key over `protected ‖ enc ‖ ct` (the raw byte concatenation of the three decoded members) |
 
-`head` is what makes announcements unnecessary: every request and every result carries its author's head, and a receiver that holds an older pin fetches the log, verifies from its pinned genesis, and advances (§14.4). `ekid` is what lets a retired `E` be refused before anything is opened, and refused usefully — with `identity_switched` and the current head (§14.5).
+`kid` is what lets a superseded key be refused before anything is opened, and refused usefully — with `certificate_renewed` and the current chain (§14.4). The header names roots and a key; the sender's certificates travel inside the ciphertext (§13.2), so a carrier sees fingerprints and sizes, never a name or an address.
 
-Canonical JSON is the JSON Canonicalization Scheme of RFC 8785: UTF-8, keys sorted by code point, no insignificant whitespace, no HTML escaping, numbers in their shortest form. The same scheme canonicalises an identity operation (§14.1), so an implementation carries one canonicaliser. Suites (HPKE is RFC 9180, Base mode):
+Canonical JSON is the JSON Canonicalization Scheme of RFC 8785: UTF-8, keys sorted by code point, no insignificant whitespace, no HTML escaping, numbers in their shortest form. Suites (HPKE is RFC 9180, Base mode):
 
-| Suite id | KEM | KDF | AEAD | For recipients with |
+| Suite id | KEM | KDF | AEAD | For recipients whose leaf (or 1.x identity) key is |
 |---|---|---|---|---|
-| `PACT-SEAL-P256` | DHKEM(P-256, HKDF-SHA256) | HKDF-SHA256 | AES-128-GCM | 1.x recipients with P-256 identity keys |
-| `PACT-SEAL-X25519` | DHKEM(X25519, HKDF-SHA256) | HKDF-SHA256 | ChaCha20-Poly1305 | every 2.0 recipient (`E` is X25519), and 1.x recipients with Ed25519 identity keys (birationally converted) |
+| `PACT-SEAL-P256` | DHKEM(P-256, HKDF-SHA256) | HKDF-SHA256 | AES-128-GCM | P-256 |
+| `PACT-SEAL-X25519` | DHKEM(X25519, HKDF-SHA256) | HKDF-SHA256 | ChaCha20-Poly1305 | Ed25519, birationally converted |
 
-The signature uses the sender's own algorithm regardless of the recipient's suite — which is what lets any two identities interoperate; HPKE **Auth** mode was rejected precisely because a cross-curve pair cannot share an authentication DH. Pinned encodings: ECDSA P-256/SHA-256 signatures are ASN.1 DER; Ed25519 signatures are pure Ed25519 per RFC 8032. The HPKE `info` parameter is the ASCII string `PACT-SEAL-v2` for a `v: 2` header and `PACT-SEAL-v1` for a `v: 1` header, so an envelope of one generation can never open as the other. 1.x Ed25519 identities convert to X25519 per the standard maps: the public key by the birational map of RFC 7748 §4.1, the private scalar from the SHA-512-derived, clamped scalar of RFC 8032 §5.1.5; a 2.0 `E` is a native X25519 key and needs no conversion.
+The signature uses the sender's own algorithm regardless of the recipient's suite — which is what lets any two identities interoperate; HPKE **Auth** mode was rejected precisely because a cross-curve pair cannot share an authentication DH. Pinned encodings: ECDSA P-256/SHA-256 signatures are ASN.1 DER; Ed25519 signatures are pure Ed25519 per RFC 8032. The HPKE `info` parameter is the ASCII string `PACT-SEAL-v2` for a `v: 2` header and `PACT-SEAL-v1` for a `v: 1` header, so an envelope of one generation can never open as the other. Ed25519 keys convert to X25519 per the standard maps: the public key by the birational map of RFC 7748 §4.1, the private scalar from the SHA-512-derived, clamped scalar of RFC 8032 §5.1.5.
 
 `msg_id` is REQUIRED and MUST be non-empty — replay protection keyed on an empty string protects nothing. A protected header carrying a member not listed for its `v` MUST be rejected (`envelope_invalid`): the header is the AAD, and two implementations that disagree about what was signed cannot interoperate.
 
 ### 13.2 The `sealed_call` tool
 
-Sealing is carried MCP-natively by one wrapper tool, `sealed_call`, present at **every** tier. Its tool arguments are the four envelope members of §13.1 at top level — `{"protected": …, "enc": …, "ct": …, "sig": …}` — and its result is an envelope of the same shape. The plaintext of a request envelope is one bare JSON object `{"method": …, "params": …, "spk": …}` (no JSON-RPC framing) whose method MUST be `tools/call` or `tools/list`; `spk` is the sender's SubjectPublicKeyInfo (base64url DER) — the key that verifies `sig` — and is REQUIRED whenever the recipient does not already pin `from` (§13.3); the inner call is dispatched exactly as if it had arrived directly from the proven identity — same tiers, same permission switchboard (§8). **The result of a sealed request MUST be sealed back to the caller** (same format, `from`/`to` swapped, `ekid` naming the caller's `E` — `kid` naming the caller's key in a `v: 1` exchange — the request's `msg_id` for correlation, `cty: application/pact-result+json`, and the responder's own `head`); result envelopes are never dispatched — the receiving caller decodes, opens, verifies the signature, correlates, and catches up on the responder's head (§14.4) — and the request-side steps of §13.3 (idempotency, tiering) do not apply to them. A plaintext request gets a plaintext result. A guest's sealed `redeem_invite`/`request_contact` is bound three ways inside the opened payload: `sig` MUST verify under `spk`, `SHA-256(spk)` MUST equal the `card` argument's `X-PACT-KEY`, and the card's `X-PACT-ID` MUST equal `from` (in a `v: 1` exchange, `SHA-256(spk)` MUST equal `from` itself). The card carries only fingerprints (§2), so `spk` is what makes an unpinned sender's signature verifiable at all — it is the sealed path's equivalent of the client certificate that carries the key on the mTLS path. A sealed `tools/list` from an unknown sender has no card to bind and is rejected `envelope_invalid` (guests use plain `tools/list`, which always answers). Error results follow the sealing rule too: once a request envelope has been successfully opened, an error result MUST be sealed back like any other result — a plaintext error is only for an envelope that could not be opened at all, where there is no proven key to seal toward. `identity_switched` (§14.5) is always of that second kind: it answers an envelope sealed to a retired `E`, which was never opened, so it travels in plaintext and carries nothing a caller trusts before verifying the log. `cty` is what binds direction: `application/pact-call+json` envelopes are dispatched, `application/pact-result+json` envelopes are only ever correlated, and an envelope whose `cty` does not match its position is rejected `envelope_invalid`.
+Sealing is carried MCP-natively by one wrapper tool, `sealed_call`, present at **every** tier. Its tool arguments are the four envelope members of §13.1 at top level — `{"protected": …, "enc": …, "ct": …, "sig": …}` — and its result is an envelope of the same shape. The plaintext of a request envelope is one bare JSON object `{"method": …, "params": …, "chain": […]}` (no JSON-RPC framing) whose method MUST be `tools/call` or `tools/list`; `chain` is the sender's leaf and root, base64url DER, leaf first — the key that verifies `sig`, and the way a renewal reaches a contact — and is REQUIRED in every 2.0 envelope, request and result (a `v: 1` plaintext carries `spk`, the sender's SubjectPublicKeyInfo, as 1.2 defined it); the inner call is dispatched exactly as if it had arrived directly from the proven identity — same tiers, same permission switchboard (§8). **The result of a sealed request MUST be sealed back to the caller** (same format, `from`/`to` swapped, `kid` naming the caller's leaf key, the request's `msg_id` for correlation, `cty: application/pact-result+json`, and the responder's own `chain` in the plaintext beside the result); result envelopes are never dispatched — the receiving caller decodes, opens, validates the chain, verifies the signature and correlates — and the request-side steps of §13.3 (idempotency, tiering) do not apply to them. A plaintext request gets a plaintext result. A guest's sealed `redeem_invite`/`request_contact` is bound three ways inside the opened payload: `chain` MUST validate (§14.2), `sig` MUST verify under its leaf key, its leaf MUST byte-equal the `card` argument's `X-PACT-CERT`, and its root's fingerprint MUST equal `from` (in a `v: 1` exchange, `SHA-256(spk)` MUST equal `from` and the card's `X-PACT-KEY`). A sealed `tools/list` from an unknown sender has no card to bind and is rejected `envelope_invalid` (guests use plain `tools/list`, which always answers). Error results follow the sealing rule too: once a request envelope has been successfully opened, an error result MUST be sealed back like any other result — a plaintext error is only for an envelope that could not be opened at all, where there is no proven key to seal toward. `certificate_renewed` (§14.4) is always of that second kind: it answers an envelope sealed to a key the recipient no longer holds, which was never opened, so it travels in plaintext and carries nothing a caller trusts before validating the chain. `cty` is what binds direction: `application/pact-call+json` envelopes are dispatched, `application/pact-result+json` envelopes are only ever correlated, and an envelope whose `cty` does not match its position is rejected `envelope_invalid`.
 
 ### 13.3 Opening
 
-Receivers MUST validate in this order, rejecting at the first failure: decode `protected`; check `v` and `suite` supported; check `to` is a local identity; resolve `ekid` (`kid` for `v: 1`) to a held `E` — a current one, or a retired one still within its grace — and otherwise answer `identity_switched` with the current head and endpoints rather than `envelope_invalid`, since the sender is a contact holding a stale pin; HPKE-open; verify `sig` against the `S` pinned for `from` — the `S` at the pinned head, or a retired `S` within grace — or, when `from` is not pinned, against the payload's `spk`, requiring `SHA-256(spk)` to equal the guest's card `X-PACT-KEY` and the card's `X-PACT-ID` to equal `from`; a present `spk` from a pinned sender MUST match the pin; when `head` is newer than the pinned head, fetch the sender's log, verify continuity from the pinned genesis (§14.3), advance the pin, and verify `sig` again against the `S` it names; enforce time — `now < exp` on every path, plus `|now − ts| ≤ 300 s` for directly delivered envelopes (relay-delivered ones are bounded by `exp` alone; `exp − ts` capped at 30 days, matching §9 retention); enforce `msg_id` idempotency (a replayed envelope is acknowledged with its original result, never re-executed); then dispatch. Failures map to `envelope_invalid`. A *substantive call* is any unsealed `tools/call` other than `sealed_call` itself; from an identified caller to a `required` recipient it fails `seal_required`, and a call carrying no usable identity proof where one is needed fails `identity_required` first (§12). Idempotency records for seen `msg_id`s MUST be retained at least until the envelope's `exp`, and the recipient MUST enforce envelope idempotency on relay-fetched envelopes too — they are exactly the ones whose freshness is bounded by `exp` alone, so skipping the check there rebuilds the replay window the 300-second rule closes on the direct path. Envelope `msg_id`s and the inner call's `msg_id`s are separate namespaces; implementations SHOULD prefix envelope idempotency keys (`env:`) so one store serves both without collision. A **blocked** sender's envelopes MUST be processed exactly as an unknown sender's — the guest card-binding rules of §13.2 apply and a sealed `tools/list` is rejected `envelope_invalid` — so sealing never becomes an oracle distinguishing blocked from unknown (§12); a guest envelope whose inner call carries no `card` argument is likewise rejected `envelope_invalid`.
+Receivers MUST validate in this order, rejecting at the first failure: decode `protected`; check `v` and `suite` supported; check `to` is a local identity; resolve `kid` to a leaf key this endpoint holds for it — the current one, or a superseded one not yet past its `notAfter` — and otherwise answer `certificate_renewed` with the current chain when `kid` names a key this endpoint once held, `envelope_invalid` when it never did (§14.4); HPKE-open; validate the payload's `chain` (§14.2) and require its root's fingerprint to equal `from`; verify `sig` under the chain's leaf key; resolve the tier (§6.1) — when `from` is pinned, a leaf older than the pinned one is a guest, a different endpoint is §5.3, a newer leaf at the pinned endpoint replaces it; when `from` is not pinned, apply the guest binding of §13.2; enforce time — `now < exp`, and `|now − ts| ≤ 300 s`, since every 2.0 envelope is delivered directly; enforce `msg_id` idempotency (a replayed envelope is acknowledged with its original result, never re-executed); then dispatch. Failures map to `envelope_invalid`. A *substantive call* is any unsealed `tools/call` other than `sealed_call` itself; from an identified caller to a `required` recipient it fails `seal_required`, and a call carrying no usable identity proof where one is needed fails `identity_required` first (§12). Idempotency records for seen `msg_id`s MUST be retained at least until the envelope's `exp`. Envelope `msg_id`s and the inner call's `msg_id`s are separate namespaces; implementations SHOULD prefix envelope idempotency keys (`env:`) so one store serves both without collision. A **blocked** sender's envelopes MUST be processed exactly as an unknown sender's — the guest card-binding rules of §13.2 apply and a sealed `tools/list` is rejected `envelope_invalid` — so sealing never becomes an oracle distinguishing blocked from unknown (§12); a guest envelope whose inner call carries no `card` argument is likewise rejected `envelope_invalid`.
 
 ### 13.4 Negotiation
 
-`X-PACT-SEAL` on the card (§3): `none` — the recipient does not accept envelopes (`sealed_call` absent; senders MUST NOT seal); `optional` — both accepted; senders MAY seal; `required` — unsealed substantive calls are refused (plain `tools/list` still answers with whatever the transport identity earns), and senders MUST seal. Relayed calls (§9) to a recipient advertising `optional` or `required` MUST be sealed; a `none` recipient's relay necessarily carries 1.0-style unsealed `relay_call` — and can read it, which is exactly the 1.0 trust note that recipient accepted by staying at `none`. A node MAY additionally require transport client certificates (a `client_cert` posture knob) and refuse a certificate-less `sealed_call` with `identity_required`. That is an owner's hardening choice about their own front door, not a protocol contradiction: the envelope still proves who is calling; the certificate requirement decides who may knock at all. Such a node is unreachable through terminating edges by construction — which is sometimes exactly the point.
+`X-PACT-SEAL` on the card (§3): `none` — the recipient does not accept envelopes (`sealed_call` absent; senders MUST NOT seal); `optional` — both accepted; senders MAY seal; `required` — unsealed substantive calls are refused (plain `tools/list` still answers with whatever the transport identity earns), and senders MUST seal. A node MAY additionally require transport client certificates (a `client_cert` posture knob) and refuse a certificate-less `sealed_call` with `identity_required`. That is an owner's hardening choice about their own front door, not a protocol contradiction: the envelope still proves who is calling; the certificate requirement decides who may knock at all. Such a node is unreachable through terminating edges by construction — which is sometimes exactly the point.
 
 ### 13.5 Stated trade-offs
 
-Unchanged in spirit from §11, extended by sealing, and documented rather than papered over: **no forward secrecy** — HPKE Base mode to a long-lived key means a later compromise of `E` decrypts ciphertext recorded while it was current; mitigations are the relay retention cap, the 300-second direct window, and the turnover of `E` (§2, §14.2), which bounds the exposure to one key's lifetime, not fixes. **Metadata stays visible** to every carrier: `from`, `to`, `head`, timing, sizes. **`S` does TLS and signatures, `E` does sealing**; 2.0 spent the `kid` seam 1.1 reserved. Test vectors for both suites and both header generations live in Appendix B; an implementation that opens and verifies all of them is envelope-interoperable.
+Unchanged in spirit from §11, extended by sealing, and documented rather than papered over: **no forward secrecy** — HPKE Base mode to a long-lived key means a later compromise of a leaf key decrypts ciphertext recorded while it was current; mitigations are the 300-second window and the leaf's lifetime — a leaf key lives at most 398 days, and a renewal with a new key retires it — which bound the exposure, not fix it. **Metadata stays visible** to every carrier: `from`, `to`, `kid`, timing, sizes. **One leaf key does TLS, signatures and sealing**, as one key did in 1.x; `kid` names which. Test vectors for both suites and both header generations live in Appendix B; an implementation that opens and verifies all of them is envelope-interoperable.
 
 ---
 
-## 14. Identity operations and the log
+## 14. Certificates
 
-*Added in 2.0.* An identity is controlled by its person and served by a host of the person's choosing; the log is how everyone else can tell which keys and which address are the identity's right now, without asking anyone. It is a chain of signed operations that anyone verifies from the identifier alone, served by the host under the identity's endpoint, mirrored by the person's wallet, and cached by every contact at the head it last verified. There is no directory. Nothing is announced: every exchange carries its author's head, and a host remembers where every key and address it ever served has gone.
+*Added in 2.0.* Two X.509 certificates, one rule about which leaf is newest, and one answer for a caller holding an old key. Everything a verifier needs is in the chain it is handed; nothing is fetched, and there is no directory.
 
-### 14.1 The identifier and the operation
+### 14.1 Profile
 
-```
-pid = "pact:" + base32lower( SHA-256( canonical(genesis) ) )[0:24]
-```
+Both certificates are X.509 v3 (RFC 5280). Keys are Ed25519 (RFC 8410) or ECDSA P-256; signatures are Ed25519 or ECDSA with SHA-256, in the encodings §13.1 pins. A **key identifier** is the 32-byte SHA-256 of the SubjectPublicKeyInfo — the bytes a fingerprint (§2) encodes — used for `subjectKeyIdentifier` and `authorityKeyIdentifier` alike, so the leaf's issuer key identifier *is* the root's fingerprint.
 
-An operation is a JSON object; its canonical bytes are the canonical JSON of §13.1 (RFC 8785) of the object with `sig` absent, and those bytes are what is hashed for `prev` and signed for `sig`:
+| | Root | Leaf |
+|---|---|---|
+| issued by | itself | the root |
+| `subject` | one `commonName`, untrusted (§3) — the wallet fills it with the person's chosen name | one `commonName`, untrusted |
+| `serialNumber` | random, at least 64 bits | random, at least 64 bits |
+| validity | `notBefore` at creation; `notAfter` `99991231235959Z`, RFC 5280's "no well-defined expiration" — a root is never rotated | `notBefore` at issuance; `notAfter` at most 398 days later, RECOMMENDED one year |
+| `basicConstraints` | critical; `cA` true; `pathLenConstraint` 0 | critical; `cA` false |
+| `keyUsage` | critical; `keyCertSign` only | critical; `digitalSignature`, plus `keyAgreement` for a P-256 key |
+| `extendedKeyUsage` | — | `serverAuth`, `clientAuth` |
+| `subjectAltName` | — | exactly one `uniformResourceIdentifier`: the endpoint, an `https` URL. MAY add the `dNSName` of that URL's host, for TLS stacks that match names |
+| `subjectKeyIdentifier` | its key identifier | its key identifier |
+| `authorityKeyIdentifier` | — | the root's key identifier |
 
-```
-{ "v": 2, "type": …, "pid": …, "prev": <base64url SHA-256 of the previous operation, null in the genesis>,
-  "iat": <integer seconds, never decreasing along the chain>, "body": { … },
-  "signer": <kid of the signing key>, "sig": <base64url> }
-```
+A **chain** is the leaf followed by the root and nothing else; a verifier refuses any other length. Unknown non-critical extensions are ignored, unknown critical ones refuse the certificate, as RFC 5280 says. There is no CRL, no OCSP and no policy: revocation is the next leaf (§14.3), and expiry is expiry.
 
-A key's algorithm is read from its SPKI, never declared beside it. Signatures are Ed25519 over the canonical bytes, or ECDSA P-256 with SHA-256 (ASN.1 DER, as in §13.1) for a P-256 root; a root held in a WebAuthn passkey signs the SHA-256 of the canonical bytes as its challenge, and `sig` then carries the whole assertion (`authenticatorData`, `clientDataJSON`, `signature`) so a verifier checks it without reproducing the browser's framing.
+### 14.2 Chain validation
 
-### 14.2 Operation types
+A verifier handed a chain applies these in order and refuses at the first failure — `envelope_invalid` in an envelope, a refused handshake for a client certificate, `bad_request` for a card:
 
-| Type | Body | Who may sign | Effect |
-|---|---|---|---|
-| `genesis` | `roots[]` — one or two SPKI in priority order — and `min_version` | a key listed in `roots` | creates the identity; its hash is the pid |
-| `rotate` | the new `roots[]` | a current root of equal or higher priority than any root it removes | replaces the controllers; the recovery from a stolen lower root |
-| `grant` | `kind` (`host`), `grantee` kid and SPKI, `scope[]`, `nbf`, `exp`, `salt` | a root | authorises a delegate within scope until `exp` |
-| `revoke` | the hash of the `grant` | a root | ends a grant at once |
-| `keys` | `S` and `E` as SPKI with kids; `grace_until` (seconds), during which the previous `S` still verifies and the previous `E` still opens — 30 days by default, never less than the relay retention of §12 | a delegate with `keys` in scope, or a root | publishes or turns over the online keys |
-| `endpoint` | `endpoints[]`, URLs in priority order | a delegate with `endpoint` in scope, or a root | names where the identity answers |
+1. The chain has exactly two certificates, and both parse as §14.1 describes.
+2. The second is a root: self-signed, its signature verifying under its own key, `cA` true, `keyCertSign` set. Its fingerprint is the identity. When the verifier already holds a fingerprint for the identity in question — from a pin, or from the issuer key identifier of a card's certificate — the two MUST be equal.
+3. The first is a leaf: its signature verifies under the root's key, its `authorityKeyIdentifier` equals the root's `subjectKeyIdentifier`, `cA` false, `digitalSignature` set.
+4. The verifier's clock is within the leaf's `notBefore` and `notAfter`, and `notAfter − notBefore` is at most 398 days.
+5. The leaf's `subjectAltName` holds exactly one URI, an `https` URL: the endpoint. When the verifier knows which address is in question — the URL it dialed, the endpoint it pinned, the endpoint in the card — the URI MUST equal it, byte for byte. A mismatch is a refusal, never a warning.
+6. The leaf's key is then the proven key: what `sig` must verify under (§13), what a client certificate must present, what to seal to.
 
-Grant scopes: `serve` — the grantee may hold and use the online keys the head names, which is what makes it a host at all; `keys` — it may publish and turn them over; `endpoint` — it may name where the identity answers. No grant may carry `rotate`, `grant` or `revoke`; a verifier rejects one that does. Several grants may be live at once — the head's keys and endpoints are whichever were published last, by whichever grantee — but one live host grant at a time is RECOMMENDED, and a host SHOULD NOT publish keys for an identity it does not serve. A verifier ignores an operation type it does not know when a root signed it and refuses it from a delegate, which is how types are added without a new log generation.
+A verifier never trusts a host, a card, or a provider. It trusts the fingerprint it pinned and the rules above.
 
-### 14.3 Acceptance and forks
+### 14.3 The newest leaf wins
 
-A verifier holding a pid and a list of operations accepts them in order, and refuses at the first failure, naming the rule:
+For each pinned identity a verifier keeps the endpoint and the latest leaf it accepted. A leaf whose `notBefore` is earlier than the pinned leaf's is **superseded**: a caller presenting it resolves to no pin and gets the guest tier (§6.1), a result carrying it is `envelope_invalid`, and nothing is sealed to it. A leaf with a later `notBefore` at the pinned endpoint replaces the pinned one as it passes — a renewal; at another endpoint it is a new address (§5.3). Equal `notBefore` and equal bytes is the pinned leaf; equal `notBefore` and different bytes is refused.
 
-1. The genesis's canonical bytes hash to the pid, and its signature verifies under a key in its own `roots`.
-2. Each later operation's `prev` is the hash of the operation accepted before it, its `pid` matches, and its `iat` does not decrease.
-3. The signer is a current root; or the signer is the grantee of a `grant` accepted earlier in the chain, whose scope includes this type, whose `nbf` ≤ `iat` ≤ `exp`, and which no `revoke` earlier in the chain has ended — operations a delegate signed before its revoke stay accepted, those after it are refused. A verifier that already held a head applies one more test to every operation that extends it: the grant's `exp` is later than the verifier's clock now. That is what stops a lapsed delegate from backdating an operation past contacts who know it lapsed; a first-time verifier has no such head and accepts the chain by `iat` alone, which is the stated cost. Operations accepted before a lapse stay accepted; a lapsed host keeps serving with the keys it had and can publish nothing new, which is the *freeze*.
-4. A `rotate` removes a root only if signed by a root of equal or higher priority than the one removed. A `grant` whose scope names `rotate`, `grant` or `revoke` is refused.
-5. An operation of a type the verifier does not know is accepted and ignored when signed by a root, and refused when signed by a delegate.
-6. **Forks.** When two operations share a `prev`, the branch whose diverging operation is signed by the higher-priority root wins; any root outranks any delegate; equal signers tie-break on the lower hash. The rule needs no clock and no directory, so every verifier with the same operations reaches the same head.
-7. The state at the head is the roots, the live grants, `S` and `E` with their grace, and the endpoints. A card is checked against it; a call is checked against it.
+Only the root can produce a leaf with a later `notBefore`, so no host can outrank the person, and a host that has been replaced can outrank nobody who has seen its replacement. What the rule cannot do is reach a contact that has seen nothing new: that contact goes on accepting the old leaf until its `notAfter` — the reason a leaf's validity is short, and the reason a host that has been left must delete the key (§9). A sequence number would add nothing that `notBefore` does not already carry, signed by the root.
 
-A verifier never trusts a host, a card, a lineage answer, or a wallet. It trusts the genesis hash it was handed and the rules after it.
+### 14.4 `certificate_renewed`
 
-### 14.4 Serving and catching up
-
-A host serves an identity's log at `<endpoint>/.well-known/pact-identity` — or its relay does, at `<gateway>/relay/identity/<pid>`, for an identity with no endpoint (§9). The response is `application/json`: a JSON array of operations in chain order, the head as its `ETag`, `If-None-Match` honoured, and `?since=<head>` answering only the operations after that head (an unknown `since` answers the whole log). The card says where the endpoint or gateway is; the log's location is derived from it and never carried in the card. Every envelope carries its author's `head` (§13.1); a receiver whose pin is older fetches from its own head, verifies continuity from the genesis it already trusts, advances the pin, and re-checks the signature against the `S` the new head names. A move, a key turnover or a change of host is therefore learned from the first exchange after it, whichever side started it. A sender whose pin is more than 30 days old refreshes the log before sealing.
-
-### 14.5 Lineage and `identity_switched`
-
-A host keeps, for every identity it has ever served, the mapping from each key id and each address the identity had to its current head — after the identity has left, and without limit of time. The lineage is not public: where a person went is theirs to tell, and a host that answered anyone would be a forwarding notice a stalker could read. It is served only to an **identified caller** — one that proves a key by client certificate or envelope signature (§2) — through the `resolve_identity` tool (§6.2), which takes a `kid` or a `pid` and returns `pid`, `head` and `endpoints`, and refuses an anonymous caller with `identity_required`; a host SHOULD record who asked, and MAY narrow the answer further to keys it still knows as the identity's former contacts. For the same reason, an identified call sealed to a retired `E`, or made at an address the host no longer serves the identity at, is answered `identity_switched` carrying `pid`, `head` and `endpoints`, while an anonymous call at that address gets the same not-found any unknown address gets. Neither answer proves anything: the caller fetches the log at the named endpoint, verifies it from its own pinned genesis, and only then re-pins and resends. A forged pointer leads to a log that fails rule 1. The one contact pull cannot reach is one that only ever receives and whose old host vanished without keeping lineage; it needs a fresh card, and a host that keeps lineage makes that not happen.
-
-### 14.6 Moving, and the wallet
-
-Moving is the person signing a `grant` for the new host, the new host generating its delegate key, `S` and `E` and publishing `keys` and `endpoint` under it, and the person revoking the old grant. Nothing the move needs is in the old host's hands, so the old host cannot delay or block it; keeping the lineage is the courtesy a good host extends to a person who left.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor P as Person (wallet)
-    participant O as Old host
-    participant N as New host
-    participant C as A contact
-    P->>N: grant(host, scope serve endpoint keys, exp)  [signed by root]
-    N->>N: new delegate key, S, E
-    N->>N: append keys + endpoint ops under the grant
-    P->>N: revoke(old grant)  [signed by root]
-    C->>O: sealed_call at the old address, sealed to the old E
-    O-->>C: identity_switched {pid, head, endpoints}
-    C->>N: GET endpoint/.well-known/pact-identity
-    N-->>C: log
-    C->>C: verify from pinned genesis, re-pin head
-    C->>N: sealed_call, sealed to the new E
-```
-
-The wallet holds the root and nothing a host holds. It signs only from an explicit user action, renders every operation as text the person can read before signing, and keeps its own copy of every operation it signed and of the person's contact book, so both outlive any host. A person with no wallet gets one from the first host's sign-up page, generated in the browser: the root is made there, the genesis and the first grant are signed there, the wallet is downloaded before anything else happens, and no server sees a root. A grant is renewed by signing a new one before the old expires; the RECOMMENDED lifetime is one year, and a host SHOULD ask for renewal at a moment the person is already present rather than by a separate ceremony. Losing every root ends the identity; the wallet says so once, when the root is made, and the contact book it keeps is what lets the person re-request every contact from a new one.
+An endpoint keeps the key identifiers of every leaf it has held for an identity it still serves — fingerprints, never keys past their `notAfter`. An envelope whose `kid` names one of them and no key it still holds is answered, in plaintext, with `certificate_renewed` and data `{"chain": [leaf, root]}`: the identity's current chain at this endpoint. The caller validates it (§14.2) against the root it holds and the address it dialed, updates its pin, and re-seals. A `kid` the endpoint never held is `envelope_invalid` with nothing attached — which is also what an identity that has left gets at its old address, because a host that has been left keeps nothing (§9). The answer proves nothing by itself; only the chain's validation does, and a forged one fails rule 2.
 
 ---
 
@@ -623,11 +590,11 @@ The examples below are 1.x wire shapes, kept because a 2.0 implementation still 
     "name": "redeem_invite",
     "arguments": {
       "token": "inv_8Qq1xZk3",
-      "card": "BEGIN:VCARD\nVERSION:4.0\nFN:Bharat Mehta\nX-PACT-VERSION:2\nX-PACT-ID:pact:m2n8v4r7q1w5e9t3y6u0i2o4\nX-PACT-HEAD:c4D2…\nX-PACT-ENDPOINT:https://agent.bharat.example/mcp\nX-PACT-KEY:sha256:Xf7dO2vUf2-ijuFdlp1bsOpTd01Ii9r53xxuASSz7yI\nX-PACT-ENC:sha256:Qp9r…\nX-PACT-SEAL:required\nEND:VCARD"
+      "card": "BEGIN:VCARD\nVERSION:4.0\nFN:Bharat Mehta\nX-PACT-VERSION:2\nX-PACT-CERT:MIIBkTCCAUOgAwIBAgIUX7…\nX-PACT-SEAL:required\nEND:VCARD"
     } } }
 ```
 
-Response: `{ "status": "pending", "card": "<Alina's 2.0 vCard>", "card_sig": "<b64 sig by Alina's S over the vCard bytes>", "spki": "<b64url DER of Alina's S>", "head": "<Alina's head>", "enc_spki": "<b64url DER of Alina's E>" }` — and before pinning, Bharat's agent fetches `https://agent.alina.example/mcp/.well-known/pact-identity`, verifies it from the genesis that hashes to Alina's `X-PACT-ID`, and checks that `spki` and `enc_spki` are the keys at that head.
+Response: `{ "status": "pending", "card": "<Alina's 2.0 vCard>", "card_sig": "<b64 sig by Alina's leaf key over the vCard bytes>", "chain": ["<b64url DER of Alina's leaf>", "<b64url DER of Alina's root>"] }` — and before pinning, Bharat's agent validates the chain (§14.2): the root's fingerprint equals the issuer key identifier in the card's certificate, the leaf byte-equals the card's `X-PACT-CERT`, and its endpoint is the address the invite came from.
 
 **Invite redeem, 1.x (MCP tool call, B → A's server):**
 
@@ -662,7 +629,7 @@ Response: `{ "thread_id": "T-coffee-2026-08", "status": "delivered" }`
 
 ## Appendix B: sealed-envelope test vectors
 
-Four `v: 1` vectors, one per sender/recipient curve pairing, which a 2.0 implementation must still open from pinned 1.x contacts (Appendix C). Keys are PKCS#8 DER (hex); `protected`, `enc`, `ct`, `sig` are the wire members (unpadded base64url). To pass: decrypt `ct` with the recipient key and the §13 parameters (AAD = decoded `protected`, info = `PACT-SEAL-v1`), compare against `plaintext_hex`, and verify `sig` with the sender key over the decoded `protected‖enc‖ct`. The `v: 2` vectors — an X25519 `E` as recipient, `head` and `ekid` in the header, info `PACT-SEAL-v2` — and the §14 log vectors (a genesis, a grant, a `keys` turnover, a fork resolved by priority, a lapse) are added when the reference implementation's generator produces them; until then this draft carries the rules and not the bytes. Vectors were generated by the reference implementation's deterministic generator (`internal/envelope/cmd/genvectors`); ECDSA signatures are one valid signature (ECDSA is randomized), everything else is reproducible byte for byte.
+Four `v: 1` vectors, one per sender/recipient curve pairing, which a 2.0 implementation must still open from pinned 1.x contacts (Appendix C). Keys are PKCS#8 DER (hex); `protected`, `enc`, `ct`, `sig` are the wire members (unpadded base64url). To pass: decrypt `ct` with the recipient key and the §13 parameters (AAD = decoded `protected`, info = `PACT-SEAL-v1`), compare against `plaintext_hex`, and verify `sig` with the sender key over the decoded `protected‖enc‖ct`. The `v: 2` vectors — a root and a leaf on each side, root fingerprints in `from` and `to`, the chain in the plaintext, info `PACT-SEAL-v2` — and the §14 certificate vectors (a valid chain; an expired leaf; a leaf longer than 398 days; a chain of three; an endpoint mismatch; a superseded leaf beside its successor; a `certificate_renewed` answer) are added when the reference implementation's generator produces them; until then this draft carries the rules and not the bytes. Vectors were generated by the reference implementation's deterministic generator (`internal/envelope/cmd/genvectors`); ECDSA signatures are one valid signature (ECDSA is randomized), everything else is reproducible byte for byte.
 
 ```json
 [
@@ -721,14 +688,15 @@ A 2.0 identity and a 1.x peer must keep talking, because a contact book full of 
 
 | Situation | Rule |
 |---|---|
-| A 2.0 identity's card reaches a 1.x phone book or agent | 1.x rejects any `X-PACT-VERSION` other than `1` and preserves unknown `X-` properties. A 2.0 host therefore MAY emit a **compatibility card** toward known 1.x peers: `X-PACT-VERSION:1`, `X-PACT-KEY` = the current `S`, and the 2.0 properties (`X-PACT-ID`, `X-PACT-HEAD`, `X-PACT-ENC`) carried as extras. The 1.x peer pins `S` as it always has; a 2.0 peer receiving the same card recognises `X-PACT-ID` and verifies the log |
-| A 1.x contact holds a fingerprint pin of a 2.0 identity's `S` | It is a valid pin for as long as that `S` is current or in grace. When `S` turns over, the 2.0 host sends the 1.x rotation — `update_contact` with the new card and the old `S`'s signature over the new fingerprint — to every pinned 1.x contact, exactly as 1.2 §2 specifies, and keeps the old `S` for the grace. The log authorises the turnover; the 1.x call is how a 1.x peer hears of it |
-| A 1.x contact calls the 2.0 identity | Its client certificate or `v: 1` envelope proves a fingerprint; the 2.0 receiver resolves it as a pinned 1.x contact (§6.1) and opens `v: 1` envelopes with info `PACT-SEAL-v1`. A 2.0 identity keeps accepting `v: 1` from pinned 1.x contacts until the date its genesis `min_version` names, after which they are refused `envelope_invalid` and must be re-added from a 2.0 card |
-| A 2.0 identity calls a 1.x contact | It presents `S` as its client certificate, seals `v: 1` to the contact's pinned identity key with the suite that key needs (the P-256 suite survives for this), and signs with `S`. The 1.x peer sees a 1.x call |
-| A 1.x peer arrives with a stale fingerprint after a move | Its call proves a key, so the old host's lineage answers `identity_switched` with the pid, head and endpoints, and a 2.0 agent on its behalf could ask `resolve_identity`; a 1.x peer that understands neither needs the card again over a human channel, which is what 1.2 §2 already required of a contact that missed a rotation |
-| A 1.x node that upgrades to 2.0 with an existing identity | Its identity key becomes `S`. The person makes a root, signs a genesis, and the node signs `keys` naming that `S` and `endpoint` naming its address, so every existing pin of `S` stays valid and every contact that upgrades learns the pid from the log on its next exchange. Nothing is re-shared |
+| A 2.0 identity's card reaches a 1.x phone book or agent | 1.x rejects any `X-PACT-VERSION` other than `1` and preserves unknown `X-` properties. A 2.0 host therefore MAY emit a **compatibility card** toward known 1.x peers: `X-PACT-VERSION:1`, `X-PACT-ENDPOINT` = the leaf's endpoint, `X-PACT-KEY` = the leaf key's fingerprint, and `X-PACT-CERT` carried as an extra. The 1.x peer pins the leaf key as it always has; a 2.0 peer receiving the same card recognises `X-PACT-CERT` and pins the root |
+| A 1.x contact holds a fingerprint pin of a 2.0 identity's leaf key | It is a valid pin for as long as that leaf's key is current. On a renewal with a new key, the 2.0 host sends the 1.x rotation — `update_contact` with the compatibility card and the old key's signature over the new fingerprint — to every pinned 1.x contact, exactly as 1.2 §2 specifies; it can, because it holds the old key until the old leaf's `notAfter`. A move puts the old key in a host that has deleted it, so a 1.x contact learns of a move the way 1.2 §2 already required of a contact that missed a rotation: from the card again, over a human channel |
+| A 1.x contact calls the 2.0 identity | Its client certificate or `v: 1` envelope proves a key fingerprint; the 2.0 receiver resolves it as a pinned 1.x contact (§6.1) and opens `v: 1` envelopes with info `PACT-SEAL-v1`. An owner MAY stop accepting 1.x from a date of their choosing, after which such contacts are refused `envelope_invalid` and must be re-added from a 2.0 card |
+| A 2.0 identity calls a 1.x contact | It presents its chain as the client certificate — 1.2 §2 ignores the chain and reads the leaf's key — seals `v: 1` to the contact's pinned identity key with the suite that key needs, with `from` the leaf key's fingerprint, and signs with the leaf key. The 1.x peer sees a 1.x call |
+| A 1.x contact's card names a gateway | 2.0 has no relay role (§9). A 2.0 node delivers directly and, when the peer is unreachable until `expires`, reports failure (§7); it never calls `relay_call`, and a 2.0 identity never writes `X-PACT-GATEWAY` |
+| A 2.0 peer holds a 1.x pin of a node that has since upgraded | The node's 1.x identity key became the key of its first leaf, so its first `v: 2` envelope carries a chain whose leaf key equals the pin. A 2.0 receiver holding a 1.x pin of key K that validates a chain with leaf key K re-pins as 2.0 — root, endpoint, leaf — with no human step. Nothing is re-shared |
+| A 1.x node that upgrades to 2.0 with an existing identity | The person makes a root and issues a leaf for the node's endpoint carrying the node's existing key, so every 1.x pin of that key stays valid and every 2.0 contact learns the root on its next exchange, per the row above |
 
-The `X-PACT-VERSION` major moves to `2` with this generation because the envelope header changed shape; the compatibility card is the one place a 2.0 implementation writes `1`, and only toward a peer it knows to be 1.x.
+The `X-PACT-VERSION` major moves to `2` with this generation because the card's shape and the meaning of the envelope header's names changed; the compatibility card is the one place a 2.0 implementation writes `1`, and only toward a peer it knows to be 1.x.
 
 ---
 
