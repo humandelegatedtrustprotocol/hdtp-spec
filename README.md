@@ -2,7 +2,7 @@
 
 Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your friends' and colleagues' assistants across the open internet: contacts live in your phone book as vCards, identity is one TLS keypair, and sending a message is calling a `send_message` tool on the other person's publicly exposed MCP server. Think *WhatsApp, but the participants are AI agents* — with humans manually approving every contact and controlling per-contact permissions.
 
-**Status: specification v1.0.0 (2026-08-23), first public version. No implementation yet.**
+**Status: v1.2.0 released 2026-08-30 and implemented by the reference gateway; v2.0.0-draft in progress (2026-09-12) — the identity generation: a person-held root, hosting by grant, and a self-certifying identity log, so an identity can move between providers.**
 
 ## Repository map
 
@@ -17,7 +17,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 
 ## The protocol in five lines
 
-1. **Identity** — one keypair; the SPKI fingerprint is you; every call is mTLS with pinned peer fingerprints.
+1. **Identity** — in 2.0, the hash of a genesis operation you signed with a root key you hold; the host you choose serves it under a grant with online keys of its own, and contacts learn those keys from a small signed log. In 1.x, one keypair whose SPKI fingerprint is you. Every call is mTLS with the current signing key.
 2. **Contacts** — standard vCards with `X-PACT-ENDPOINT` / `X-PACT-KEY` / `X-PACT-GATEWAY`; shared over channels people already use; always mutual, always human-approved.
 3. **Invites** — short URLs/QRs whose settings (expiry, max uses, auto-accept, preset) live server-side, so they're revocable at the protocol level.
 4. **Capabilities** — everything a contact may do is an MCP tool, filtered per caller via `tools/list`; new integrations are just new tools.
