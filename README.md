@@ -14,7 +14,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 | `archive/hardened-draft-spec.md` | Superseded hardened draft (E2E sealed envelopes, key hierarchies, SAS, key transparency). Kept because its envelope can return as an optional layer if gateway-proof privacy is ever required. |
 | `archive/design-study-v0.1.md` | The original design study that started the project. |
 | `archive/test-vectors/` | Crypto test-vector generator + output for the *hardened draft* (HPKE/SAS) — not applicable to current `SPEC.md`. |
-| `vectors/` | The 2.0 vectors of Appendix B: `gen.mjs` derives every secret from a label and writes the certificates, chain cases and `v: 2` envelopes; `check.mjs` reads them back *from `SPEC.md`*, opens the Go-generated `v: 1` vectors with the same code, cross-checks each certificate with OpenSSL, and asserts every case's outcome. `npm run vectors:check`. |
+| `vectors/` | The 2.0 vectors of Appendix B: `gen.mjs` derives every secret from a label and writes the certificates, chain cases and `v: 2` envelopes; `check.mjs` reads them back *from `SPEC.md`*, opens the Go-generated `v: 1` vectors with the same code, cross-checks each certificate with OpenSSL, and asserts every case's outcome. `npm run vectors:check`. `intrude.mjs` replays the §14.5 compromise cases against an in-memory node: `npm run vectors:intrude`. |
 
 ## The protocol in five lines
 

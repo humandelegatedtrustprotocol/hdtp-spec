@@ -251,12 +251,16 @@ The vCard B received out-of-band is the trust anchor: the `contact_accepted` cal
 
 **Removal / blocking:** `remove_contact` notifies the peer and deletes the pin on both sides (effective locally regardless — enforcement is "your root is no longer in my list"). Blocking is local-only: the contact silently drops to guest tier; no notification is sent.
 
+**An address that belongs to someone.** A stranger whose leaf names an endpoint the receiver has pinned for another root, or had pinned for another root within the last 30 days, is never auto-accepted — an invite's `auto_accept` does not apply — and is shown to the owner beside the name of the contact who holds or held that address. The honest case exists: a person who lost their root starts a new identity at the same address, and their contacts must see that it is a new identity. The dishonest one is a former provider re-using an address it was asked to vacate, wearing the departed person's name.
+
 ### 5.3 A contact at a new address
 
 When a person moves to another host, the new host holds a fresh leaf naming its own endpoint and a copy of the person's contact book (§9), and nothing of the old host's. It reaches each contact from the new address by calling `update_contact` with the new card, over a client certificate or a sealed envelope carrying the new chain. The receiver validates the chain to the root it has pinned — so this is provably the same person — and finds an endpoint different from the one it pinned and a leaf newer than the one it holds. What happens next is the owner's setting, **`accept_new_hosts`**:
 
 - `auto`, the default: the pin's endpoint and leaf are replaced, the call answers `ok`, and the next message flows to the new address; the change is recorded in the owner's audit and shown to the owner as an event — "Alina now writes from a new address" — because a stolen root re-homes contacts in exactly this way, and a person who is told can ask. The default is `auto` because the root's signature on the new leaf is the person's own authorisation of the new host, and asking their contact to confirm what they already signed adds a human step to a question the cryptography has settled.
 - `ask`: the call answers `{"status": "pending"}`; the request appears beside contact requests, naming the contact, the old address and the new one; until the owner decides, every other call from the new address answers `pending_approval`, and messages to the contact keep going to the old address, where they may fail. Approving re-pins as `auto` would have; rejecting leaves the pin as it was, and the new address is a stranger the owner MAY block.
+
+**A second move.** A new address inside 30 days of the last one is handled as `ask` whatever the setting says. A person moves rarely; two moves in a month is what a stolen root fighting its owner looks like, and the contact is the one who can ask.
 
 **After a removal.** A host that is being left, and still holds a valid leaf, could call `remove_contact` at every contact before the new host arrives, and the person would find their contacts gone. A receiver therefore keeps, for 30 days after a `remove_contact`, the removed root and the leaf that removed it; a chain from that root with a newer leaf inside that window is handled as a new address under `ask`, whatever the setting says, since a host that removed a contact and a host that returns cannot both have been the person's wish. A person who removes a contact and returns meets the same question, which is the right one.
 
@@ -284,7 +288,7 @@ flowchart TD
     F -- "active,<br/>pinned endpoint" --> A["CONTACT tier<br/>tools filtered by this contact's<br/>permission profile (§8)"]
 ```
 
-A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way through: that is a renewal, learned (§2).
+A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way through: that is a renewal, learned (§2). A guest whose endpoint belongs to a pinned contact, or did within 30 days, reaches the owner with that contact's name beside it and is never auto-accepted (§5).
 
 ### 6.2 Core tools
 
@@ -515,7 +519,7 @@ Canonical JSON is the JSON Canonicalization Scheme of RFC 8785: UTF-8, keys sort
 | `PACT-SEAL-P256` | DHKEM(P-256, HKDF-SHA256) | HKDF-SHA256 | AES-128-GCM | P-256 |
 | `PACT-SEAL-X25519` | DHKEM(X25519, HKDF-SHA256) | HKDF-SHA256 | ChaCha20-Poly1305 | Ed25519, birationally converted |
 
-The signature uses the sender's own algorithm regardless of the recipient's suite — which is what lets any two identities interoperate; HPKE **Auth** mode was rejected precisely because a cross-curve pair cannot share an authentication DH. Pinned encodings: ECDSA P-256/SHA-256 signatures are ASN.1 DER; Ed25519 signatures are pure Ed25519 per RFC 8032. The HPKE `info` parameter is the ASCII string `PACT-SEAL-v2` for a `v: 2` header and `PACT-SEAL-v1` for a `v: 1` header, so an envelope of one generation can never open as the other. Ed25519 keys convert to X25519 per the standard maps: the public key by the birational map of RFC 7748 §4.1, the private scalar from the SHA-512-derived, clamped scalar of RFC 8032 §5.1.5.
+The signature uses the sender's own algorithm regardless of the recipient's suite — which is what lets any two identities interoperate; HPKE **Auth** mode was rejected precisely because a cross-curve pair cannot share an authentication DH. Pinned encodings: ECDSA P-256/SHA-256 signatures are ASN.1 DER; Ed25519 signatures are pure Ed25519 per RFC 8032. The HPKE `info` parameter is the ASCII string `PACT-SEAL-v2` for a `v: 2` header and `PACT-SEAL-v1` for a `v: 1` header, so an envelope of one generation can never open as the other. Ed25519 keys convert to X25519 per the standard maps: the public key by the birational map of RFC 7748 §4.1, the private scalar from the SHA-512-derived, clamped scalar of RFC 8032 §5.1.5. The HPKE ephemeral MUST be fresh for every envelope — a reused one repeats the key and the nonce, and two ciphertexts under them leak the XOR of their plaintexts — and both sides MUST refuse an all-zero DH output, which a low-order X25519 point produces (RFC 9180 §7.1.4).
 
 `msg_id` is REQUIRED and MUST be non-empty — replay protection keyed on an empty string protects nothing. A protected header carrying a member not listed for its `v` MUST be rejected (`envelope_invalid`): the header is the AAD, and two implementations that disagree about what was signed cannot interoperate.
 
@@ -543,7 +547,7 @@ Unchanged in spirit from §11, extended by sealing, and documented rather than p
 
 ### 14.1 Profile
 
-Both certificates are X.509 v3 (RFC 5280). Keys are Ed25519 (RFC 8410) or ECDSA P-256; signatures are Ed25519 or ECDSA with SHA-256, in the encodings §13.1 pins. A **key identifier** is the 32-byte SHA-256 of the SubjectPublicKeyInfo — the bytes a fingerprint (§2) encodes — used for `subjectKeyIdentifier` and `authorityKeyIdentifier` alike, so the leaf's issuer key identifier *is* the root's fingerprint.
+Both certificates are X.509 v3 (RFC 5280). Keys are Ed25519 (RFC 8410) or ECDSA P-256; signatures are Ed25519 or ECDSA with SHA-256, in the encodings §13.1 pins. A certificate's `signatureAlgorithm` MUST be its issuer key's own algorithm; a verifier takes the algorithm from the key, never from the certificate, so a mismatch is simply a certificate the key did not sign. A **key identifier** is the 32-byte SHA-256 of the SubjectPublicKeyInfo — the bytes a fingerprint (§2) encodes — used for `subjectKeyIdentifier` and `authorityKeyIdentifier` alike, so the leaf's issuer key identifier *is* the root's fingerprint.
 
 | | Root | Leaf |
 |---|---|---|
@@ -585,11 +589,11 @@ An endpoint keeps the key identifiers of every leaf it has held for an identity 
 
 ### 14.5 Compromise cases
 
-What an attacker can hold, what stops each, and what each still costs. Every row names rules that live elsewhere in this document; the table is the checklist, not a new mechanism.
+What an attacker can hold, what stops each, and what each still costs. Every row names rules that live elsewhere in this document; the table is the checklist, not a new mechanism. `vectors/intrude.mjs` in the repository replays each row, and the corner cases around it, against the seed implementation, and reports which attacks are blocked and which succeed by decision.
 
 | The attacker holds | What stops it | What remains |
 |---|---|---|
-| **The root**, from a stolen and opened vault | Nothing cryptographic, by decision: whoever holds the root is the person. What makes the theft hard is the passphrase and memory-hard derivation, the hardware wrap, the extension's own window, and the passphrase asked again for a new endpoint (§9). What lets contacts notice a move the person never made is `ask`, and the event shown under `auto` (§5.3) | a new identity, re-shared over human channels; the wallet's contact book is the list to call |
+| **The root**, from a stolen and opened vault | Nothing cryptographic, by decision: whoever holds the root is the person. What makes the theft hard is the passphrase and memory-hard derivation, the hardware wrap, the extension's own window, and the passphrase asked again for a new endpoint (§9). What lets contacts notice a move the person never made is `ask`, the event shown under `auto`, and the rule that a second move inside 30 days is asked whatever the setting — a root fighting its thief looks like nothing else (§5.3) | a new identity, re-shared over human channels; the wallet's contact book is the list to call |
 | **A leaf key**, from a host | The key speaks only from its one address and can neither issue nor move; a renewal with a fresh key outranks it with every contact it reaches (§14.3); leaves expire within 398 days | contacts that exchange nothing until then; ciphertext recorded to that key (§13.5) |
 | **The current host** itself, rogue | As every hosted service: bounded to one address and one date by the leaf, unable to change either, and answerable to the wallet's contact book and the export the person can take anywhere | what it does while it serves — reads, sends, refuses to renew — shows only in its audit chain and in silence |
 | **A former host's leaf**, still valid after a move | Newest leaf wins with every contact reached; the campaign runs before the old host is told; the removal tombstone defeats a scorched-earth `remove_contact` (§5.3); the address is not reassigned until the leaf expires; the duty to delete, audited (§9) | contacts the campaign never reached, until the leaf expires |
@@ -597,7 +601,7 @@ What an attacker can hold, what stops each, and what each still costs. Every row
 | **A CSR** for an address of the attacker's choosing | The wallet shows the endpoint, the asking origin, and whether the host is new; verifies proof of possession; demands the passphrase for a new endpoint (§9) | a person who signs what they did not read |
 | **The wire**, as a carrier or edge | Sealing; the sender inside the ciphertext (§13.1) | messages tied to one recipient key for a leaf's life; no forward secrecy |
 | **A forged or replayed `certificate_renewed`** | Validation to the caller's own pin, the newest-leaf rule, the dialed address, one follow per call (§14.4) | nothing |
-| **A card** naming a hostile or internal address | The address guard at intake and before every dial (§3, §14.2); a guest's endpoint never equals the receiver's own | a person who approves a stranger whose card wears a friend's name — the 1.x residual |
+| **A card** naming a hostile, internal, or borrowed address | The address guard at intake and before every dial (§3, §14.2); a guest's endpoint never equals the receiver's own; a guest at an address that belongs or lately belonged to a pinned contact is never auto-accepted and is shown beside that contact's name (§5) | a person who approves a stranger whose card wears a friend's name at a fresh address — the 1.x residual |
 | **A leaf key**, used for a 1.x rotation toward 1.x peers | Nothing: a 1.x pin follows the key that signed the rotation (Appendix C) | 1.x contacts taken until they upgrade or re-add |
 | **Free roots**, flooding `request_contact` | Two guest tools, rate-limited by address and root (§12); human approval; invites with expiry and uses | as in 1.x |
 | **A poisoned archive**, from a former host | No key enters (§9); the wallet's contact book is the authority and every difference is shown | contacts the person never kept in the wallet |
