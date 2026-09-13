@@ -208,6 +208,21 @@ scenario('reference', 'a chain with an older leaf does not roll the pin back', b
 scenario('reference', 'both chain and leaf in one plaintext', 'plaintext members', () => receive(bharat(), message(hostA, chainA, LEAF_B, { both: true })).why);
 scenario('reference', 'a chain that fails is refused, never asked for again', blockedIf((r) => r.code === 'envelope_invalid'), () => receive(bharat(), message(hostA, [LEAF_A, ROOT_M], LEAF_B)));
 scenario('reference', 'the small form cannot move a contact to a new address', blockedIf((r) => r.code === 'chain_required'), () => receive(bharat(), update(hostN, [fresh(hostN, E_N), ROOT_A], LEAF_B, { reference: true })));
+scenario('reference', 'the small form against a held leaf that has expired is asked for the chain', 'chain_required', () => {
+  const b = bharat(); b.now = new Date(at('2027-09-02T00:00:00Z')); // LEAF_A expired yesterday
+  return receive(b, message(hostA, chainA, LEAF_B, { reference: true, ts: Math.floor(b.now / 1000) })).code;
+});
+scenario('reference', 'a flood of guessed fingerprints consumes nothing: every answer is chain_required and no state moves', blockedIf((got) => got === 'no state moved'), () => {
+  const b = bharat(); const before = JSON.stringify([...b.pins]) + b.seen.size + b.pending.length + b.events.length;
+  let all = true;
+  for (let i = 0; i < 200; i++) {
+    const guess = 'sha256:' + b64url(seed('guess/' + i));
+    const e = env({ senderKey: hostM.sign, senderChain: chainM, recipientLeaf: LEAF_B, params: { name: 'send_message', arguments: { msg_id: 'm', text: 'x' } }, reference: true, referenceKey: hostM.sign });
+    const body = JSON.parse(Buffer.from(JSON.stringify({ method: 'tools/call', params: {}, leaf: guess })).toString()); void body;
+    all &&= receive(b, e).code === 'chain_required';
+  }
+  return all && JSON.stringify([...b.pins]) + b.seen.size + b.pending.length + b.events.length === before ? 'no state moved' : 'state moved';
+});
 
 // ── Guests, cards, oracles ──────────────────────────────────────────────────────
 scenario('guest', 'a sealed tools/list from a stranger', 'guest may only redeem or request', () => receive(bharat(), env({ senderKey: hostM.sign, senderChain: chainM, recipientLeaf: LEAF_B, method: 'tools/list', params: {} })).why);
