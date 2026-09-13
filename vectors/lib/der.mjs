@@ -1,4 +1,4 @@
-// The little DER the certificate profile needs: an encoder for building, a walker for reading.
+// The little DER the certificate profile needs: an encoder for building, a strict walker for reading.
 
 function length(n) {
   if (n < 0x80) return Buffer.from([n]);
@@ -23,10 +23,10 @@ export function int(v) {
 }
 export function bitstr(bytes, unused = 0) { return tlv(0x03, Buffer.concat([Buffer.from([unused]), bytes])); }
 export function oid(s) {
-  const p = s.split('.').map(Number);
-  const out = [p[0] * 40 + p[1]];
+  const p = s.split('.').map(BigInt);
+  const out = [Number(p[0] * 40n + p[1])];
   for (const v of p.slice(2)) {
-    const b = [v & 0x7f]; for (let r = v >> 7; r > 0; r >>= 7) b.unshift((r & 0x7f) | 0x80);
+    const b = [Number(v & 0x7fn)]; for (let r = v >> 7n; r > 0n; r >>= 7n) b.unshift(Number(r & 0x7fn) | 0x80);
     out.push(...b);
   }
   return tlv(0x06, Buffer.from(out));
@@ -38,11 +38,19 @@ export function time(d) {
   return y < 2050 ? tlv(0x17, Buffer.from(String(y).slice(2) + rest)) : tlv(0x18, Buffer.from(pad(y, 4) + rest));
 }
 
-// Reading: one TLV at an offset, and the children of a constructed value.
+// Reading, strictly: definite and minimal lengths only, nothing past the end. Indefinite forms, padded
+// lengths and trailing bytes are how one parser is made to see what another does not.
 export function read(buf, pos = 0) {
+  if (pos + 2 > buf.length) throw new Error('DER truncated');
   const tag = buf[pos];
   let len = buf[pos + 1], at = pos + 2;
-  if (len & 0x80) { const n = len & 0x7f; len = 0; for (let i = 0; i < n; i++) len = (len << 8) | buf[at++]; }
+  if (len & 0x80) {
+    const n = len & 0x7f;
+    if (n === 0 || n > 4) throw new Error('DER indefinite or oversized length');
+    if (buf[at] === 0) throw new Error('DER length not minimal');
+    len = 0; for (let i = 0; i < n; i++) len = (len << 8) | buf[at++];
+    if (len < 0x80) throw new Error('DER length not minimal');
+  }
   if (at + len > buf.length) throw new Error('DER length overruns the buffer');
   return { tag, content: buf.subarray(at, at + len), raw: buf.subarray(pos, at + len), end: at + len };
 }
@@ -53,12 +61,13 @@ export function children(node) {
 }
 export function readOid(node) {
   const b = node.content, out = [Math.floor(b[0] / 40), b[0] % 40];
-  let v = 0;
-  for (let i = 1; i < b.length; i++) { v = (v << 7) | (b[i] & 0x7f); if (!(b[i] & 0x80)) { out.push(v); v = 0; } }
+  let v = 0n;
+  for (let i = 1; i < b.length; i++) { v = (v << 7n) | BigInt(b[i] & 0x7f); if (!(b[i] & 0x80)) { out.push(v.toString()); v = 0n; } }
   return out.join('.');
 }
 export function readTime(node) {
   const s = node.content.toString('ascii');
   const full = node.tag === 0x17 ? (Number(s.slice(0, 2)) < 50 ? '20' : '19') + s : s;
+  if (!/^\d{14}Z$/.test(full)) throw new Error('time not in the DER form');
   return new Date(Date.UTC(+full.slice(0, 4), +full.slice(4, 6) - 1, +full.slice(6, 8), +full.slice(8, 10), +full.slice(10, 12), +full.slice(12, 14)));
 }
