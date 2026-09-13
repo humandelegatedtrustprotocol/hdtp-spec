@@ -14,12 +14,17 @@ const GUEST_TOOLS = ['redeem_invite', 'request_contact'];
 const PENDING_TOOLS = ['contact_accepted', 'contact_rejected'];
 
 // Sender side, with every knob an attacker would turn. `recipientLeaf` is the DER of the leaf being sealed to.
-export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = 'tools/call', params, msgId, ts, exp, cty = 'application/pact-call+json', ephemeralSeed, signWith, header = {}, chainInside, info = 'PACT-SEAL-v2', suite, recipientPub }) {
+// `reference: true` names the sender's leaf by fingerprint instead of carrying the chain (§13.2): the small form,
+// for a receiver that already holds the leaf. A host sends the chain on first contact and after each renewal.
+export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = 'tools/call', params, msgId, ts, exp, cty = 'application/pact-call+json', ephemeralSeed, signWith, header = {}, chainInside, info = 'PACT-SEAL-v2', suite, recipientPub, reference = false, referenceKey, both = false }) {
   const leaf = parse(recipientLeaf);
   const s = suite ?? suiteForLeaf(leaf), pub = recipientPub ?? recipientOf(leaf);
   const h = { v: 2, suite: s, kid: fingerprint(leaf.publicKey), msg_id: msgId, ts, exp: exp ?? ts + 600, cty, ...header };
   const aad = Buffer.from(canonical(h));
-  const plaintext = Buffer.from(JSON.stringify({ method, params, chain: (chainInside ?? senderChain).map(b64url) }));
+  const chain = (chainInside ?? senderChain).map(b64url);
+  const ref = fingerprint((referenceKey ?? senderKey).pub ?? referenceKey ?? senderKey);
+  const body = both ? { method, params, chain, leaf: ref } : reference ? { method, params, leaf: ref } : { method, params, chain };
+  const plaintext = Buffer.from(JSON.stringify(body));
   const { enc, ct } = ephemeralSeed ? sealDeterministic(s, pub, Buffer.from(info), aad, plaintext, ephemeralSeed) : seal(s, pub, Buffer.from(info), aad, plaintext);
   const signer = signWith ?? senderKey;
   const sig = signDetached(signer.priv ?? signer, Buffer.concat([aad, enc, ct]));
@@ -69,21 +74,45 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   const aad = fromB64url(envelope.protected), enc = fromB64url(envelope.enc), ct = fromB64url(envelope.ct);
   let body;
   try { body = JSON.parse(open(header.suite, held.key.priv, held.key.pub, Buffer.from('PACT-SEAL-v2'), aad, enc, ct).toString()); } catch { return invalid('does not open'); }
-  if (!body || typeof body !== 'object' || Object.keys(body).sort().join(',') !== 'chain,method,params') return invalid('plaintext members');
-  if (!['tools/call', 'tools/list'].includes(body.method) || !Array.isArray(body.chain)) return invalid('plaintext shape');
+  const members = body && typeof body === 'object' ? Object.keys(body).sort().join(',') : '';
+  if (members !== 'chain,method,params' && members !== 'leaf,method,params') return invalid('plaintext members');
+  if (!['tools/call', 'tools/list'].includes(body.method)) return invalid('plaintext shape');
+  const signed = Buffer.concat([aad, enc, ct]), sig = fromB64url(envelope.sig);
+  const tool = body.params?.name;
+  const freshness = () => {
+    if (header.cty !== 'application/pact-call+json') return invalid('not a request');
+    const nowS = Math.floor(node.now / 1000);
+    if (!(nowS < header.exp) || Math.abs(nowS - header.ts) > SKEW_S) return invalid('outside the time window');
+    if (typeof header.msg_id !== 'string' || !header.msg_id) return invalid('empty msg_id');
+    if (node.seen.has(header.msg_id)) return { code: 'ok', replayed: true };
+    return null;
+  };
 
+  // The small form: the sender names a leaf this node already holds. Anything that cannot be verified
+  // against a held leaf — unknown, blocked, or a bad signature — gets the same answer, so nothing leaks.
+  if (members === 'leaf,method,params') {
+    if (typeof body.leaf !== 'string') return invalid('plaintext shape');
+    const chainRequired = { code: 'chain_required' };
+    const hit = [...node.pins].find(([, p]) => p.state !== 'blocked' && fingerprint(parse(p.leafDer).publicKey) === body.leaf);
+    if (!hit) return chainRequired;
+    const [root, p] = hit;
+    if (!verifyDetached(parse(p.leafDer).publicKey, signed, sig)) return chainRequired;
+    const early = freshness(); if (early) return early;
+    const result = (tier) => { node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint: p.endpoint, method: body.method, tool, form: 'leaf' }; };
+    if (p.state === 'pending_out') return PENDING_TOOLS.includes(tool) ? result('pending') : { code: 'pending_approval' };
+    return result('contact');
+  }
+
+  // The full form: a chain is a proof from the root and the one way a held leaf is updated.
+  if (!Array.isArray(body.chain)) return invalid('plaintext shape');
   const chain = body.chain.map(fromB64url);
   const v = validateChain(chain, { now: node.now });
   if (!v.ok) return invalid(`chain rule ${v.rule}: ${v.reason}`);
-  if (!verifyDetached(v.leafKey, Buffer.concat([aad, enc, ct]), fromB64url(envelope.sig))) return invalid('signature is not the chain\'s leaf key');
-  if (header.cty !== 'application/pact-call+json') return invalid('not a request');
-  const nowS = Math.floor(node.now / 1000);
-  if (!(nowS < header.exp) || Math.abs(nowS - header.ts) > SKEW_S) return invalid('outside the time window');
-  if (typeof header.msg_id !== 'string' || !header.msg_id) return invalid('empty msg_id');
-  if (node.seen.has(header.msg_id)) return { code: 'ok', replayed: true };
+  if (!verifyDetached(v.leafKey, signed, sig)) return invalid('signature is not the chain\'s leaf key');
+  const early = freshness(); if (early) return early;
 
-  const root = v.rootFingerprint, endpoint = v.endpoint, tool = body.params?.name;
-  const result = (tier, extra = {}) => { node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint, method: body.method, tool, ...extra }; };
+  const root = v.rootFingerprint, endpoint = v.endpoint;
+  const result = (tier, extra = {}) => { node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint, method: body.method, tool, form: 'chain', ...extra }; };
   const asGuest = (why) => {
     if (body.method !== 'tools/call' || !GUEST_TOOLS.includes(tool)) return invalid('guest may only redeem or request');
     const card = decodeCard(body.params.arguments?.card ?? '');

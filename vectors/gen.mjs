@@ -70,23 +70,24 @@ const renewedCases = [
   { name: 'another root discarded', pinned_leaf: 'leaf_a', dialed: ENDPOINT_A, now: NOW, answer: { code: 'certificate_renewed', data: { chain: chainB64('leaf_b', 'root_b') } }, expect: 'discard' },
 ];
 
-// Two v2 envelopes, one each way, as the v1 vectors paired the curves.
+// Three v2 envelopes: one each way carrying the chain, as the v1 vectors paired the curves, and one
+// in the small form, naming a leaf the receiver already holds (§13.2).
 const ts = Math.floor(Date.parse(NOW) / 1000);
-function envelope(name, sender, senderChain, recipientChain, msgId) {
+function envelope(name, sender, senderChain, recipientChain, msgId, form = 'chain') {
   const recipientLeaf = parse(certs[recipientChain[0]]);
   const suite = suiteForLeaf(recipientLeaf);
   const protectedHeader = { v: 2, suite, kid: fingerprint(recipientLeaf.publicKey), msg_id: msgId, ts, exp: ts + 600, cty: 'application/pact-call+json' };
   const aad = Buffer.from(canonical(protectedHeader));
-  const plaintext = Buffer.from(JSON.stringify({
-    method: 'tools/call', params: { name: 'send_message', arguments: { msg_id: 'vec-1', text: 'hello from the PACT test vectors' } }, chain: chainB64(...senderChain),
-  }));
+  const call = { method: 'tools/call', params: { name: 'send_message', arguments: { msg_id: 'vec-1', text: 'hello from the PACT test vectors' } } };
+  const plaintext = Buffer.from(JSON.stringify(form === 'chain' ? { ...call, chain: chainB64(...senderChain) } : { ...call, leaf: fingerprint(sender.pub) }));
   const { enc, ct } = sealDeterministic(suite, recipientOf(recipientLeaf), Buffer.from('PACT-SEAL-v2'), aad, plaintext, seed('ephemeral/' + name));
   const sig = signDetached(sender.priv, Buffer.concat([aad, enc, ct]));
-  return { name, suite, sender_chain: senderChain, recipient_chain: recipientChain, plaintext_hex: hex(plaintext), protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(sig) };
+  return { name, form, suite, sender_chain: senderChain, recipient_chain: recipientChain, plaintext_hex: hex(plaintext), protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(sig) };
 }
 const envelopes = [
   envelope('alina-to-bharat', hosts.leaf_a, ['leaf_a', 'root_a'], ['leaf_b', 'root_b'], 'vec-v2-alina-to-bharat'),
   envelope('bharat-to-alina', hosts.leaf_b, ['leaf_b', 'root_b'], ['leaf_a', 'root_a'], 'vec-v2-bharat-to-alina'),
+  envelope('alina-to-bharat-by-reference', hosts.leaf_a, ['leaf_a', 'root_a'], ['leaf_b', 'root_b'], 'vec-v2-alina-to-bharat-ref', 'leaf'),
 ];
 
 const out = {
