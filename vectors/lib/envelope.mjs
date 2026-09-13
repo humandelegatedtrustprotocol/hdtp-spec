@@ -96,7 +96,9 @@ export function receive(node, envelope, { siblings = [] } = {}) {
     const hit = [...node.pins].find(([, p]) => p.state !== 'blocked' && fingerprint(parse(p.leafDer).publicKey) === body.leaf);
     if (!hit) return chainRequired;
     const [root, p] = hit;
-    if (!verifyDetached(parse(p.leafDer).publicKey, signed, sig)) return chainRequired;
+    const held = parse(p.leafDer);
+    if (node.now > held.notAfter) return chainRequired; // expiry darkens the small form as it darkens the chain
+    if (!verifyDetached(held.publicKey, signed, sig)) return chainRequired;
     const early = freshness(); if (early) return early;
     const result = (tier) => { node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint: p.endpoint, method: body.method, tool, form: 'leaf' }; };
     if (p.state === 'pending_out') return PENDING_TOOLS.includes(tool) ? result('pending') : { code: 'pending_approval' };
