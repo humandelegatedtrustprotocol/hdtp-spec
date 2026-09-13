@@ -1,5 +1,5 @@
 // HPKE Base mode (RFC 9180) for the two PACT suites, and the detached signature of §13.1.
-import { createHmac, createCipheriv, createDecipheriv, createECDH, diffieHellman, createPublicKey, sign, verify } from 'node:crypto';
+import { createHmac, createCipheriv, createDecipheriv, createECDH, diffieHellman, createPublicKey, randomBytes, sign, verify } from 'node:crypto';
 import { algorithmOf, ed25519PublicToX25519, ed25519PrivateToX25519, x25519Raw, x25519FromSeed, p256Uncompressed, p256Scalar, p256FromSeed } from './keys.mjs';
 
 export const SUITES = {
@@ -26,6 +26,7 @@ function keySchedule(s, sharedSecret, info) {
   return { key: labeledExpand(id, secret, 'key', ksc, s.nk), nonce: labeledExpand(id, secret, 'base_nonce', ksc, s.nn) };
 }
 function sharedSecret(s, dh, kemContext) {
+  if (dh.every((b) => b === 0)) throw new Error('all-zero DH output: low-order point');
   const id = Buffer.concat([Buffer.from('KEM'), i2osp2(s.kem)]);
   return labeledExpand(id, labeledExtract(id, Buffer.alloc(0), 'eae_prk', dh), 'shared_secret', kemContext, s.nsecret);
 }
@@ -35,7 +36,7 @@ export function suiteFor(pub) { return algorithmOf(pub) === 'p256' ? 'PACT-SEAL-
 
 function recipientPublic(suite, pub) {
   if (suite === 'PACT-SEAL-P256') return p256Uncompressed(pub);
-  return x25519Raw(algorithmOf(pub) === 'ed25519' ? ed25519PublicToX25519(pub) : pub);
+  return x25519Raw(pub.asymmetricKeyType === 'ed25519' ? ed25519PublicToX25519(pub) : pub);
 }
 
 // Encapsulation with a deterministic ephemeral, so the vectors reproduce byte for byte.
@@ -63,7 +64,9 @@ function decap(suite, priv, pub, enc) {
   return sharedSecret(s, diffieHellman({ privateKey: sk, publicKey: encObj }), Buffer.concat([enc, pkR]));
 }
 
-export function seal(suite, recipientPub, info, aad, plaintext, ephemeralSeed) {
+// The ephemeral MUST be fresh per envelope: reusing one repeats the key and the nonce, and two
+// ciphertexts under the same pair leak the XOR of their plaintexts. A seed is for vectors only.
+export function seal(suite, recipientPub, info, aad, plaintext, ephemeralSeed = randomBytes(32)) {
   const s = SUITES[suite];
   const { enc, ss } = encap(suite, recipientPub, ephemeralSeed);
   const { key, nonce } = keySchedule(s, ss, info);
