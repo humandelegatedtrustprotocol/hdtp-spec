@@ -26,21 +26,19 @@ export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = '
   return { protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(sig) };
 }
 
-// A host holds, per leaf, the signing key and the X-Wing sealing key the leaf carries.
-function slot(leafKey, sealKey, leafDer) {
-  const leaf = parse(leafDer);
-  return { key: leafKey, seal: sealKey, kid: fingerprint(leafKey.pub), leafDer, notAfter: leaf.notAfter, current: true };
+function slot(leafKey, leafDer) {
+  return { key: leafKey, kid: fingerprint(leafKey.pub), leafDer, notAfter: parse(leafDer).notAfter, current: true };
 }
-export function makeNode({ path, leafKey, sealKey, chain, now, acceptNewHosts = 'auto' }) {
+export function makeNode({ path, leafKey, chain, now, acceptNewHosts = 'auto' }) {
   return {
     path, endpoint: parse(chain[0]).uris[0], now, acceptNewHosts, chain,
-    keys: [slot(leafKey, sealKey, chain[0])],
+    keys: [slot(leafKey, chain[0])],
     former: new Set(), pins: new Map(), tombstones: new Map(), formerEndpoints: [], seen: new Set(), events: [], pending: [],
   };
 }
-export function renew(node, leafKey, sealKey, chain) {
+export function renew(node, leafKey, chain) {
   for (const k of node.keys) k.current = false;
-  node.keys.push(slot(leafKey, sealKey, chain[0]));
+  node.keys.push(slot(leafKey, chain[0]));
   node.chain = chain; node.endpoint = parse(chain[0]).uris[0];
 }
 export function forgetKeysPast(node) {
@@ -66,15 +64,11 @@ export function receive(node, envelope, { siblings = [] } = {}) {
     if (node.former.has(header.kid)) return { code: 'certificate_renewed', data: { chain: node.chain.map(b64url) } };
     return invalid('unknown kid');
   }
-  const heldLeaf = parse(held.leafDer);
-  if (suiteForLeaf(heldLeaf) !== header.suite) return invalid('suite does not fit the leaf');
+  if (suiteForLeaf(parse(held.leafDer)) !== header.suite) return invalid('suite does not fit the leaf');
 
   const aad = fromB64url(envelope.protected), enc = fromB64url(envelope.enc), ct = fromB64url(envelope.ct);
   let body;
-  try {
-    const [priv, pub] = SUITES[header.suite].pq ? [held.seal, held.seal.pk] : [held.key.priv, held.key.pub];
-    body = JSON.parse(open(header.suite, priv, pub, Buffer.from('PACT-SEAL-v2'), aad, enc, ct).toString());
-  } catch { return invalid('does not open'); }
+  try { body = JSON.parse(open(header.suite, held.key.priv, held.key.pub, Buffer.from('PACT-SEAL-v2'), aad, enc, ct).toString()); } catch { return invalid('does not open'); }
   if (!body || typeof body !== 'object' || Object.keys(body).sort().join(',') !== 'chain,method,params') return invalid('plaintext members');
   if (!['tools/call', 'tools/list'].includes(body.method) || !Array.isArray(body.chain)) return invalid('plaintext shape');
 
