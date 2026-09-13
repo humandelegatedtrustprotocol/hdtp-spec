@@ -88,13 +88,22 @@ if (!v2) {
     ok(plaintext && plaintext.toString('hex') === v.plaintext_hex, `${v.name}: plaintext`);
     if (plaintext) {
       const body = JSON.parse(plaintext.toString());
-      const chain = body.chain.map(fromB64url);
-      const r = validateChain(chain, { now: new Date(v2.now) });
-      ok(r.ok, `${v.name}: chain inside validates`);
-      ok(r.ok && chain[0].equals(der[v.sender_chain[0]]), `${v.name}: chain inside is the sender's`);
-      ok(r.ok && verifyDetached(r.leafKey, Buffer.concat([aad, enc, ct]), fromB64url(v.sig)), `${v.name}: signature under the chain's leaf key`);
+      const senderLeaf = parse(der[v.sender_chain[0]]);
+      if (v.form === 'leaf') {
+        ok(Object.keys(body).sort().join(',') === 'leaf,method,params', `${v.name}: small form carries leaf, method, params`);
+        ok(body.leaf === fingerprint(senderLeaf.publicKey), `${v.name}: leaf names the sender's held leaf`);
+        ok(verifyDetached(senderLeaf.publicKey, Buffer.concat([aad, enc, ct]), fromB64url(v.sig)), `${v.name}: signature under the held leaf's key`);
+        ok(ct.length < 400, `${v.name}: small form stays small (${ct.length} bytes sealed)`);
+      } else {
+        ok(Object.keys(body).sort().join(',') === 'chain,method,params', `${v.name}: full form carries chain, method, params`);
+        const chain = body.chain.map(fromB64url);
+        const r = validateChain(chain, { now: new Date(v2.now) });
+        ok(r.ok, `${v.name}: chain inside validates`);
+        ok(r.ok && chain[0].equals(der[v.sender_chain[0]]), `${v.name}: chain inside is the sender's`);
+        ok(r.ok && verifyDetached(r.leafKey, Buffer.concat([aad, enc, ct]), fromB64url(v.sig)), `${v.name}: signature under the chain's leaf key`);
+      }
     }
-    console.log(`  ${v.name}: ${plaintext ? 'opened' : 'closed'}`);
+    console.log(`  ${v.name}: ${plaintext ? 'opened' : 'closed'}${v.form === 'leaf' ? ' (by reference)' : ''}`);
   }
 }
 

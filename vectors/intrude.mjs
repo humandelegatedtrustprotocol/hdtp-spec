@@ -183,6 +183,32 @@ scenario('secrets', 'the root private keys are not in the spec', 'absent', () =>
   return roots.some((h) => spec.includes(h)) ? 'present' : 'absent';
 });
 
+// ── The small form: a leaf named by fingerprint (§13.2) ─────────────────────────
+const size = (e) => JSON.stringify(e).length;
+scenario('reference', 'a known contact from its known host sends the small form and is a contact', blockedIf((r) => r.tier === 'contact' && r.form === 'leaf'), () => receive(bharat(), message(hostA, chainA, LEAF_B, { reference: true })));
+scenario('reference', 'the small form is a fraction of the full one', blockedIf((got) => got < 0.45), () => size(message(hostA, chainA, LEAF_B, { reference: true })) / size(message(hostA, chainA, LEAF_B)));
+scenario('reference', 'an unknown leaf named by fingerprint is asked for its chain', 'chain_required', () => receive(bharat(), message(hostM, chainM, LEAF_B, { reference: true })).code);
+scenario('reference', 'a known leaf named with a bad signature gets the same answer, so nothing leaks', 'chain_required', () => receive(bharat(), message(hostA, chainA, LEAF_B, { reference: true, signWith: hostM.sign })).code);
+scenario('reference', 'a blocked contact naming its leaf is answered as a stranger would be', 'chain_required', () => {
+  const b = bharat(); pin(b, FP_M, { endpoint: E_M, leafDer: LEAF_M, state: 'blocked' });
+  return receive(b, message(hostM, chainM, LEAF_B, { reference: true })).code;
+});
+scenario('reference', 'after chain_required, the chain is sent and the leaf is learned', blockedIf((r) => r.tier === 'contact' && r.form === 'chain'), () => {
+  const b = bharat();
+  const leafA2 = fresh(hostA2, E_A);
+  if (receive(b, message(hostA2, [leafA2, ROOT_A], LEAF_B, { reference: true })).code !== 'chain_required') return 'not asked';
+  const r = receive(b, message(hostA2, [leafA2, ROOT_A], LEAF_B));
+  return r.tier === 'contact' && b.events.some((e) => e.event === 'renewal') && receive(b, message(hostA2, [leafA2, ROOT_A], LEAF_B, { reference: true })).tier === 'contact' ? r : 'not learned';
+});
+scenario('reference', 'a chain with an older leaf does not roll the pin back', blockedIf((r) => r.code === 'envelope_invalid' && /guest/.test(r.why)), () => {
+  const b = bharat();
+  receive(b, message(hostA2, [fresh(hostA2, E_A), ROOT_A], LEAF_B)); // renewal learned
+  return receive(b, message(hostA, chainA, LEAF_B)); // the older leaf, explicit chain
+});
+scenario('reference', 'both chain and leaf in one plaintext', 'plaintext members', () => receive(bharat(), message(hostA, chainA, LEAF_B, { both: true })).why);
+scenario('reference', 'a chain that fails is refused, never asked for again', blockedIf((r) => r.code === 'envelope_invalid'), () => receive(bharat(), message(hostA, [LEAF_A, ROOT_M], LEAF_B)));
+scenario('reference', 'the small form cannot move a contact to a new address', blockedIf((r) => r.code === 'chain_required'), () => receive(bharat(), update(hostN, [fresh(hostN, E_N), ROOT_A], LEAF_B, { reference: true })));
+
 // ── Guests, cards, oracles ──────────────────────────────────────────────────────
 scenario('guest', 'a sealed tools/list from a stranger', 'guest may only redeem or request', () => receive(bharat(), env({ senderKey: hostM.sign, senderChain: chainM, recipientLeaf: LEAF_B, method: 'tools/list', params: {} })).why);
 scenario('guest', 'a guest whose card carries a different certificate than the chain', 'guest card certificate is not the chain\'s leaf', () => {
