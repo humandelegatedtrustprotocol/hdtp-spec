@@ -8,7 +8,6 @@ import { createPublicKey } from 'node:crypto';
 import { seed, ed25519FromSeed, p256FromSeed, pkcs8Of, b64url, fromB64url } from './lib/keys.mjs';
 import { buildRoot, buildLeaf, validateChain, parse, fingerprintOf } from './lib/x509.mjs';
 import { seal, sealDeterministic, open } from './lib/hpke.mjs';
-import * as xwing from './lib/xwing.mjs';
 import { encodeCard, decodeCard } from './lib/card.mjs';
 import { sealEnvelope, makeNode, renew, forgetKeysPast, pin, removeContact, receive } from './lib/envelope.mjs';
 
@@ -17,11 +16,11 @@ const NOW = at('2026-09-13T12:00:00Z'), nowS = Math.floor(NOW / 1000);
 const H = 3_600_000, D = 86_400_000;
 const E_A = 'https://agent.alina.example/mcp', E_B = 'https://agent.bharat.example/mcp', E_M = 'https://mallory.example/mcp', E_N = 'https://alina.pact.contact/alina/mcp';
 
-// The cast. Every key derives from a label; a host is a signing key and an X-Wing sealing key.
-const host = (label, p256 = false) => ({ sign: p256 ? p256FromSeed(seed('intrude/sign/' + label)) : ed25519FromSeed(seed('intrude/sign/' + label)), seal: xwing.keyFromSeed(seed('intrude/seal/' + label)) });
+// The cast. Every key derives from a label; a host is one signing key.
+const host = (label, p256 = false) => ({ sign: p256 ? p256FromSeed(seed('intrude/sign/' + label)) : ed25519FromSeed(seed('intrude/sign/' + label)) });
 const rootA = ed25519FromSeed(seed('intrude/root/alina')), rootB = p256FromSeed(seed('intrude/root/bharat')), rootM = ed25519FromSeed(seed('intrude/root/mallory'));
 const hostA = host('alina'), hostA2 = host('alina/2'), hostN = host('alina/new'), hostB = host('bharat', true), hostM = host('mallory');
-const leafOf = (root, rootCn, h, endpoint, o = {}) => buildLeaf({ cn: o.cn ?? rootCn, rootCn, root, hostKey: h.sign, sealKey: o.sealKey === null ? undefined : (o.sealKey ?? h.seal.pk), endpoint, notBefore: o.notBefore ?? at('2026-09-01T00:00:00Z'), notAfter: o.notAfter ?? at('2027-09-01T00:00:00Z'), label: o.label ?? endpoint + (o.cn ?? '') + (o.notBefore ?? ''), ...o });
+const leafOf = (root, rootCn, h, endpoint, o = {}) => buildLeaf({ cn: o.cn ?? rootCn, rootCn, root, hostKey: h.sign, endpoint, notBefore: o.notBefore ?? at('2026-09-01T00:00:00Z'), notAfter: o.notAfter ?? at('2027-09-01T00:00:00Z'), label: o.label ?? endpoint + (o.cn ?? '') + (o.notBefore ?? ''), ...o });
 const ROOT_A = buildRoot({ cn: 'Alina Rao', key: rootA, notBefore: at('2026-09-01T00:00:00Z'), label: 'i/root_a' });
 const ROOT_B = buildRoot({ cn: 'Bharat Mehta', key: rootB, notBefore: at('2026-09-01T00:00:00Z'), label: 'i/root_b' });
 const ROOT_M = buildRoot({ cn: 'Alina Rao', key: rootM, notBefore: at('2026-09-01T00:00:00Z'), label: 'i/root_m' }); // same name, on purpose
@@ -39,7 +38,7 @@ const message = (h, chain, recipientLeaf, o = {}) => env({ senderKey: h.sign, se
 const update = (h, chain, recipientLeaf, o = {}) => env({ senderKey: h.sign, senderChain: chain, recipientLeaf, params: { name: 'update_contact', arguments: { card: card(chain) } }, ...o });
 
 function bharat(acceptNewHosts = 'auto') {
-  const node = makeNode({ path: '/bharat', leafKey: hostB.sign, sealKey: hostB.seal, chain: chainB, now: NOW, acceptNewHosts });
+  const node = makeNode({ path: '/bharat', leafKey: hostB.sign, chain: chainB, now: NOW, acceptNewHosts });
   pin(node, FP_A, { endpoint: E_A, leafDer: LEAF_A });
   return node;
 }
@@ -61,9 +60,9 @@ scenario('identity', 'Mallory, own root, claims Alina\'s address in her leaf', b
 scenario('identity', 'Alina\'s leaf presented under Mallory\'s root', 'rule 3', () => rule([LEAF_A, ROOT_M]));
 scenario('identity', 'one byte of Alina\'s leaf changed', 'rule 3', () => { const t = Buffer.from(LEAF_A); t[t.indexOf(Buffer.from('Alina Rao')) + 1] ^= 1; return rule([t, ROOT_A]); });
 scenario('identity', 'Mallory\'s root with the same display name', blockedIf((r) => r.tier === 'guest' && r.root === FP_M), () => receive(bharat(), request(hostM, chainM, LEAF_B, { fn: 'Alina Rao' })));
-scenario('identity', 'stolen leaf keys certified under Mallory\'s own root', blockedIf((r) => r.tier === 'guest'), () => receive(bharat(), request(hostA, [leafOf(rootM, 'Alina Rao', hostA, E_M), ROOT_M], LEAF_B)));
-scenario('identity', 'stolen leaf keys: send as Alina while the leaf lives', residual('contact'), () => receive(bharat(), message(hostA, chainA, LEAF_B)).tier);
-scenario('identity', 'stolen leaf keys: after Alina renews with fresh keys, the old chain is a guest', blockedIf((r) => r.code === 'envelope_invalid' && /guest/.test(r.why)), () => {
+scenario('identity', 'stolen leaf key certified under Mallory\'s own root', blockedIf((r) => r.tier === 'guest'), () => receive(bharat(), request(hostA, [leafOf(rootM, 'Alina Rao', hostA, E_M), ROOT_M], LEAF_B)));
+scenario('identity', 'stolen leaf key: sends as Alina while the leaf lives', residual('contact'), () => receive(bharat(), message(hostA, chainA, LEAF_B)).tier);
+scenario('identity', 'stolen leaf key: after Alina renews with a fresh key, the old chain is a guest', blockedIf((r) => r.code === 'envelope_invalid' && /guest/.test(r.why)), () => {
   const b = bharat();
   const learned = receive(b, message(hostA2, [fresh(hostA2, E_A), ROOT_A], LEAF_B));
   if (learned.tier !== 'contact' || !b.events.some((e) => e.event === 'renewal')) return 'renewal not learned';
@@ -103,7 +102,7 @@ scenario('identity', 'former host\'s superseded leaf cannot claim any address', 
   return receive(b, update(hostA, chainA, LEAF_B));
 });
 scenario('identity', 'a contact still pending_out moves before accepting (auto)', blockedIf((r) => r.tier === 'pending'), () => {
-  const b = makeNode({ path: '/bharat', leafKey: hostB.sign, sealKey: hostB.seal, chain: chainB, now: NOW });
+  const b = makeNode({ path: '/bharat', leafKey: hostB.sign, chain: chainB, now: NOW });
   pin(b, FP_A, { endpoint: E_A, leafDer: LEAF_A, state: 'pending_out' });
   const leafN = fresh(hostN, E_N);
   return receive(b, env({ senderKey: hostN.sign, senderChain: [leafN, ROOT_A], recipientLeaf: LEAF_B, params: { name: 'contact_accepted', arguments: { card: card([leafN, ROOT_A]), permissions: ['message.text'] } } }));
@@ -112,8 +111,6 @@ scenario('identity', 'a contact still pending_out moves before accepting (auto)'
 // ── Certificate corner cases: the profile is exact ──────────────────────────────
 scenario('certificate', 'leaf with cA true', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { cA: true }), ROOT_A]));
 scenario('certificate', 'leaf without digitalSignature', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { usage: [4] }), ROOT_A]));
-scenario('certificate', 'leaf without a sealing key', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { sealKey: null }), ROOT_A]));
-scenario('certificate', 'leaf with a sealing key of the wrong size', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { sealKey: Buffer.alloc(800) }), ROOT_A]));
 scenario('certificate', 'leaf whose issuer key identifier names another root', 'rule 3', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { aki: parse(ROOT_M).keyId }), ROOT_A]));
 scenario('certificate', 'leaf declaring ECDSA but signed by an Ed25519 root', 'rule 3', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { algOid: '1.2.840.10045.4.3.2' }), ROOT_A]));
 scenario('certificate', 'an extension the profile does not list, critical', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { extra: [{ oid: '1.3.6.1.4.1.99999.1', critical: true, value: Buffer.from('0500', 'hex') }] }), ROOT_A]));
@@ -136,13 +133,12 @@ for (const [what, uris, dns] of [
 ]) scenario('certificate', 'endpoint: ' + what, 'rule 5', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { uris, dnsName: dns }), ROOT_A]));
 
 // ── Secrets ─────────────────────────────────────────────────────────────────────
-const openTo = (h, e) => { try { open('PACT-SEAL-XWING', h.seal, h.seal.pk, Buffer.from('PACT-SEAL-v2'), fromB64url(e.protected), fromB64url(e.enc), fromB64url(e.ct)); return 'opened'; } catch { return 'closed'; } };
-scenario('secrets', 'stolen leaf keys open traffic recorded while they were current', residual('opened'), () => openTo(hostA, message(hostB, chainB, LEAF_A)));
-scenario('secrets', 'after a rekey, new traffic is closed to the old keys', 'closed', () => openTo(hostA, message(hostB, chainB, fresh(hostA2, E_A))));
-scenario('secrets', 'the classical suite sealed to a 2.0 recipient is refused', 'suite does not fit the leaf', () => receive(bharat(), message(hostA, chainA, LEAF_B, { suite: 'PACT-SEAL-P256', recipientPub: hostB.sign.pub })).why);
+const openTo = (h, e, pub = h.sign.pub) => { try { open('PACT-SEAL-X25519', h.sign.priv, pub, Buffer.from('PACT-SEAL-v2'), fromB64url(e.protected), fromB64url(e.enc), fromB64url(e.ct)); return 'opened'; } catch { return 'closed'; } };
+scenario('secrets', 'a stolen leaf key opens traffic recorded while it was current', residual('opened'), () => openTo(hostA, message(hostB, chainB, LEAF_A)));
+scenario('secrets', 'after a rekey, new traffic is closed to the old key', 'closed', () => openTo(hostA, message(hostB, chainB, fresh(hostA2, E_A)), hostA2.sign.pub));
+scenario('secrets', 'the wrong suite for the recipient\'s key', 'suite does not fit the leaf', () => receive(bharat(), message(hostA, chainA, LEAF_B, { suite: 'PACT-SEAL-X25519', recipientPub: hostA.sign.pub })).why);
 scenario('secrets', 'a flipped ciphertext byte', 'does not open', () => { const e = message(hostA, chainA, LEAF_B); const ct = fromB64url(e.ct); ct[3] ^= 1; return receive(bharat(), { ...e, ct: b64url(ct) }).why; });
-scenario('secrets', 'a flipped byte of the ML-KEM ciphertext', 'does not open', () => { const e = message(hostA, chainA, LEAF_B); const enc = fromB64url(e.enc); enc[10] ^= 1; return receive(bharat(), { ...e, enc: b64url(enc) }).why; });
-scenario('secrets', 'a flipped byte of the X25519 half', 'does not open', () => { const e = message(hostA, chainA, LEAF_B); const enc = fromB64url(e.enc); enc[1100] ^= 1; return receive(bharat(), { ...e, enc: b64url(enc) }).why; });
+scenario('secrets', 'a flipped byte of the encapsulated key', 'does not open', () => { const e = message(hostA, chainA, LEAF_B); const enc = fromB64url(e.enc); enc[3] ^= 1; return receive(bharat(), { ...e, enc: b64url(enc) }).why; });
 scenario('secrets', 'the header\'s exp extended after sealing', 'does not open', () => {
   const e = message(hostA, chainA, LEAF_B); const h = JSON.parse(fromB64url(e.protected).toString()); h.exp += 3600;
   return receive(bharat(), { ...e, protected: b64url(Buffer.from(JSON.stringify(h))) }).why;
@@ -158,13 +154,13 @@ scenario('secrets', 'a header without suite', 'header members', () => receive(bh
 scenario('secrets', 'an empty msg_id', 'empty msg_id', () => receive(bharat(), message(hostA, chainA, LEAF_B, { msgId: '' })).why);
 scenario('secrets', 'a result envelope dispatched as a request', 'not a request', () => receive(bharat(), message(hostA, chainA, LEAF_B, { cty: 'application/pact-result+json' })).why);
 scenario('secrets', 'an envelope for Alina\'s key delivered at Mallory\'s path on a shared host', 'key held for another identity', () => {
-  const a = makeNode({ path: '/alina', leafKey: hostA.sign, sealKey: hostA.seal, chain: chainA, now: NOW }), m = makeNode({ path: '/mallory', leafKey: hostM.sign, sealKey: hostM.seal, chain: chainM, now: NOW });
+  const a = makeNode({ path: '/alina', leafKey: hostA.sign, chain: chainA, now: NOW }), m = makeNode({ path: '/mallory', leafKey: hostM.sign, chain: chainM, now: NOW });
   return receive(m, message(hostB, chainB, LEAF_A), { siblings: [a] }).why;
 });
 scenario('secrets', 'a guessed kid learns nothing', 'unknown kid', () => receive(bharat(), message(hostA, chainA, LEAF_M)).why);
 scenario('secrets', 'a former key of a still-served identity gets the current chain', 'certificate_renewed', () => {
-  const a = makeNode({ path: '/alina', leafKey: hostA.sign, sealKey: hostA.seal, chain: chainA, now: NOW });
-  renew(a, hostA2.sign, hostA2.seal, [fresh(hostA2, E_A), ROOT_A]);
+  const a = makeNode({ path: '/alina', leafKey: hostA.sign, chain: chainA, now: NOW });
+  renew(a, hostA2.sign, [fresh(hostA2, E_A), ROOT_A]);
   a.now = new Date(at('2027-09-01T00:00:00Z').getTime() + D); forgetKeysPast(a);
   return receive(a, message(hostB, chainB, LEAF_A, { ts: Math.floor(a.now / 1000) })).code;
 });
@@ -173,15 +169,10 @@ scenario('secrets', 'HPKE ephemeral reuse leaks the XOR of two plaintexts; produ
   const c1 = sealDeterministic('PACT-SEAL-X25519', hostA.sign.pub, info, aad, p1, seed('same')), c2 = sealDeterministic('PACT-SEAL-X25519', hostA.sign.pub, info, aad, p2, seed('same'));
   const x = Buffer.alloc(32); for (let i = 0; i < 32; i++) x[i] = c1.ct[i] ^ c2.ct[i];
   const leaks = x.equals(Buffer.alloc(32, 0x41 ^ 0x42)) && c1.enc.equals(c2.enc);
-  const d1 = seal('PACT-SEAL-XWING', hostA.seal.pk, info, aad, p1), d2 = seal('PACT-SEAL-XWING', hostA.seal.pk, info, aad, p1);
+  const d1 = seal('PACT-SEAL-X25519', hostA.sign.pub, info, aad, p1), d2 = seal('PACT-SEAL-X25519', hostA.sign.pub, info, aad, p1);
   return leaks && !d1.enc.equals(d2.enc) && seal.length === 5 ? 'leaks with a fixed seed, differs without' : 'unexpected';
 });
-scenario('secrets', 'a low-order X25519 half in a hybrid public key', blockedIf((got) => /threw/.test(got)), () => {
-  const pk = Buffer.concat([hostA.seal.pk.subarray(0, 1184), Buffer.alloc(32)]);
-  seal('PACT-SEAL-XWING', pk, Buffer.from('PACT-SEAL-v2'), Buffer.alloc(0), Buffer.from('x'));
-  return 'sealed';
-});
-scenario('secrets', 'a low-order X25519 recipient point on the classical suite', blockedIf((got) => /threw/.test(got)), () => {
+scenario('secrets', 'a low-order X25519 recipient point', blockedIf((got) => /threw/.test(got)), () => {
   const zero = createPublicKey({ key: Buffer.concat([Buffer.from('302a300506032b656e032100', 'hex'), Buffer.alloc(32)]), format: 'der', type: 'spki' });
   seal('PACT-SEAL-X25519', zero, Buffer.from('PACT-SEAL-v2'), Buffer.alloc(0), Buffer.from('x'));
   return 'sealed';
@@ -208,7 +199,7 @@ scenario('card', 'two X-PACT-CERT properties', 'bad_request', () => decodeCard(c
 scenario('card', 'an expired leaf is accepted at intake', 'expired but accepted', () => { const c = decodeCard(encodeCard({ fn: 'A', cert: leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2025-06-01T00:00:00Z'), notAfter: at('2026-06-01T00:00:00Z') }) })); return c.error ? c.error : c.expired ? 'expired but accepted' : 'not expired'; });
 scenario('card', 'a 1.x endpoint property on a 2.0 card is ignored; the address comes from the leaf', E_A, () => decodeCard(card(chainA, 'Alina', ['X-PACT-ENDPOINT:' + E_M])).endpoint);
 scenario('card', 'a card without a certificate', 'bad_request', () => decodeCard('BEGIN:VCARD\r\nVERSION:4.0\r\nFN:X\r\nX-PACT-VERSION:2\r\nEND:VCARD\r\n').error);
-scenario('card', 'a 2.0 card is under 3 KB, the QR limit', blockedIf((got) => got < 2953), () => card(chainA).length);
+scenario('card', 'a 2.0 card stays under a kilobyte', blockedIf((got) => got < 1024), () => card(chainA).length);
 
 // ── Report ──────────────────────────────────────────────────────────────────────
 let last = '';

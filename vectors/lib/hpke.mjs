@@ -1,11 +1,8 @@
-// HPKE Base mode (RFC 9180) for the three PACT suites, and the detached signature of §13.1.
-// PACT-SEAL-XWING is the 2.0 suite; the two classical suites remain for 1.x peers.
+// HPKE Base mode (RFC 9180) for the two PACT suites, and the detached signature of §13.1.
 import { createHmac, createCipheriv, createDecipheriv, createECDH, diffieHellman, createPublicKey, randomBytes, sign, verify } from 'node:crypto';
 import { algorithmOf, ed25519PublicToX25519, ed25519PrivateToX25519, x25519Raw, x25519FromSeed, p256Uncompressed, p256Scalar, p256FromSeed } from './keys.mjs';
-import * as xwing from './xwing.mjs';
 
 export const SUITES = {
-  'PACT-SEAL-XWING': { kem: 0x647a, kdf: 0x0001, aead: 0x0003, nk: 32, nn: 12, nsecret: 32, cipher: 'chacha20-poly1305', pq: true },
   'PACT-SEAL-P256': { kem: 0x0010, kdf: 0x0001, aead: 0x0001, nk: 16, nn: 12, nsecret: 32, cipher: 'aes-128-gcm' },
   'PACT-SEAL-X25519': { kem: 0x0020, kdf: 0x0001, aead: 0x0003, nk: 32, nn: 12, nsecret: 32, cipher: 'chacha20-poly1305' },
 };
@@ -28,32 +25,29 @@ function keySchedule(s, sharedSecret, info) {
   const secret = labeledExtract(id, sharedSecret, 'secret', empty);
   return { key: labeledExpand(id, secret, 'key', ksc, s.nk), nonce: labeledExpand(id, secret, 'base_nonce', ksc, s.nn) };
 }
-// DH-based KEMs derive the shared secret through ExtractAndExpand; X-Wing's output is the shared secret itself.
 function sharedSecret(s, dh, kemContext) {
   if (dh.every((b) => b === 0)) throw new Error('all-zero DH output: low-order point');
   const id = Buffer.concat([Buffer.from('KEM'), i2osp2(s.kem)]);
   return labeledExpand(id, labeledExtract(id, Buffer.alloc(0), 'eae_prk', dh), 'shared_secret', kemContext, s.nsecret);
 }
 
-// Which suite a recipient needs: a 2.0 leaf carries a sealing key and takes the hybrid; a 1.x key takes its curve's suite.
+// Which suite a recipient key needs (§13.1): its curve's. A leaf takes the suite of its key.
 export const suiteForKey = (pub) => (algorithmOf(pub) === 'p256' ? 'PACT-SEAL-P256' : 'PACT-SEAL-X25519');
-export const suiteForLeaf = (leaf) => (leaf.sealKey ? 'PACT-SEAL-XWING' : suiteForKey(leaf.publicKey));
-// The recipient material a suite seals to: the leaf's X-Wing public key, or the 1.x identity key.
-export const recipientOf = (leaf) => (leaf.sealKey ? leaf.sealKey : leaf.publicKey);
+export const suiteFor = suiteForKey;
+export const suiteForLeaf = (leaf) => suiteForKey(leaf.publicKey);
+export const recipientOf = (leaf) => leaf.publicKey;
 
-function classicalPublic(suite, pub) {
+function recipientPublic(suite, pub) {
   if (suite === 'PACT-SEAL-P256') return p256Uncompressed(pub);
   return x25519Raw(pub.asymmetricKeyType === 'ed25519' ? ed25519PublicToX25519(pub) : pub);
 }
 
 function encap(suite, pub, seed) {
-  const s = SUITES[suite];
-  if (s.pq) return xwing.encap(pub, seed);
-  const pkR = classicalPublic(suite, pub);
+  const s = SUITES[suite], pkR = recipientPublic(suite, pub);
   if (suite === 'PACT-SEAL-P256') {
     const e = createECDH('prime256v1'); e.setPrivateKey(p256Scalar(p256FromSeed(seed).priv));
     const enc = e.getPublicKey();
-    return { enc: enc, ct: undefined, ss: sharedSecret(s, e.computeSecret(pkR), Buffer.concat([enc, pkR])), encOut: enc };
+    return { enc, ss: sharedSecret(s, e.computeSecret(pkR), Buffer.concat([enc, pkR])) };
   }
   const e = x25519FromSeed(seed);
   const enc = x25519Raw(e.pub);
@@ -61,9 +55,7 @@ function encap(suite, pub, seed) {
   return { enc, ss: sharedSecret(s, diffieHellman({ privateKey: e.priv, publicKey: pkRobj }), Buffer.concat([enc, pkR])) };
 }
 function decap(suite, priv, pub, enc) {
-  const s = SUITES[suite];
-  if (s.pq) return xwing.decap(priv, enc);
-  const pkR = classicalPublic(suite, pub);
+  const s = SUITES[suite], pkR = recipientPublic(suite, pub);
   if (suite === 'PACT-SEAL-P256') {
     const e = createECDH('prime256v1'); e.setPrivateKey(p256Scalar(priv));
     return sharedSecret(s, e.computeSecret(enc), Buffer.concat([enc, pkR]));
@@ -75,9 +67,8 @@ function decap(suite, priv, pub, enc) {
 
 function sealWith(suite, recipientPub, info, aad, plaintext, seed) {
   const s = SUITES[suite];
-  const k = encap(suite, recipientPub, seed);
-  const enc = s.pq ? k.ct : k.enc;
-  const { key, nonce } = keySchedule(s, k.ss, info);
+  const { enc, ss } = encap(suite, recipientPub, seed);
+  const { key, nonce } = keySchedule(s, ss, info);
   const c = createCipheriv(s.cipher, key, nonce, { authTagLength: 16 });
   c.setAAD(aad);
   return { enc, ct: Buffer.concat([c.update(plaintext), c.final(), c.getAuthTag()]) };

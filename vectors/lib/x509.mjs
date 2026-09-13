@@ -3,14 +3,11 @@ import { createPublicKey } from 'node:crypto';
 import { seq, set, explicit, implicit, octet, utf8, bool, int, bitstr, oid, time, read, children, readOid, readTime } from './der.mjs';
 import { spkiOf, keyId, sha256, b64url, algorithmOf } from './keys.mjs';
 import { signDetached, verifyDetached } from './hpke.mjs';
-import { PK_BYTES as SEAL_KEY_BYTES } from './xwing.mjs';
 
 export const OID = {
   cn: '2.5.4.3', ed25519: '1.3.101.112', ecdsaSha256: '1.2.840.10045.4.3.2',
   basicConstraints: '2.5.29.19', keyUsage: '2.5.29.15', eku: '2.5.29.37', san: '2.5.29.17', ski: '2.5.29.14', aki: '2.5.29.35',
   serverAuth: '1.3.6.1.5.5.7.3.1', clientAuth: '1.3.6.1.5.5.7.3.2',
-  // The sealing-key extension lives under the registration-free UUID arc (ITU-T X.667): 2.25.<128-bit UUID>.
-  sealKey: '2.25.' + BigInt('0x' + sha256(Buffer.from('pact-seal-key')).subarray(0, 16).toString('hex')).toString(),
 };
 export const MAX_LEAF_DAYS = 398, MAX_CERT_BYTES = 4096;
 const DAY = 86_400_000;
@@ -39,8 +36,8 @@ export function buildRoot({ cn, key, notBefore, label }) {
   return seq(tbs, alg, bitstr(signDetached(key.priv, tbs)));
 }
 
-// `uris`, `cA`, `usage`, `aki`, `extra`, `algOid` and `sealKey` overrides exist so the intrusion suite can build what a wallet never would.
-export function buildLeaf({ cn, rootCn, root, hostKey, sealKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid }) {
+// `uris`, `cA`, `usage`, `aki`, `extra` and `algOid` exist so the intrusion suite can build what a wallet never would.
+export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid }) {
   const spki = spkiOf(hostKey.pub), id = keyId(hostKey.pub), issuerId = aki ?? keyId(root.pub);
   const bits = usage ?? (algorithmOf(hostKey.pub) === 'p256' ? [0, 4] : [0]);
   const sanNames = (uris ?? [endpoint]).map((u) => implicit(6, Buffer.from(u, 'utf8')));
@@ -55,7 +52,6 @@ export function buildLeaf({ cn, rootCn, root, hostKey, sealKey, endpoint, uris, 
       ext(OID.san, false, seq(...sanNames)),
       ext(OID.ski, false, octet(id)),
       ext(OID.aki, false, seq(implicit(0, issuerId))),
-      ...(sealKey ? [ext(OID.sealKey, false, octet(sealKey))] : []),
       ...extra.map((e) => ext(e.oid, e.critical, e.value)),
     )),
   );
@@ -75,7 +71,7 @@ export function parse(der) {
     der, tbs: tbs.raw, sigAlg: readOid(children(alg)[0]), sig: sig.content.subarray(1),
     serial: f[1].content, issuer: nameOf(f[3]), subject: nameOf(f[5]),
     notBefore: readTime(notBefore), notAfter: readTime(notAfter), timeTags: [notBefore.tag, notAfter.tag],
-    spki: f[6].raw, extensions: [], ca: false, pathLen: null, keyUsage: [], eku: [], uris: [], dns: [], otherNames: 0, ski: null, aki: null, akiExtra: false, sealKey: null,
+    spki: f[6].raw, extensions: [], ca: false, pathLen: null, keyUsage: [], eku: [], uris: [], dns: [], otherNames: 0, ski: null, aki: null, akiExtra: false,
   };
   out.publicKey = createPublicKey({ key: out.spki, format: 'der', type: 'spki' });
   out.keyId = sha256(out.spki);
@@ -91,7 +87,6 @@ export function parse(der) {
       case OID.san: for (const n of children(value)) { if (n.tag === 0x86) out.uris.push(n.content.toString('utf8')); else if (n.tag === 0x82) out.dns.push(n.content.toString('ascii')); else out.otherNames++; } break;
       case OID.ski: out.ski = value.content; break;
       case OID.aki: { const c = children(value); out.aki = c.find((x) => x.tag === 0x80)?.content ?? null; out.akiExtra = c.length !== 1; break; }
-      case OID.sealKey: out.sealKey = value.content; break;
       default: break;
     }
   }
@@ -128,14 +123,13 @@ export function profileError(c, kind) {
     if (c.notAfter.getTime() !== FOREVER.getTime()) return 'root notAfter is not 9999-12-31';
     return null;
   }
-  if (!same([...ids].sort(), [OID.basicConstraints, OID.keyUsage, OID.eku, OID.san, OID.ski, OID.aki, OID.sealKey].sort())) return 'leaf extensions are not exactly the profile';
+  if (!same([...ids].sort(), [OID.basicConstraints, OID.keyUsage, OID.eku, OID.san, OID.ski, OID.aki].sort())) return 'leaf extensions are not exactly the profile';
   if (crit(OID.basicConstraints) !== true || c.ca || c.pathLen !== null) return 'leaf basicConstraints';
   const expectedUsage = algorithmOf(c.publicKey) === 'p256' ? [0, 4] : [0];
   if (crit(OID.keyUsage) !== true || !same(c.keyUsage, expectedUsage)) return 'leaf keyUsage';
   if (crit(OID.eku) !== false || !same([...c.eku].sort(), [OID.serverAuth, OID.clientAuth].sort())) return 'leaf extendedKeyUsage';
   if (crit(OID.san) !== false || c.otherNames || c.dns.length > 1) return 'leaf subjectAltName carries a name type the profile does not';
   if (crit(OID.aki) !== false || !c.aki || c.akiExtra) return 'leaf authorityKeyIdentifier is not a key identifier alone';
-  if (crit(OID.sealKey) !== false || !c.sealKey || c.sealKey.length !== SEAL_KEY_BYTES) return 'leaf sealing key is not an X-Wing public key';
   return null;
 }
 
@@ -170,7 +164,7 @@ export function validateChain(chainDer, { now, expectedRoot, expectedEndpoint } 
   const host = new URL(endpoint).host;
   if (leaf.dns.some((d) => d !== host)) return refuse(5, 'dNSName differs from the URI host');
 
-  return { ok: true, leafKey: leaf.publicKey, sealKey: leaf.sealKey, rootFingerprint, endpoint, leaf, root };
+  return { ok: true, leafKey: leaf.publicKey, rootFingerprint, endpoint, leaf, root };
 }
 
 // The normal form of §14.1: what the string must already be, so nothing is normalised at comparison time.
