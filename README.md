@@ -18,7 +18,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 
 ## The protocol in five lines
 
-1. **Identity** — in 2.0, a self-signed root certificate you hold, pinned by its fingerprint; the host you choose serves you under a leaf your root issued for its address, valid for at most a year, and contacts learn each renewed leaf from the chain every call carries. In 1.x, one keypair whose SPKI fingerprint is you. Every call is mTLS with the leaf key.
+1. **Identity** — in 2.0, a self-signed root certificate you hold, pinned by its fingerprint; the host you choose serves you under a leaf your root issued for its address, valid for at most a year, and contacts learn each renewed leaf from the chain, carried once and named by fingerprint after. In 1.x, one keypair whose SPKI fingerprint is you. Every call is mTLS with the leaf key.
 2. **Contacts** — standard vCards with `X-PACT-CERT` (2.0) or `X-PACT-ENDPOINT` / `X-PACT-KEY` (1.x); shared over channels people already use; always mutual, always human-approved.
 3. **Invites** — short URLs/QRs whose settings (expiry, max uses, auto-accept, preset) live server-side, so they're revocable at the protocol level.
 4. **Capabilities** — everything a contact may do is an MCP tool, filtered per caller via `tools/list`; new integrations are just new tools.
