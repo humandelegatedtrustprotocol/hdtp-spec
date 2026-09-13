@@ -41,22 +41,26 @@ export function buildRoot({ cn, key, notBefore, label }) {
   ], key.priv);
 }
 
-export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, dnsName, notBefore, notAfter, label, cA = false }) {
-  const spki = spkiOf(hostKey.pub), id = keyId(hostKey.pub), issuerId = keyId(root.pub);
-  const usage = algorithmOf(hostKey.pub) === 'p256' ? [0, 4] : [0];
-  const sanNames = [implicit(6, Buffer.from(endpoint, 'ascii'))];
+// `uris`, `cA`, `usage`, `aki`, `extra` and `algOid` exist so the intrusion suite can build what a wallet never would.
+export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid }) {
+  const spki = spkiOf(hostKey.pub), id = keyId(hostKey.pub), issuerId = aki ?? keyId(root.pub);
+  const bits = usage ?? (algorithmOf(hostKey.pub) === 'p256' ? [0, 4] : [0]);
+  const sanNames = (uris ?? [endpoint]).map((u) => implicit(6, Buffer.from(u, 'utf8')));
   if (dnsName) sanNames.push(implicit(2, Buffer.from(dnsName, 'ascii')));
-  return certificate((alg) => [
+  const signer = root.priv, alg = algOid ? seq(oid(algOid)) : sigAlg(algorithmOf(signer));
+  const tbs = seq(
     explicit(0, int(2)), int(serialOf(label)), alg, name(rootCn), seq(time(notBefore), time(notAfter)), name(cn), spki,
     explicit(3, seq(
       ext(OID.basicConstraints, true, cA ? seq(bool(true)) : seq()),
-      ext(OID.keyUsage, true, keyUsage(usage)),
+      ext(OID.keyUsage, true, keyUsage(bits)),
       ext(OID.eku, false, seq(oid(OID.serverAuth), oid(OID.clientAuth))),
       ext(OID.san, false, seq(...sanNames)),
       ext(OID.ski, false, octet(id)),
       ext(OID.aki, false, seq(implicit(0, issuerId))),
+      ...extra.map((e) => ext(e.oid, e.critical, e.value)),
     )),
-  ], root.priv);
+  );
+  return seq(tbs, alg, bitstr(signDetached(signer, tbs)));
 }
 
 // Reading a certificate back into the fields the rules need. Throws on anything malformed.
@@ -95,7 +99,9 @@ function cnOf(nameNode) {
   for (const rdn of children(nameNode)) for (const atv of children(rdn)) { const [o, v] = children(atv); if (readOid(o) === OID.cn) return v.content.toString('utf8'); }
   return '';
 }
-const verifyCert = (cert, issuerKey) => verifyDetached(issuerKey, cert.tbs, cert.sig);
+// The signature algorithm the certificate declares must be the issuer key's own; a verifier never
+// picks the algorithm from the certificate, so a mismatch is simply a certificate the key did not sign.
+const verifyCert = (cert, issuerKey) => cert.sigAlg === (algorithmOf(issuerKey) === 'ed25519' ? OID.ed25519 : OID.ecdsaSha256) && verifyDetached(issuerKey, cert.tbs, cert.sig);
 export const fingerprintOf = (cert) => 'sha256:' + b64url(cert.keyId);
 
 // §14.2, refusing at the first failure and naming the rule.
