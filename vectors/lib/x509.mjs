@@ -172,7 +172,13 @@ export function isNormalHttps(s) {
   let u; try { u = new URL(s); } catch { return false; }
   if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash || s.includes('#') || s.includes('?')) return false;
   if (u.pathname === '/' || u.pathname.endsWith('/')) return false;
-  return u.href === s && u.host === u.host.toLowerCase() && u.port === '';
+  if (u.href !== s || u.host !== u.host.toLowerCase() || u.port !== '') return false;
+  // The path in RFC 3986 normal form: pchar only, no dot segments, percent-encoding uppercase and
+  // never for an unreserved character — so two strings for one address cannot both be "normal".
+  const path = s.slice(s.indexOf('/', 8));
+  if (!/^(\/(?:[A-Za-z0-9\-._~!$&'()*+,;=:@]|%[0-9A-F]{2})*)+$/.test(path)) return false;
+  if (path.split('/').some((seg) => seg === '.' || seg === '..')) return false;
+  return !/%(2[DE]|5F|7E|3[0-9]|[46][1-9A-F]|[57][0-9A])/.test(path);
 }
 
 // §14.3: which of two leaves under one root is current. A later notBefore wins the instant it is seen,
