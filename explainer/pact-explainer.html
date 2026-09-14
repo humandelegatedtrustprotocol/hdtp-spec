@@ -270,17 +270,70 @@
       <div class="pillar">
         <h3>Identity = one TLS keypair</h3>
         <p>Your agent's client certificate is you. Contacts pin your key's fingerprint when you connect; every later call proves possession, both ways. No accounts, no passwords, no CA hierarchy to run.</p>
-        <div class="art mono">fingerprint = <span class="hl">sha256:</span>rAGyIJ6GNU-4UyN7XeD0…<br>rotate: sign new key with old → <span class="hl">update_contact</span></div>
+        <div class="art mono">fingerprint = <span class="hl">sha256:</span>rAGyIJ6GNU-4UyN7XeD0…<br>rotate: sign new key with old → <span class="hl">update_contact</span><br>2.0: the fingerprint names a <span class="hl">root</span> in your wallet; hosts hold a leaf</div>
       </div>
       <div class="pillar">
         <h3>Contacts = vCards in your phone</h3>
         <p>A PACT identity is a standard contact card with three extra fields. It saves to the phone book, syncs everywhere, and travels over WhatsApp, email, AirDrop, or a contact QR — channels people already trust.</p>
-        <div class="art mono">BEGIN:VCARD · FN:Alina Rao<br><span class="hl">X-PACT-ENDPOINT:</span>https://a.example/mcp<br><span class="hl">X-PACT-KEY:</span>sha256:rAGyIJ6G…<br><span class="hl">X-PACT-GATEWAY:</span>https://gw.example/mcp</div>
+        <div class="art mono">BEGIN:VCARD · FN:Alina Rao<br><span class="hl">X-PACT-ENDPOINT:</span>https://a.example/mcp<br><span class="hl">X-PACT-KEY:</span>sha256:rAGyIJ6G…<br><span class="hl">X-PACT-GATEWAY:</span>https://gw.example/mcp<br>2.0: one field, <span class="hl">X-PACT-CERT:</span> the leaf certificate</div>
       </div>
       <div class="pillar">
         <h3>Capabilities = MCP tools</h3>
         <p>Messages, media, status, availability, calendar booking — each is a tool on your server, listed and callable only per contact. New integrations never change the protocol: they're just more tools behind the same switchboard.</p>
         <div class="art mono">tools/list → filtered per caller<br><span class="hl">send_message</span> · send_media · get_status<br>check_availability · <span class="hl">book_slot</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">The 2.0 draft</div>
+    <h2>The person is the certificate authority</h2>
+    <p class="intro">1.x pinned the key your server used. That made leaving a provider a key rotation, and a provider that would not cooperate could keep your identity. 2.0 moves the identity one step up: a self-signed <strong>root</strong> certificate in your own wallet is who you are, and every host — your machine or a provider — serves under a <strong>leaf</strong> the root issued for one address, valid for a year at most. Contacts pin the root. Changing hosts is a new leaf, never a new identity.</p>
+    <div class="cols2">
+      <div class="steps">
+        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The root never leaves the wallet</h3><p>A file, a security key, or the browser extension. It signs certificates and nothing else. Lose every copy and the identity is gone — the wallet says so once, when the root is made. There is no recovery, on purpose: a recovery path is a second holder.</p></div></div>
+        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The host asks for a leaf</h3><p>It sends a certificate signing request with its own key and the address it will serve. The wallet shows you the address, the page that asked, whether the host is new, and the dates — and signs, or does not. A sign-up page runs the same ceremony in a document the provider cannot read.</p></div></div>
+        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The chain travels once</h3><p>The first sealed message to each contact carries leaf and root; every later one names the leaf by a fifty-byte fingerprint. A receiver that does not hold the leaf answers <span class="mono">chain_required</span> — the same answer for a stranger, a blocked contact, or an expired leaf — and the sender resends with the chain.</p></div></div>
+        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The newest leaf wins, instantly</h3><p>A leaf with a later start date replaces the one a contact holds the moment it is seen, whatever the old leaf's validity. That is the whole revocation story: a stolen or retired leaf is outranked by the next one with every contact it reaches, and expires within a year with the rest.</p></div></div>
+        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Moving is a leaf and a notice</h3><p>Issue a leaf to the new host, carry the data across as an archive that never contains a key, and the new host calls <span class="mono">update_contact</span> on each contact. Under the default setting the pin follows and the owner is told; under <em>ask</em> the owner approves. The host you left deletes everything.</p></div></div>
+      </div>
+      <div>
+        <svg viewBox="0 0 440 330" role="img" aria-label="The wallet holds the root and issues a leaf to the host; the contact pins the root and seals to the leaf" style="width:100%;height:auto;display:block">
+          <defs><marker id="m20" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+          <g fill="none" stroke="currentColor" stroke-width="1.4">
+            <rect x="24" y="22" width="170" height="86" rx="8"/>
+            <rect x="246" y="22" width="170" height="86" rx="8"/>
+            <rect x="135" y="224" width="170" height="86" rx="8"/>
+          </g>
+          <g font-family="Bricolage Grotesque, sans-serif" font-size="13" fill="currentColor">
+            <text x="109" y="46" text-anchor="middle" font-weight="700">Your wallet</text>
+            <text x="109" y="68" text-anchor="middle">root certificate</text>
+            <text x="109" y="88" text-anchor="middle" font-size="11.5">= the identity, by fingerprint</text>
+            <text x="331" y="46" text-anchor="middle" font-weight="700">A host</text>
+            <text x="331" y="68" text-anchor="middle">leaf: one address, ≤ 1 year</text>
+            <text x="331" y="88" text-anchor="middle" font-size="11.5">its own key; TLS, signing, sealing</text>
+            <text x="220" y="248" text-anchor="middle" font-weight="700">A contact</text>
+            <text x="220" y="270" text-anchor="middle">pins the root</text>
+            <text x="220" y="290" text-anchor="middle" font-size="11.5">learns each leaf from the chain</text>
+          </g>
+          <g stroke="currentColor" stroke-width="1.2" fill="none">
+            <line x1="246" y1="52" x2="194" y2="52" marker-end="url(#m20)" stroke-dasharray="5 4"/>
+            <line x1="194" y1="80" x2="246" y2="80" marker-end="url(#m20)"/>
+            <line x1="331" y1="108" x2="252" y2="224" marker-end="url(#m20)"/>
+            <line x1="188" y1="224" x2="109" y2="108" marker-end="url(#m20)" stroke-dasharray="2 4"/>
+          </g>
+          <g font-family="Bricolage Grotesque, sans-serif" font-size="11.5" fill="currentColor">
+            <text x="220" y="44" text-anchor="middle">CSR: my key, my address</text>
+            <text x="220" y="96" text-anchor="middle">leaf, signed by the root</text>
+            <text x="318" y="176" text-anchor="start">chain once, then</text>
+            <text x="318" y="191" text-anchor="start">the leaf's fingerprint</text>
+            <text x="20" y="176" text-anchor="start">a move: a new leaf,</text>
+            <text x="20" y="191" text-anchor="start">the pin follows the root</text>
+          </g>
+        </svg>
+        <div class="art mono">chain = [leaf, root] · pin = root fingerprint + endpoint + latest leaf<br>renewal: a fresh key, learned on the next exchange<br>lost root = a new identity · lost leaf = a renewal</div>
       </div>
     </div>
   </div>
@@ -461,7 +514,7 @@ check_availability → { slots: [ 2 ] }</pre>
           <tr><td><strong>TLS-passthrough tunnel</strong></td><td>ngrok TLS · frp · rathole · Pangolin raw-TCP</td><td class="yes">Yes — tunnel sees ciphertext</td></tr>
           <tr><td><strong>Cloudflare Tunnel (HTTP)</strong></td><td>Edge validates client certs, asserts identity to origin</td><td class="mid">Edge joins trust set</td></tr>
           <tr><td><strong>No inbound at all</strong></td><td>Rely on your gateway's queue</td><td class="mid">Gateway joins trust set</td></tr>
-          <tr><td><strong>Platform-hosted</strong></td><td>Operator runs server, invites, gateway per customer</td><td class="mid">Operator-trusted — best with device-held keys</td></tr>
+          <tr><td><strong>Platform-hosted</strong></td><td>Operator runs server, invites, gateway per customer</td><td class="mid">Operator-trusted — in 2.0 the operator holds a one-year leaf you issued, never your root</td></tr>
         </tbody>
       </table>
     </div>
