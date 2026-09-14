@@ -68,7 +68,7 @@ if (!v2) {
     const chain = c.answer.data.chain.map(fromB64url);
     const pinned = parse(der[c.pinned_leaf]);
     const r = validateChain(chain, { now: new Date(c.now), expectedRoot: 'sha256:' + Buffer.from(pinned.aki).toString('base64url'), expectedEndpoint: c.dialed });
-    const follow = r.ok && compareLeaves(der[c.pinned_leaf], chain[0]) !== 'superseded';
+    const follow = r.ok && ['newer', 'same'].includes(compareLeaves(der[c.pinned_leaf], chain[0]));
     ok(follow === (c.expect === 'follow'), `${c.name}: expected ${c.expect}`);
     console.log(`  ${c.name}: ${follow ? 'followed' : 'discarded'}${r.ok ? '' : ' (rule ' + r.rule + ')'}`);
   }
