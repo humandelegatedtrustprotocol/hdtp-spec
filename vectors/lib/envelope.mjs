@@ -17,13 +17,14 @@ const PENDING_TOOLS = ['contact_accepted', 'contact_rejected'];
 // Sender side, with every knob an attacker would turn. `recipientLeaf` is the DER of the leaf being sealed to.
 // `reference: true` names the sender's leaf by fingerprint instead of carrying the chain (§13.2): the small form,
 // for a receiver that already holds the leaf. A host sends the chain on first contact and after each renewal.
-export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = 'tools/call', params, msgId, ts, exp, cty = 'application/pact-call+json', ephemeralSeed, signWith, header = {}, chainInside, info = 'PACT-SEAL-v2', suite, recipientPub, reference = false, referenceKey, both = false }) {
+export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = 'tools/call', params, msgId, ts, exp, cty = 'application/pact-call+json', ephemeralSeed, signWith, header = {}, chainInside, info = 'PACT-SEAL-v2', suite, recipientPub, reference = false, referenceKey, referenceFingerprint, both = false }) {
   const leaf = parse(recipientLeaf);
   const s = suite ?? suiteForLeaf(leaf), pub = recipientPub ?? recipientOf(leaf);
   const h = { v: 2, suite: s, kid: fingerprint(leaf.publicKey), msg_id: msgId, ts, exp: exp ?? ts + 600, cty, ...header };
   const aad = Buffer.from(canonical(h));
   const chain = (chainInside ?? senderChain).map(b64url);
-  const ref = fingerprint((referenceKey ?? senderKey).pub ?? referenceKey ?? senderKey);
+  // `referenceFingerprint` names a leaf by a string nobody holds: what a guesser sends.
+  const ref = referenceFingerprint ?? fingerprint((referenceKey ?? senderKey).pub ?? referenceKey ?? senderKey);
   const body = both ? { method, params, chain, leaf: ref } : reference ? { method, params, leaf: ref } : { method, params, chain };
   const plaintext = Buffer.from(JSON.stringify(body));
   const { enc, ct } = ephemeralSeed ? sealDeterministic(s, pub, Buffer.from(info), aad, plaintext, ephemeralSeed) : seal(s, pub, Buffer.from(info), aad, plaintext);
