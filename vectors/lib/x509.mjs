@@ -172,7 +172,7 @@ export function isNormalHttps(s) {
   let u; try { u = new URL(s); } catch { return false; }
   if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash || s.includes('#') || s.includes('?')) return false;
   if (u.pathname === '/' || u.pathname.endsWith('/')) return false;
-  if (u.href !== s || u.host !== u.host.toLowerCase() || u.port !== '') return false;
+  if (u.href !== s || u.host !== u.host.toLowerCase() || u.port === '0') return false; // the default port is omitted, so an explicit :443 fails href === s; port 0 is no port
   // The path in RFC 3986 normal form: pchar only, no dot segments, percent-encoding uppercase and
   // never for an unreserved character — so two strings for one address cannot both be "normal".
   const path = s.slice(s.indexOf('/', 8));
