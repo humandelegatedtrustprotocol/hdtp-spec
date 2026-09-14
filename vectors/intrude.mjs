@@ -218,9 +218,9 @@ scenario('reference', 'a flood of guessed fingerprints consumes nothing: every a
   const b = bharat(); const before = JSON.stringify([...b.pins]) + b.seen.size + b.pending.length + b.events.length;
   let all = true;
   for (let i = 0; i < 200; i++) {
+    // The guess IS what the envelope names: a fingerprint of nobody's leaf, signed by Mallory's key.
     const guess = 'sha256:' + b64url(seed('guess/' + i));
-    const e = env({ senderKey: hostM.sign, senderChain: chainM, recipientLeaf: LEAF_B, params: { name: 'send_message', arguments: { msg_id: 'm', text: 'x' } }, reference: true, referenceKey: hostM.sign });
-    const body = JSON.parse(Buffer.from(JSON.stringify({ method: 'tools/call', params: {}, leaf: guess })).toString()); void body;
+    const e = env({ senderKey: hostM.sign, senderChain: chainM, recipientLeaf: LEAF_B, params: { name: 'send_message', arguments: { msg_id: 'm', text: 'x' } }, reference: true, referenceFingerprint: guess });
     all &&= receive(b, e).code === 'chain_required';
   }
   return all && JSON.stringify([...b.pins]) + b.seen.size + b.pending.length + b.events.length === before ? 'no state moved' : 'state moved';
