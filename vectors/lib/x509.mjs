@@ -37,7 +37,7 @@ export function buildRoot({ cn, key, notBefore, label }) {
 }
 
 // `uris`, `cA`, `usage`, `aki`, `extra` and `algOid` exist so the intrusion suite can build what a wallet never would.
-export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid }) {
+export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid }) {
   const spki = spkiOf(hostKey.pub), id = keyId(hostKey.pub), issuerId = aki ?? keyId(root.pub);
   const bits = usage ?? (algorithmOf(hostKey.pub) === 'p256' ? [0, 4] : [0]);
   const sanNames = (uris ?? [endpoint]).map((u) => implicit(6, Buffer.from(u, 'utf8')));
@@ -55,7 +55,9 @@ export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, 
       ...extra.map((e) => ext(e.oid, e.critical, e.value)),
     )),
   );
-  return seq(tbs, alg, bitstr(signDetached(root.priv, tbs)));
+  // `outerAlgOid` writes a different AlgorithmIdentifier outside the TBS than inside — what one
+  // parser reads one way and another the other, which RFC 5280 §4.1.1.2 forbids and parse() refuses.
+  return seq(tbs, outerAlgOid ? seq(oid(outerAlgOid)) : alg, bitstr(signDetached(root.priv, tbs)));
 }
 
 // Reading a certificate back into the fields the rules need. Throws on anything malformed.
@@ -66,6 +68,8 @@ export function parse(der) {
   if (more.length || !tbs || !alg || !sig || sig.tag !== 0x03 || sig.content[0] !== 0) throw new Error('certificate shape');
   const f = children(tbs);
   if (f.length !== 8 || f[0].tag !== 0xa0 || children(f[0])[0].content[0] !== 2 || f[7].tag !== 0xa3) throw new Error('not a v3 certificate with extensions');
+  // RFC 5280 §4.1.1.2: the algorithm inside the TBS and the one outside are the same field twice.
+  if (!f[2].raw.equals(alg.raw) || children(alg).length !== 1) throw new Error('signature algorithm inside and outside differ');
   const [notBefore, notAfter] = children(f[4]);
   const out = {
     der, tbs: tbs.raw, sigAlg: readOid(children(alg)[0]), sig: sig.content.subarray(1),
