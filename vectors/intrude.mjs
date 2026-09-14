@@ -113,6 +113,7 @@ scenario('certificate', 'leaf with cA true', 'rule 1', () => rule([leafOf(rootA,
 scenario('certificate', 'leaf without digitalSignature', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { usage: [4] }), ROOT_A]));
 scenario('certificate', 'leaf whose issuer key identifier names another root', 'rule 3', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { aki: parse(ROOT_M).keyId }), ROOT_A]));
 scenario('certificate', 'leaf declaring ECDSA but signed by an Ed25519 root', 'rule 3', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { algOid: '1.2.840.10045.4.3.2' }), ROOT_A]));
+scenario('certificate', 'one algorithm inside the TBS, another outside it', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { outerAlgOid: '1.2.840.10045.4.3.2' }), ROOT_A]));
 scenario('certificate', 'an extension the profile does not list, critical', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { extra: [{ oid: '1.3.6.1.4.1.99999.1', critical: true, value: Buffer.from('0500', 'hex') }] }), ROOT_A]));
 scenario('certificate', 'an extension the profile does not list, non-critical', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { extra: [{ oid: '1.3.6.1.4.1.99999.1', critical: false, value: Buffer.from('0500', 'hex') }] }), ROOT_A]));
 scenario('certificate', 'a duplicated extension', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { extra: [{ oid: '2.5.29.37', critical: false, value: Buffer.from('3000', 'hex') }] }), ROOT_A]));
@@ -149,6 +150,7 @@ scenario('secrets', 'Mallory seals with Alina\'s chain inside and her own signat
 scenario('secrets', 'the same envelope twice is acknowledged, not re-executed', blockedIf((r) => r.replayed === true), () => { const b = bharat(); const e = message(hostA, chainA, LEAF_B); receive(b, e); return receive(b, e); });
 scenario('secrets', 'an envelope past its exp', 'outside the time window', () => receive(bharat(), message(hostA, chainA, LEAF_B, { ts: nowS - 1200, exp: nowS - 600 })).why);
 scenario('secrets', 'an envelope ten minutes old', 'outside the time window', () => receive(bharat(), message(hostA, chainA, LEAF_B, { ts: nowS - 600, exp: nowS + 600 })).why);
+scenario('secrets', 'an envelope that asks to be remembered for a year', 'exp too far from ts', () => receive(bharat(), message(hostA, chainA, LEAF_B, { ts: nowS, exp: nowS + 365 * 86_400 })).why);
 scenario('secrets', 'a header with an extra member', 'header members', () => receive(bharat(), message(hostA, chainA, LEAF_B, { header: { note: 'x' } })).why);
 scenario('secrets', 'a header without suite', 'header members', () => receive(bharat(), message(hostA, chainA, LEAF_B, { header: { suite: undefined } })).why);
 scenario('secrets', 'an empty msg_id', 'empty msg_id', () => receive(bharat(), message(hostA, chainA, LEAF_B, { msgId: '' })).why);

@@ -8,6 +8,7 @@ import { decodeCard } from './card.mjs';
 
 export const HEADER_MEMBERS = 'cty,exp,kid,msg_id,suite,ts,v';
 export const SKEW_S = 300;
+export const MAX_LIFETIME_S = 30 * 86_400; // §13.1: exp − ts is at most 30 days
 export const CLAIM_WINDOW_MS = 30 * 86_400_000;
 export const TOMBSTONE_MS = 30 * 86_400_000;
 const GUEST_TOOLS = ['redeem_invite', 'request_contact'];
@@ -83,6 +84,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
     if (header.cty !== 'application/pact-call+json') return invalid('not a request');
     const nowS = Math.floor(node.now / 1000);
     if (!(nowS < header.exp) || Math.abs(nowS - header.ts) > SKEW_S) return invalid('outside the time window');
+    if (header.exp - header.ts > MAX_LIFETIME_S) return invalid('exp too far from ts');
     if (typeof header.msg_id !== 'string' || !header.msg_id) return invalid('empty msg_id');
     if (node.seen.has(header.msg_id)) return { code: 'ok', replayed: true };
     return null;
