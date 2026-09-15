@@ -14,11 +14,27 @@ export const octet = (b) => tlv(0x04, b);
 export const utf8 = (s) => tlv(0x0c, Buffer.from(s, 'utf8'));
 export const ia5 = (s) => tlv(0x16, Buffer.from(s, 'ascii'));
 export const bool = (v) => tlv(0x01, Buffer.from([v ? 0xff : 0x00]));
+/**
+ * A DER INTEGER: minimal two's-complement, always.
+ *
+ * Prepending 0x00 for a set top bit was only half the rule. The other half is that a
+ * *redundant* leading 0x00 must be removed, and leaving it out was not academic: the cores'
+ * `random_serial` hands eight random bytes straight to this, so one serial in 256 begins
+ * 0x00 and was encoded non-minimally — a certificate the strict parser added by the
+ * cryptographic review then refused, including the parser in the very core that had just
+ * issued it. Intermittent, at 1/256, which is the worst rate to find a bug at.
+ *
+ * Canonical form: strip leading 0x00 while the next byte's top bit is clear (never below one
+ * byte, so zero stays `02 01 00`), then prepend 0x00 if the top bit is set.
+ */
 export function int(v) {
   if (typeof v === 'number' || typeof v === 'bigint') {
     let h = BigInt(v).toString(16); if (h.length % 2) h = '0' + h;
     v = Buffer.from(h, 'hex');
   }
+  let at = 0;
+  while (at + 1 < v.length && v[at] === 0 && (v[at + 1] & 0x80) === 0) at++;
+  v = v.subarray(at);
   return tlv(0x02, v[0] & 0x80 ? Buffer.concat([Buffer.from([0]), v]) : v);
 }
 export function bitstr(bytes, unused = 0) { return tlv(0x03, Buffer.concat([Buffer.from([unused]), bytes])); }
