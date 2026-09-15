@@ -145,6 +145,7 @@ for (const [what, misencode] of [
   ['a signature-algorithm OID with a padded subidentifier', { sigAlgOid: '06042b806570' }],
   ['a commonName attribute type with a padded subidentifier', { cnOid: '060455800403' }],
   ['an extendedKeyUsage OID with a padded subidentifier', { ekuOid: '06092b0601050507800301' }],
+  ['a SubjectPublicKeyInfo algorithm OID with a padded subidentifier', { spkiAlgOid: '06042b806570' }],
   ['a serial with a needless leading zero', { serial: [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77] }],
 ]) scenario('certificate', 'DER: ' + what, 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode }), ROOT_A]));
 
