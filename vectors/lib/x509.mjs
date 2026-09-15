@@ -1,6 +1,6 @@
 // The §14.1 profile as bytes, the exact-profile check and §14.2 chain validation, and the §14.3 comparison.
 import { createPublicKey } from 'node:crypto';
-import { seq, set, explicit, implicit, octet, utf8, bool, int, bitstr, oid, time, read, children, readOid, readTime } from './der.mjs';
+import { seq, set, explicit, implicit, octet, utf8, bool, int, bitstr, oid, time, tlv, read, children, readOid, readOidStrict, readTime, boolTrue, intMinimal, oidMinimal, namedBitsOk } from './der.mjs';
 import { spkiOf, keyId, sha256, b64url, algorithmOf } from './keys.mjs';
 import { signDetached, verifyDetached } from './hpke.mjs';
 
@@ -13,7 +13,7 @@ export const MAX_LEAF_DAYS = 398, MAX_CERT_BYTES = 4096;
 const DAY = 86_400_000;
 const FOREVER = new Date(Date.UTC(9999, 11, 31, 23, 59, 59));
 
-const name = (cn) => seq(set(seq(oid(OID.cn), utf8(cn))));
+const name = (cn, cnOid) => seq(set(seq(cnOid ?? oid(OID.cn), utf8(cn))));
 const sigAlg = (alg) => seq(oid(alg === 'ed25519' ? OID.ed25519 : OID.ecdsaSha256));
 const ext = (o, critical, value) => seq(oid(o), ...(critical ? [bool(true)] : []), octet(value));
 function keyUsage(bits) {
@@ -37,21 +37,41 @@ export function buildRoot({ cn, key, notBefore, label }) {
 }
 
 // `uris`, `cA`, `usage`, `aki`, `extra` and `algOid` exist so the intrusion suite can build what a wallet never would.
-export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid }) {
+//
+// `misencode` is the same idea one layer down: DER has exactly one encoding of each of these, and a
+// certificate that spells one of them another way is the parser differential §14.1 exists to close.
+// Every field here writes bytes an encoder never would, so the reader can be asked to refuse them:
+//   criticalTrue   the criticality BOOLEAN of basicConstraints, as raw content bytes (DER: one 0xFF)
+//   explicitFalse  an OID to carry an explicit `critical FALSE` (DER: a DEFAULT is not encoded)
+//   keyUsage       the keyUsage BIT STRING's content, unused-count first (DER: trailing zeros removed)
+//   oidFor         `{ oid, der }` — that extension's OID written as the given bytes
+//   sigAlgOid      the AlgorithmIdentifier's OID, inside the TBS and outside it alike, as DER bytes
+//   cnOid          the commonName attribute type's OID, as DER bytes
+//   ekuOid         the serverAuth OID inside extendedKeyUsage, as DER bytes
+//   serial         the serialNumber INTEGER's content (DER: the shortest two's-complement form)
+export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid, misencode = {} }) {
   const spki = spkiOf(hostKey.pub), id = keyId(hostKey.pub), issuerId = aki ?? keyId(root.pub);
   const bits = usage ?? (algorithmOf(hostKey.pub) === 'p256' ? [0, 4] : [0]);
   const sanNames = (uris ?? [endpoint]).map((u) => implicit(6, Buffer.from(u, 'utf8')));
   if (dnsName) sanNames.push(implicit(2, Buffer.from(dnsName, 'ascii')));
-  const alg = algOid ? seq(oid(algOid)) : sigAlg(algorithmOf(root.priv));
+  const alg = misencode.sigAlgOid ? seq(Buffer.from(misencode.sigAlgOid, 'hex')) : algOid ? seq(oid(algOid)) : sigAlg(algorithmOf(root.priv));
+  const cnOid = misencode.cnOid ? Buffer.from(misencode.cnOid, 'hex') : undefined;
+  const extOid = (o) => (misencode.oidFor?.oid === o ? Buffer.from(misencode.oidFor.der, 'hex') : oid(o));
+  const flag = (o, critical) => {
+    if (critical) return [o === OID.basicConstraints && misencode.criticalTrue ? tlv(0x01, Buffer.from(misencode.criticalTrue)) : bool(true)];
+    return misencode.explicitFalse === o ? [bool(false)] : [];
+  };
+  const xt = (o, critical, value) => seq(extOid(o), ...flag(o, critical), octet(value));
   const tbs = seq(
-    explicit(0, int(2)), int(serialOf(label)), alg, name(rootCn), seq(time(notBefore), time(notAfter)), name(cn), spki,
+    explicit(0, int(2)), misencode.serial ? tlv(0x02, Buffer.from(misencode.serial)) : int(serialOf(label)),
+    alg, name(rootCn, cnOid), seq(time(notBefore), time(notAfter)), name(cn, cnOid), spki,
     explicit(3, seq(
-      ext(OID.basicConstraints, true, cA ? seq(bool(true)) : seq()),
-      ext(OID.keyUsage, true, keyUsage(bits)),
-      ext(OID.eku, false, seq(oid(OID.serverAuth), oid(OID.clientAuth))),
-      ext(OID.san, false, seq(...sanNames)),
-      ext(OID.ski, false, octet(id)),
-      ext(OID.aki, false, seq(implicit(0, issuerId))),
+      xt(OID.basicConstraints, true, cA ? seq(bool(true)) : seq()),
+      xt(OID.keyUsage, true, misencode.keyUsage ? tlv(0x03, Buffer.from(misencode.keyUsage)) : keyUsage(bits)),
+      xt(OID.eku, false, seq(misencode.ekuOid ? Buffer.from(misencode.ekuOid, 'hex') : oid(OID.serverAuth), oid(OID.clientAuth))),
+      xt(OID.san, false, seq(...sanNames)),
+      xt(OID.ski, false, octet(id)),
+      xt(OID.aki, false, seq(implicit(0, issuerId))),
       ...extra.map((e) => ext(e.oid, e.critical, e.value)),
     )),
   );
@@ -70,9 +90,10 @@ export function parse(der) {
   if (f.length !== 8 || f[0].tag !== 0xa0 || children(f[0])[0].content[0] !== 2 || f[7].tag !== 0xa3) throw new Error('not a v3 certificate with extensions');
   // RFC 5280 §4.1.1.2: the algorithm inside the TBS and the one outside are the same field twice.
   if (!f[2].raw.equals(alg.raw) || children(alg).length !== 1) throw new Error('signature algorithm inside and outside differ');
+  if (!intMinimal(f[1].content)) throw new Error('INTEGER not minimal');
   const [notBefore, notAfter] = children(f[4]);
   const out = {
-    der, tbs: tbs.raw, sigAlg: readOid(children(alg)[0]), sig: sig.content.subarray(1),
+    der, tbs: tbs.raw, sigAlg: readOidStrict(children(alg)[0]), sig: sig.content.subarray(1),
     serial: f[1].content, issuer: nameOf(f[3]), subject: nameOf(f[5]),
     notBefore: readTime(notBefore), notAfter: readTime(notAfter), timeTags: [notBefore.tag, notAfter.tag],
     spki: f[6].raw, extensions: [], ca: false, pathLen: null, keyUsage: [], eku: [], uris: [], dns: [], otherNames: 0, ski: null, aki: null, akiExtra: false,
@@ -81,13 +102,32 @@ export function parse(der) {
   out.keyId = sha256(out.spki);
   for (const e of children(children(f[7])[0])) {
     const parts = children(e);
-    const id = readOid(parts[0]), critical = parts.length === 3 && parts[1].content[0] !== 0;
+    if (parts.length < 2 || parts.length > 3) throw new Error('extension shape');
+    // Criticality is a DEFAULT FALSE: present means critical, and the only encoding of that is one
+    // 0xFF byte. An explicit FALSE and a TRUE spelled 0x01 are both second ways to say what DER
+    // already says one way.
+    const critical = parts.length === 3;
+    if (critical && !boolTrue(parts[1])) throw new Error('BOOLEAN not in the DER form');
+    const id = readOidStrict(parts[0]);
     const value = read(parts[parts.length - 1].content);
     out.extensions.push({ id, critical });
     switch (id) {
-      case OID.basicConstraints: { const c = children(value); if (c[0]?.tag === 0x01) out.ca = c[0].content[0] !== 0; if (c.at(-1)?.tag === 0x02) out.pathLen = c.at(-1).content[0]; break; }
-      case OID.keyUsage: { const byte = value.content[1] ?? 0; for (let b = 0; b < 8; b++) if (byte & (0x80 >> b)) out.keyUsage.push(b); break; }
-      case OID.eku: out.eku = children(value).map(readOid); break;
+      case OID.basicConstraints: {
+        const c = children(value);
+        if (c[0]?.tag === 0x01) { if (!boolTrue(c[0])) throw new Error('BOOLEAN not in the DER form'); out.ca = true; }
+        if (c.at(-1)?.tag === 0x02) { if (!intMinimal(c.at(-1).content)) throw new Error('INTEGER not minimal'); out.pathLen = c.at(-1).content[0]; }
+        break;
+      }
+      case OID.keyUsage: {
+        // Every named bit of every byte counts, so a second byte — decipherOnly — is seen rather
+        // than dropped, and the profile can then refuse it.
+        if (!namedBitsOk(value.content)) throw new Error('BIT STRING not in the DER form');
+        const unused = value.content[0] ?? 0, bits = value.content.subarray(1);
+        const total = bits.length * 8 - unused;
+        for (let b = 0; b < total; b++) if (bits[b >> 3] & (0x80 >> (b & 7))) out.keyUsage.push(b);
+        break;
+      }
+      case OID.eku: out.eku = children(value).map(readOidStrict); break;
       case OID.san: for (const n of children(value)) { if (n.tag === 0x86) out.uris.push(n.content.toString('utf8')); else if (n.tag === 0x82) out.dns.push(n.content.toString('ascii')); else out.otherNames++; } break;
       case OID.ski: out.ski = value.content; break;
       case OID.aki: { const c = children(value); out.aki = c.find((x) => x.tag === 0x80)?.content ?? null; out.akiExtra = c.length !== 1; break; }
@@ -102,7 +142,7 @@ function nameOf(node) {
   const atvs = children(rdns[0]);
   if (atvs.length !== 1) throw new Error('RDN is not one attribute');
   const [o, v] = children(atvs[0]);
-  if (readOid(o) !== OID.cn || v.tag !== 0x0c) throw new Error('name is not a UTF-8 commonName');
+  if (readOidStrict(o) !== OID.cn || v.tag !== 0x0c) throw new Error('name is not a UTF-8 commonName');
   return v.content.toString('utf8');
 }
 

@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { createPublicKey } from 'node:crypto';
 import { seed, ed25519FromSeed, p256FromSeed, pkcs8Of, b64url, fromB64url } from './lib/keys.mjs';
-import { buildRoot, buildLeaf, validateChain, parse, fingerprintOf } from './lib/x509.mjs';
+import { buildRoot, buildLeaf, validateChain, parse, fingerprintOf, OID } from './lib/x509.mjs';
 import { seal, sealDeterministic, open } from './lib/hpke.mjs';
 import { encodeCard, decodeCard } from './lib/card.mjs';
 import { sealEnvelope, makeNode, renew, forgetKeysPast, pin, removeContact, receive } from './lib/envelope.mjs';
@@ -133,6 +133,27 @@ for (const [what, uris, dns] of [
   ['dNSName of another host', [E_A], 'mallory.example'],
 ]) scenario('certificate', 'endpoint: ' + what, 'rule 5', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { uris, dnsName: dns }), ROOT_A]));
 
+// The same exactness one layer down. DER has one encoding of each of these, and a certificate that
+// spells one another way is precisely what one parser sees and the next does not — §14.1's strict DER
+// and the last row of §14.5. The builder writes them; nothing else can.
+for (const [what, misencode] of [
+  ['a criticality BOOLEAN that is not 0xFF', { criticalTrue: [0x01] }],
+  ['an explicit `critical FALSE`, which DER never encodes', { explicitFalse: OID.eku }],
+  ['keyUsage carrying a bit in a second byte', { keyUsage: [0x07, 0x80, 0x80] }],
+  ['keyUsage whose trailing zero bits are not removed', { keyUsage: [0x00, 0x80] }],
+  ['an extension OID with a padded subidentifier', { oidFor: { oid: OID.keyUsage, der: '060455801d0f' } }],
+  ['a signature-algorithm OID with a padded subidentifier', { sigAlgOid: '06042b806570' }],
+  ['a commonName attribute type with a padded subidentifier', { cnOid: '060455800403' }],
+  ['an extendedKeyUsage OID with a padded subidentifier', { ekuOid: '06092b0601050507800301' }],
+  ['a serial with a needless leading zero', { serial: [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77] }],
+]) scenario('certificate', 'DER: ' + what, 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode }), ROOT_A]));
+
+// A root's dates carry no trust — its fingerprint is the identity, and rule 4 checks the leaf's
+// validity alone (§14.2). Recorded as accepted on purpose: an implementation that reaches for RFC 5280
+// path validation would refuse this, and that divergence is the interoperability break to avoid.
+scenario('certificate', 'a root whose notBefore is years away is not a refusal', 'accepted', () =>
+  rule([LEAF_A, buildRoot({ cn: 'Alina Rao', key: rootA, notBefore: at('2030-01-01T00:00:00Z'), label: 'i/root_a' })]));
+
 // ── Secrets ─────────────────────────────────────────────────────────────────────
 const openTo = (h, e, pub = h.sign.pub) => { try { open('PACT-SEAL-X25519', h.sign.priv, pub, Buffer.from('PACT-SEAL-v2'), fromB64url(e.protected), fromB64url(e.enc), fromB64url(e.ct)); return 'opened'; } catch { return 'closed'; } };
 scenario('secrets', 'a stolen leaf key opens traffic recorded while it was current', residual('opened'), () => openTo(hostA, message(hostB, chainB, LEAF_A)));
@@ -185,6 +206,17 @@ scenario('secrets', 'the root private keys are not in the spec', 'absent', () =>
   return roots.some((h) => spec.includes(h)) ? 'present' : 'absent';
 });
 
+// §13.1 names the header's members and their types. A closed set of names exists so two
+// implementations cannot disagree about what was signed; latitude in the types reopens exactly that.
+scenario('secrets', 'a header whose ts and exp are strings', 'header member types', () => receive(bharat(), message(hostA, chainA, LEAF_B, { header: { ts: String(nowS), exp: String(nowS + 600) } })).why);
+
+// `sig` covers `protected ‖ enc ‖ ct` with no length prefixes, so moving a byte across the enc/ct
+// boundary leaves the signed bytes identical. What refuses it is `enc` being the suite's own length.
+scenario('secrets', 'a byte moved from the encapsulated key into the ciphertext', 'encapsulated key is not the suite\'s length', () => {
+  const e = message(hostA, chainA, LEAF_B), enc = fromB64url(e.enc), ct = fromB64url(e.ct);
+  return receive(bharat(), { ...e, enc: b64url(enc.subarray(0, enc.length - 1)), ct: b64url(Buffer.concat([enc.subarray(enc.length - 1), ct])) }).why;
+});
+
 // ── The small form: a leaf named by fingerprint (§13.2) ─────────────────────────
 const size = (e) => JSON.stringify(e).length;
 scenario('reference', 'a known contact from its known host sends the small form and is a contact', blockedIf((r) => r.tier === 'contact' && r.form === 'leaf'), () => receive(bharat(), message(hostA, chainA, LEAF_B, { reference: true })));
@@ -232,6 +264,11 @@ scenario('guest', 'a guest whose card carries a different certificate than the c
   const other = leafOf(rootM, 'Alina Rao', hostM, E_M, { notBefore: at('2026-08-01T00:00:00Z') });
   return receive(bharat(), env({ senderKey: hostM.sign, senderChain: chainM, recipientLeaf: LEAF_B, params: { name: 'request_contact', arguments: { card: encodeCard({ fn: 'M', cert: other }) } } })).why;
 });
+// §14.5: "a guest's endpoint never equals the receiver's own". A stranger who puts this node's own
+// address in their leaf would otherwise be pinned to it, and every reply would come back here.
+scenario('guest', 'a guest whose leaf names the receiver\'s own address', 'guest endpoint is this node\'s own address', () =>
+  receive(bharat(), request(hostM, [leafOf(rootM, 'Alina Rao', hostM, E_B), ROOT_M], LEAF_B)).why);
+
 scenario('guest', 'a blocked sender is answered exactly as an unknown one', 'same', () => {
   const b = bharat(); pin(b, FP_M, { endpoint: E_M, leafDer: LEAF_M, state: 'blocked' });
   const blocked = receive(b, message(hostM, chainM, LEAF_B)), unknown = receive(bharat(), message(hostM, chainM, LEAF_B));

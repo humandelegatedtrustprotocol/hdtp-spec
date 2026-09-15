@@ -2,9 +2,12 @@
 import { createHmac, createCipheriv, createDecipheriv, createECDH, diffieHellman, createPublicKey, randomBytes, sign, verify } from 'node:crypto';
 import { algorithmOf, ed25519PublicToX25519, ed25519PrivateToX25519, x25519Raw, x25519FromSeed, p256Uncompressed, p256Scalar, p256FromSeed } from './keys.mjs';
 
+// `npk` is the encapsulated key's length, which is the KEM's public-key length (RFC 9180 §7.1): an
+// uncompressed P-256 point, or an X25519 key. §13.1 pins it so `enc` has one length per suite and the
+// signature over `protected ‖ enc ‖ ct` cannot be read with the boundary in a second place.
 export const SUITES = {
-  'PACT-SEAL-P256': { kem: 0x0010, kdf: 0x0001, aead: 0x0001, nk: 16, nn: 12, nsecret: 32, cipher: 'aes-128-gcm' },
-  'PACT-SEAL-X25519': { kem: 0x0020, kdf: 0x0001, aead: 0x0003, nk: 32, nn: 12, nsecret: 32, cipher: 'chacha20-poly1305' },
+  'PACT-SEAL-P256': { kem: 0x0010, kdf: 0x0001, aead: 0x0001, nk: 16, nn: 12, nsecret: 32, npk: 65, cipher: 'aes-128-gcm' },
+  'PACT-SEAL-X25519': { kem: 0x0020, kdf: 0x0001, aead: 0x0003, nk: 32, nn: 12, nsecret: 32, npk: 32, cipher: 'chacha20-poly1305' },
 };
 
 const V = Buffer.from('HPKE-v1');
