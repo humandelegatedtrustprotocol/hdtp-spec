@@ -48,9 +48,16 @@ export function buildRoot({ cn, key, notBefore, label }) {
 //   sigAlgOid      the AlgorithmIdentifier's OID, inside the TBS and outside it alike, as DER bytes
 //   cnOid          the commonName attribute type's OID, as DER bytes
 //   ekuOid         the serverAuth OID inside extendedKeyUsage, as DER bytes
+//   spkiAlgOid     the SubjectPublicKeyInfo's AlgorithmIdentifier OID, as DER bytes; the
+//                  subjectKeyIdentifier follows the bytes written, so the certificate stays
+//                  self-consistent and is refused for the encoding rather than for a stale identifier
 //   serial         the serialNumber INTEGER's content (DER: the shortest two's-complement form)
 export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid, misencode = {} }) {
-  const spki = spkiOf(hostKey.pub), id = keyId(hostKey.pub), issuerId = aki ?? keyId(root.pub);
+  const plainSpki = spkiOf(hostKey.pub);
+  const spki = misencode.spkiAlgOid
+    ? seq(seq(Buffer.from(misencode.spkiAlgOid, 'hex')), children(read(plainSpki))[1].raw)
+    : plainSpki;
+  const id = sha256(spki), issuerId = aki ?? keyId(root.pub);
   const bits = usage ?? (algorithmOf(hostKey.pub) === 'p256' ? [0, 4] : [0]);
   const sanNames = (uris ?? [endpoint]).map((u) => implicit(6, Buffer.from(u, 'utf8')));
   if (dnsName) sanNames.push(implicit(2, Buffer.from(dnsName, 'ascii')));
@@ -98,6 +105,11 @@ export function parse(der) {
     notBefore: readTime(notBefore), notAfter: readTime(notAfter), timeTags: [notBefore.tag, notAfter.tag],
     spki: f[6].raw, extensions: [], ca: false, pathLen: null, keyUsage: [], eku: [], uris: [], dns: [], otherNames: 0, ski: null, aki: null, akiExtra: false,
   };
+  // The SubjectPublicKeyInfo's AlgorithmIdentifier is an OID like any other, and the one that matters
+  // most: the fingerprint of §2 is SHA-256 over these bytes, so a second encoding of the OID is a
+  // second fingerprint for one key. Checked here rather than left to whatever the platform's key
+  // reader happens to refuse, so the rule is the profile's and not OpenSSL's.
+  for (const part of children(children(read(out.spki))[0])) if (part.tag === 0x06) readOidStrict(part);
   out.publicKey = createPublicKey({ key: out.spki, format: 'der', type: 'spki' });
   out.keyId = sha256(out.spki);
   for (const e of children(children(f[7])[0])) {
