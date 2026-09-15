@@ -7,6 +7,12 @@ import { canonical } from './canonical.mjs';
 import { decodeCard } from './card.mjs';
 
 export const HEADER_MEMBERS = 'cty,exp,kid,msg_id,suite,ts,v';
+// §13.1 gives each member a type as well as a name. The closed set of names exists so two
+// implementations cannot disagree about what was signed; latitude in the types reopens the same gap,
+// since `"1757000000"` and `1757000000` are different bytes under one signature and compare alike.
+const INTEGER_MEMBERS = ['v', 'ts', 'exp'], STRING_MEMBERS = ['suite', 'kid', 'msg_id', 'cty'];
+const isInt = (n) => typeof n === 'number' && Number.isSafeInteger(n);
+const headerTypesOk = (h) => INTEGER_MEMBERS.every((k) => isInt(h[k])) && STRING_MEMBERS.every((k) => typeof h[k] === 'string');
 export const SKEW_S = 300;
 export const MAX_LIFETIME_S = 30 * 86_400; // §13.1: exp − ts is at most 30 days
 export const CLAIM_WINDOW_MS = 30 * 86_400_000;
@@ -63,6 +69,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   let header;
   try { header = JSON.parse(fromB64url(envelope.protected).toString()); } catch { return invalid('protected is not JSON'); }
   if (Object.keys(header).sort().join(',') !== HEADER_MEMBERS) return invalid('header members');
+  if (!headerTypesOk(header)) return invalid('header member types');
   if (header.v !== 2 || !SUITES[header.suite]) return invalid('version or suite');
 
   const held = node.keys.find((k) => k.kid === header.kid && (k.current || node.now <= k.notAfter));
@@ -74,6 +81,10 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   if (suiteForLeaf(parse(held.leafDer)) !== header.suite) return invalid('suite does not fit the leaf');
 
   const aad = fromB64url(envelope.protected), enc = fromB64url(envelope.enc), ct = fromB64url(envelope.ct);
+  // `sig` covers the three members concatenated with nothing between them, so the suite's own `enc`
+  // length is what fixes the boundary: without it a byte moved from `enc` into `ct` leaves the signed
+  // bytes identical.
+  if (enc.length !== SUITES[header.suite].npk) return invalid("encapsulated key is not the suite's length");
   let body;
   try { body = JSON.parse(open(header.suite, held.key.priv, held.key.pub, Buffer.from('PACT-SEAL-v2'), aad, enc, ct).toString()); } catch { return invalid('does not open'); }
   const members = body && typeof body === 'object' ? Object.keys(body).sort().join(',') : '';
@@ -120,6 +131,9 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   const result = (tier, extra = {}) => { node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint, method: body.method, tool, form: 'chain', ...extra }; };
   const asGuest = (why) => {
     if (body.method !== 'tools/call' || !GUEST_TOOLS.includes(tool)) return invalid('guest may only redeem or request');
+    // §14.5: a guest's endpoint never equals the receiver's own. Otherwise a stranger is pinned to
+    // this node's own address and every reply it is sent comes straight back here.
+    if (endpoint === node.endpoint) return invalid("guest endpoint is this node's own address");
     const card = decodeCard(body.params.arguments?.card ?? '');
     if (card.error) return invalid('guest card: ' + card.why);
     if (!card.cert.equals(chain[0])) return invalid('guest card certificate is not the chain\'s leaf');

@@ -59,6 +59,52 @@ export function children(node) {
   while (pos < node.content.length) { const c = read(node.content, pos); out.push(c); pos = c.end; }
   return out;
 }
+// DER's one encoding of TRUE: a single 0xFF. Anything else — 0x01, or an explicit FALSE where the
+// DEFAULT should simply be absent — is a second spelling, which is what an exact profile excludes.
+export const boolTrue = (node) => node.tag === 0x01 && node.content.length === 1 && node.content[0] === 0xff;
+
+// DER's INTEGER: at least one byte, and the shortest two's-complement form — no 0x00 before a byte
+// under 0x80, no 0xFF before one at or above it.
+export function intMinimal(content) {
+  if (content.length === 0) return false;
+  if (content.length === 1) return true;
+  if (content[0] === 0x00) return (content[1] & 0x80) !== 0;
+  if (content[0] === 0xff) return (content[1] & 0x80) === 0;
+  return true;
+}
+
+// DER's OBJECT IDENTIFIER: every subidentifier in its shortest base-128 form, so no leading 0x80,
+// and the last byte ends one — a padded arc reads as the same OID to a lenient parser and as nothing
+// at all to a strict one, which is the whole of the parser-differential problem in four bytes.
+export function oidMinimal(node) {
+  const b = node.content;
+  if (node.tag !== 0x06 || b.length === 0 || (b[b.length - 1] & 0x80) !== 0) return false;
+  let start = true;
+  for (const x of b.subarray(1)) {
+    if (start && x === 0x80) return false;
+    start = (x & 0x80) === 0;
+  }
+  return true;
+}
+
+// DER's BIT STRING for a named bit list (keyUsage): the unused bits are zero, and trailing zero bits
+// are removed — so the lowest bit still encoded is set. Either spelling of the same set is a second
+// encoding. Not for the signature or the public key, where every bit is carried and `unused` is 0.
+export function namedBitsOk(content) {
+  const unused = content[0] ?? 0, bits = content.subarray(1);
+  if (unused > 7) return false;
+  if (bits.length === 0) return unused === 0;
+  const last = bits[bits.length - 1];
+  return (last & ((1 << unused) - 1)) === 0 && (last & (1 << unused)) !== 0;
+}
+
+// Every OID a certificate carries is read through this, so no call site can be the one that forgot:
+// the profile is exact, and an exactness applied at one of four read positions is not one.
+export function readOidStrict(node) {
+  if (!oidMinimal(node)) throw new Error('OID not in the DER form');
+  return readOid(node);
+}
+
 export function readOid(node) {
   const b = node.content, out = [Math.floor(b[0] / 40), b[0] % 40];
   let v = 0n;
