@@ -15,7 +15,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 | `archive/design-study-v0.1.md` | The original design study that started the project. |
 | `archive/test-vectors/` | Crypto test-vector generator + output for the *hardened draft* (HPKE/SAS) — not applicable to current `SPEC.md`. |
 | `vectors/` | The 2.0 vectors of Appendix B: `gen.mjs` derives every secret from a label and writes the certificates, chain cases and `v: 2` envelopes; `check.mjs` reads them back *from `SPEC.md`*, opens the Go-generated `v: 1` vectors with the same code, cross-checks each certificate with OpenSSL, and asserts every case's outcome. `npm run vectors:check`. `intrude.mjs` replays the §14.5 compromise cases against an in-memory node: `npm run vectors:intrude`. |
-| *the library* | Not here: `pact-identity/` in the umbrella repository is the 2.0 library the vectors specify — a Rust core compiled to WebAssembly, an independent Go port, the `pact` CLI (`pact vectors check --spec SPEC.md` proves Appendix B natively) and the wallet extension; both ports answer every vector and every intrusion scenario exactly as `vectors/lib` does. |
+| *the library* | Not here: `pact-identity/` in the umbrella repository is the 2.0 library the vectors specify — a Rust core compiled to WebAssembly, an independent Go port, and the `pact` CLI (`pact vectors check --spec SPEC.md` proves Appendix B natively); both ports answer every vector and every intrusion scenario exactly as `vectors/lib` does. |
 
 ## The protocol in five lines
 
