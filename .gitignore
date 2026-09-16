@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .DS_Store
+
+# Wrangler's local state, written by any `wrangler` invocation in this directory.
+# A build artifact: it holds a local D1/KV simulation and nothing anybody should commit.
+.wrangler/
