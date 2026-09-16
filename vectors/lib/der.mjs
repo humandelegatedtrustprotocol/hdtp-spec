@@ -32,6 +32,12 @@ export function int(v) {
     let h = BigInt(v).toString(16); if (h.length % 2) h = '0' + h;
     v = Buffer.from(h, 'hex');
   }
+  // Zero, and the empty input that means it, are one content byte — never none. `02 00` is not
+  // a DER INTEGER at all, and this and the Rust port both wrote it for an empty slice while the
+  // Go port wrote `02 01 00`: a three-way disagreement none of the four gates could see, because
+  // nothing in the vectors or the parity set passes an empty value. Fixed toward Go, which was
+  // the one that was right.
+  if (v.length === 0) return tlv(0x02, Buffer.from([0]));
   let at = 0;
   while (at + 1 < v.length && v[at] === 0 && (v[at + 1] & 0x80) === 0) at++;
   v = v.subarray(at);
