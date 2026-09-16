@@ -4,7 +4,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
 import { open, verifyDetached, suiteForLeaf } from './lib/hpke.mjs';
 import { validateChain, compareLeaves, parse } from './lib/x509.mjs';
-import { fingerprint, fromB64url } from './lib/keys.mjs';
+import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, spkiOf } from './lib/keys.mjs';
 
 const specPath = new URL('../SPEC.md', import.meta.url);
 const spec = readFileSync(specPath, 'utf8');
@@ -105,6 +105,30 @@ if (!v2) {
     }
     console.log(`  ${v.name}: ${plaintext ? 'opened' : 'closed'}${v.form === 'leaf' ? ' (by reference)' : ''}`);
   }
+
+  // §2.1. Recomputed from the published `prf` alone, so what passes here is what a third
+  // implementation reading Appendix B would have to reproduce — not what the generator happened
+  // to write.
+  console.log('derivation (§2.1)');
+  const seeds = new Map();
+  for (const d of v2.derivation ?? []) {
+    ok(d.salt === b64url(PRF_SALT), `${d.label}: salt is SHA-256("pact/vault/1")`);
+    const s = deriveSeed(fromB64url(d.prf), d.info);
+    ok(b64url(s) === d.seed, `${d.label}: HKDF-SHA256(prf, empty salt, "${d.info}", 32)`);
+    ok(s.length === 32, `${d.label}: 32 bytes`);
+    if (d.alg) {
+      ok(d.alg === 'ed25519', `${d.label}: a derived root is Ed25519`);
+      const key = ed25519FromSeed(s);
+      ok(b64url(spkiOf(key.pub)) === d.spki, `${d.label}: the key the seed makes`);
+      ok(fingerprint(key.pub) === d.fingerprint, `${d.label}: the identity that key is`);
+    }
+    // The property the three `info` strings exist for: one credential, three unrelated secrets.
+    // A port that dropped `info` from the expand step would pass every check above and fail here.
+    ok(!seeds.has(d.seed), `${d.label}: a different info gives a different seed`);
+    seeds.set(d.seed, d.info);
+    console.log(`  ${d.label} (${d.info}): ${d.fingerprint ?? 'seed only'}`);
+  }
+  ok((v2.derivation ?? []).length >= 3, 'all three info strings are covered');
 }
 
 console.log(`${checks - failures}/${checks} checks passed`);

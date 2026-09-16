@@ -1,7 +1,7 @@
 // Generates the 2.0 vectors of Appendix B deterministically: every key derives from a label.
 // Output: vectors/pact-2.0-vectors.json. Run `node vectors/check.mjs` to prove them against SPEC.md.
-import { writeFileSync } from 'node:fs';
-import { seed, ed25519FromSeed, p256FromSeed, pkcs8Of, fingerprint, b64url } from './lib/keys.mjs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { seed, ed25519FromSeed, p256FromSeed, pkcs8Of, spkiOf, fingerprint, b64url, PRF_SALT, deriveSeed } from './lib/keys.mjs';
 import { buildRoot, buildLeaf, fingerprintOf, parse } from './lib/x509.mjs';
 import { signDetached, suiteForLeaf, recipientOf, sealDeterministic } from './lib/hpke.mjs';
 import { canonical } from './lib/canonical.mjs';
@@ -90,13 +90,56 @@ const envelopes = [
   envelope('alina-to-bharat-by-reference', hosts.leaf_a, ['leaf_a', 'root_a'], ['leaf_b', 'root_b'], 'vec-v2-alina-to-bharat-ref', 'leaf'),
 ];
 
+// §2.1, a root derived from a passkey. There is no authenticator in a vector file, so the PRF output
+// is a fixed test value and what these prove is the part an implementation can get wrong: the HKDF
+// with its empty salt, and the seed-to-key step. The three `info` strings over ONE prf are here
+// together on purpose — they must come out unrelated, and a reader can see that they do.
+//
+// These carry a seed, which is a private key, and the rule everywhere else in this file is that root
+// private keys stay out. The rule is intact: this derives a throwaway identity that exists in no
+// certificate and nowhere else — `root_a` and `root_b` above come from different labels and their
+// private keys remain absent. A derivation vector without its seed could only say "wrong" and never
+// which of the two steps was wrong, which is most of its value.
+const PRF = seed('prf/derived-vector');
+const derivation = [
+  { label: 'root', info: 'pact/root/1', alg: 'ed25519' },
+  { label: 'store-key', info: 'pact/store-key/1' },
+  { label: 'store-id', info: 'pact/store-id/1' },
+].map(({ label, info, alg }) => {
+  const s = deriveSeed(PRF, info);
+  const base = { label, prf: b64url(PRF), salt: b64url(PRF_SALT), info, seed: b64url(s) };
+  if (!alg) return { ...base, note: `HKDF-SHA256 over the same prf; a 32-byte secret, not a key` };
+  const key = ed25519FromSeed(s);
+  return { ...base, alg, spki: b64url(spkiOf(key.pub)), fingerprint: fingerprint(key.pub),
+    note: 'the identity this passkey is: Ed25519 from the derived seed. No certificate: a root\'s serial and notBefore are the wallet\'s, not the derivation\'s, so the key is what reproduces and the certificate is not' };
+});
+
 const out = {
   generated_by: 'vectors/gen.mjs (deterministic; Ed25519 signatures and every certificate reproduce byte for byte, ECDSA signatures are one valid signature)',
   now: NOW,
   certificates: Object.fromEntries(Object.entries(certs).map(([k, v]) => [k, { der_hex: hex(v), note: notes[k] }])),
   leaf_keys_pkcs8_hex: Object.fromEntries(Object.entries(hosts).map(([k, h]) => [k, hex(pkcs8Of(h.priv))])),
   chain_cases: chainCases, newest_leaf_cases: newestLeafCases, certificate_renewed_cases: renewedCases, envelopes,
+  derivation,
 };
 const path = new URL('./pact-2.0-vectors.json', import.meta.url);
-writeFileSync(path, JSON.stringify(out, null, 2) + '\n');
-console.log(`wrote ${path.pathname}: ${Object.keys(certs).length} certificates, ${chainCases.length} chain cases, ${envelopes.length} envelopes`);
+const json = JSON.stringify(out, null, 2);
+writeFileSync(path, json + '\n');
+
+// And into Appendix B, because the document is what implementations read. `check.mjs` asserts the
+// two agree; it used to be the only thing standing between a regenerated file and a spec still
+// carrying yesterday's bytes, which is a gate reporting a mistake rather than preventing one.
+const specPath = new URL('../SPEC.md', import.meta.url);
+const spec = readFileSync(specPath, 'utf8');
+const from = spec.indexOf('## Appendix B'), to = spec.indexOf('## Appendix C');
+if (from < 0 || to < 0) throw new Error('SPEC.md: Appendix B and C must both be present');
+const appendix = spec.slice(from, to);
+const blocks = [...appendix.matchAll(/```json\n[\s\S]*?\n```/g)];
+if (blocks.length !== 2) throw new Error(`SPEC.md: Appendix B should hold two json blocks, found ${blocks.length}`);
+const b = blocks[1];
+const spliced = appendix.slice(0, b.index) + '```json\n' + json + '\n```' + appendix.slice(b.index + b[0].length);
+if (spliced !== appendix) {
+  writeFileSync(specPath, spec.slice(0, from) + spliced + spec.slice(to));
+  console.log('spliced into SPEC.md Appendix B');
+}
+console.log(`wrote ${path.pathname}: ${Object.keys(certs).length} certificates, ${chainCases.length} chain cases, ${envelopes.length} envelopes, ${derivation.length} derivations`);
