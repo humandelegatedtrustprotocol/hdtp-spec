@@ -1,5 +1,5 @@
 // Deterministic keys for the vectors, and the conversions §13.1 names.
-import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, hkdfSync } from 'node:crypto';
 
 const ED25519_PKCS8 = Buffer.from('302e020100300506032b657004220420', 'hex');
 const X25519_PKCS8 = Buffer.from('302e020100300506032b656e04220420', 'hex');
@@ -13,6 +13,23 @@ export const sha256 = (b) => createHash('sha256').update(b).digest();
 
 // Every secret in the vectors derives from a label, so the generator is reproducible.
 export const seed = (label) => sha256(Buffer.from('pact-2.0-vectors/' + label));
+
+// §2.1: a root derived from a passkey. `PRF_SALT` is the fixed input handed to the authenticator's
+// prf extension — fixed because a wallet arriving cold on a new device has to derive before it can
+// fetch anything, and a per-credential salt would have to be fetched first. The secret is still
+// per-credential, because the PRF is keyed by the credential.
+//
+// The name is stale on purpose: there is no vault at the address any more. Every PRF measurement
+// this design rests on was taken with these exact bytes, so renaming the string would invalidate
+// the measurement and buy nothing but tidiness.
+export const PRF_SALT = sha256(Buffer.from('pact/vault/1'));
+
+// HKDF-SHA256 with an EMPTY salt, so extract is HMAC-SHA256(key = 0x00 x 32, prf). One PRF output
+// yields unrelated 32-byte seeds per `info`, which is what lets one credential hold a root, the key
+// that seals the wallet's record, and the address that record is kept at, without any of the three
+// telling you anything about the others.
+export const deriveSeed = (prf, info) =>
+  Buffer.from(hkdfSync('sha256', prf, Buffer.alloc(0), Buffer.from(info, 'ascii'), 32));
 
 export function ed25519FromSeed(s) {
   const priv = createPrivateKey({ key: Buffer.concat([ED25519_PKCS8, s]), format: 'der', type: 'pkcs8' });
