@@ -70,7 +70,7 @@ const renewedCases = [
   { name: 'another root discarded', pinned_leaf: 'leaf_a', dialed: ENDPOINT_A, now: NOW, answer: { code: 'certificate_renewed', data: { chain: chainB64('leaf_b', 'root_b') } }, expect: 'discard' },
 ];
 
-// Three v2 envelopes: one each way carrying the chain, as the v1 vectors paired the curves, and one
+// Three v2 envelopes: one each way carrying the chain, pairing the curves, and one
 // in the small form, naming a leaf the receiver already holds (§13.2).
 const ts = Math.floor(Date.parse(NOW) / 1000);
 function envelope(name, sender, senderChain, recipientChain, msgId, form = 'chain') {
@@ -131,12 +131,12 @@ writeFileSync(path, json + '\n');
 // carrying yesterday's bytes, which is a gate reporting a mistake rather than preventing one.
 const specPath = new URL('../SPEC.md', import.meta.url);
 const spec = readFileSync(specPath, 'utf8');
-const from = spec.indexOf('## Appendix B'), to = spec.indexOf('## Appendix C');
-if (from < 0 || to < 0) throw new Error('SPEC.md: Appendix B and C must both be present');
+const from = spec.indexOf('## Appendix B'), to = spec.indexOf('*End of PACT');
+if (from < 0 || to < 0) throw new Error('SPEC.md: Appendix B and the end marker must both be present');
 const appendix = spec.slice(from, to);
 const blocks = [...appendix.matchAll(/```json\n[\s\S]*?\n```/g)];
-if (blocks.length !== 2) throw new Error(`SPEC.md: Appendix B should hold two json blocks, found ${blocks.length}`);
-const b = blocks[1];
+if (blocks.length !== 1) throw new Error(`SPEC.md: Appendix B should hold one json block, found ${blocks.length}`);
+const b = blocks[0];
 const spliced = appendix.slice(0, b.index) + '```json\n' + json + '\n```' + appendix.slice(b.index + b[0].length);
 if (spliced !== appendix) {
   writeFileSync(specPath, spec.slice(0, from) + spliced + spec.slice(to));
