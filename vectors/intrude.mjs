@@ -166,7 +166,7 @@ scenario('secrets', 'the header\'s exp extended after sealing', 'does not open',
   const e = message(hostA, chainA, LEAF_B); const h = JSON.parse(fromB64url(e.protected).toString()); h.exp += 3600;
   return receive(bharat(), { ...e, protected: b64url(Buffer.from(JSON.stringify(h))) }).why;
 });
-scenario('secrets', 'sealed with the v1 info string', 'does not open', () => receive(bharat(), message(hostA, chainA, LEAF_B, { info: 'PACT-SEAL-v1' })).why);
+scenario('secrets', 'sealed with a stale info string', 'does not open', () => receive(bharat(), message(hostA, chainA, LEAF_B, { info: 'PACT-SEAL-v1' })).why);
 scenario('secrets', 'Alina\'s envelope re-signed by Mallory', 'signature is not the chain\'s leaf key', () => receive(bharat(), message(hostA, chainA, LEAF_B, { signWith: hostM.sign })).why);
 scenario('secrets', 'Mallory seals with Alina\'s chain inside and her own signature', 'signature is not the chain\'s leaf key', () => receive(bharat(), message(hostM, chainM, LEAF_B, { chainInside: chainA })).why);
 scenario('secrets', 'the same envelope twice is acknowledged, not re-executed', blockedIf((r) => r.replayed === true), () => { const b = bharat(); const e = message(hostA, chainA, LEAF_B); receive(b, e); return receive(b, e); });
@@ -278,7 +278,7 @@ scenario('guest', 'a blocked sender is answered exactly as an unknown one', 'sam
 scenario('card', 'a folded certificate round-trips', 'ok', () => (decodeCard(card(chainA)).cert.equals(LEAF_A) ? 'ok' : 'mismatch'));
 scenario('card', 'two X-PACT-CERT properties', 'bad_request', () => decodeCard(card(chainA).replace('END:VCARD', 'X-PACT-CERT:' + b64url(LEAF_M) + '\r\nEND:VCARD')).error);
 scenario('card', 'an expired leaf is accepted at intake', 'expired but accepted', () => { const c = decodeCard(encodeCard({ fn: 'A', cert: leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2025-06-01T00:00:00Z'), notAfter: at('2026-06-01T00:00:00Z') }) })); return c.error ? c.error : c.expired ? 'expired but accepted' : 'not expired'; });
-scenario('card', 'a 1.x endpoint property on a 2.0 card is ignored; the address comes from the leaf', E_A, () => decodeCard(card(chainA, 'Alina', ['X-PACT-ENDPOINT:' + E_M])).endpoint);
+scenario('card', 'an unknown endpoint property on a card is ignored; the address comes from the leaf', E_A, () => decodeCard(card(chainA, 'Alina', ['X-PACT-ENDPOINT:' + E_M])).endpoint);
 scenario('card', 'a card without a certificate', 'bad_request', () => decodeCard('BEGIN:VCARD\r\nVERSION:4.0\r\nFN:X\r\nX-PACT-VERSION:2\r\nEND:VCARD\r\n').error);
 scenario('card', 'a 2.0 card stays under a kilobyte', blockedIf((got) => got < 1024), () => card(chainA).length);
 
