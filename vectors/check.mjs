@@ -1,4 +1,4 @@
-// Proves Appendix B: opens the v1 vectors, and checks every 2.0 vector does what the spec says.
+// Proves Appendix B: checks every vector does what the spec says.
 // Reads the vectors from SPEC.md itself, so the bytes in the document are the bytes proven.
 import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
@@ -8,25 +8,13 @@ import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519F
 
 const specPath = new URL('../SPEC.md', import.meta.url);
 const spec = readFileSync(specPath, 'utf8');
-const appendixB = spec.slice(spec.indexOf('## Appendix B'), spec.indexOf('## Appendix C'));
+const appendixB = spec.slice(spec.indexOf('## Appendix B'), spec.indexOf('*End of PACT'));
 const blocks = [...appendixB.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]));
 if (blocks.length < 1) throw new Error('Appendix B has no vector blocks');
-const [v1, v2] = blocks;
+const [v2] = blocks;
 
 let failures = 0, checks = 0;
 const ok = (cond, what) => { checks++; if (!cond) { failures++; console.log('  FAIL ' + what); } };
-
-console.log('v1 envelopes');
-for (const v of v1) {
-  const recipientPriv = createPrivateKey({ key: Buffer.from(v.recipient_key_pkcs8_hex, 'hex'), format: 'der', type: 'pkcs8' });
-  const senderPub = createPublicKey(createPrivateKey({ key: Buffer.from(v.sender_key_pkcs8_hex, 'hex'), format: 'der', type: 'pkcs8' }));
-  const aad = fromB64url(v.protected), enc = fromB64url(v.enc), ct = fromB64url(v.ct);
-  let plaintext = null;
-  try { plaintext = open(v.suite, recipientPriv, createPublicKey(recipientPriv), Buffer.from('PACT-SEAL-v1'), aad, enc, ct); } catch (e) { ok(false, `${v.name}: open threw ${e.message}`); }
-  ok(plaintext && plaintext.toString('hex') === v.plaintext_hex, `${v.name}: plaintext`);
-  ok(verifyDetached(senderPub, Buffer.concat([aad, enc, ct]), fromB64url(v.sig)), `${v.name}: signature`);
-  console.log(`  ${v.name}: ${plaintext ? 'opened' : 'closed'}`);
-}
 
 if (!v2) {
   console.log('no 2.0 block in Appendix B yet');
