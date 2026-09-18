@@ -282,6 +282,65 @@ scenario('card', 'an unknown endpoint property on a card is ignored; the address
 scenario('card', 'a card without a certificate', 'bad_request', () => decodeCard('BEGIN:VCARD\r\nVERSION:4.0\r\nFN:X\r\nX-PACT-VERSION:2\r\nEND:VCARD\r\n').error);
 scenario('card', 'a 2.0 card stays under a kilobyte', blockedIf((got) => got < 1024), () => card(chainA).length);
 
+// ── Chain confusion: §14.2 takes exactly two certificates, in one order ──────────
+// Every shape below is a path an X.509 verifier that was NOT written to this profile
+// would take: a single certificate, a bundle, an issuer reached through a CA. §14.2 is
+// deliberately not RFC 5280 path validation — it is two certificates, the second
+// self-signed, and its fingerprint is the identity. These lock that door from inside.
+scenario('chain', 'a chain of one certificate', 'rule 1', () => rule([LEAF_A]));
+scenario('chain', 'a chain of three certificates', 'rule 1', () => rule([LEAF_A, ROOT_A, ROOT_A]));
+scenario('chain', 'an empty chain', 'rule 1', () => rule([]));
+scenario('chain', 'the leaf presented as its own root', 'rule 1', () => rule([LEAF_A, LEAF_A]));
+scenario('chain', 'the root presented as its own leaf', 'rule 1', () => rule([ROOT_A, ROOT_A]));
+scenario('chain', 'the chain in reverse order', 'rule 1', () => rule([ROOT_A, LEAF_A]));
+// A CA-signed intermediate in the root slot is the whole of WebPKI asking to be let in:
+// accept it and any public CA could mint an identity. Rule 2 wants the root self-signed,
+// so there is no hierarchy to climb and no authority above the person.
+scenario('chain', 'an intermediate posing as the root', 'rule 1', () =>
+  rule([LEAF_A, buildLeaf({ cn: 'Alina Rao', rootCn: 'Alina Rao', root: rootM, hostKey: rootA, endpoint: E_A, notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), cA: true, usage: [5], label: 'i/intermediate' })]));
+
+// ── Time: the two windows, at their edges ───────────────────────────────────────
+// Rule 4 checks the leaf's dates and only the leaf's; §13.3 checks the envelope's. Both
+// have an exact boundary, and a boundary nothing tests is a boundary that drifts.
+scenario('time', 'a leaf that is not valid yet', 'rule 4', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: new Date(NOW.getTime() + H), notAfter: new Date(NOW.getTime() + 300 * D) }), ROOT_A]));
+scenario('time', 'a leaf that expired yesterday', 'rule 4', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2025-01-01T00:00:00Z'), notAfter: new Date(NOW.getTime() - D) }), ROOT_A]));
+scenario('time', 'an envelope exactly 300 seconds old is still inside the window', blockedIf((r) => r.tier === 'contact'), () => receive(bharat(), message(hostA, chainA, LEAF_B, { ts: nowS - 300, exp: nowS + 300 })));
+scenario('time', 'one second past that', 'outside the time window', () => receive(bharat(), message(hostA, chainA, LEAF_B, { ts: nowS - 301, exp: nowS + 300 })).why);
+scenario('time', 'an envelope exactly 300 seconds ahead is still inside the window', blockedIf((r) => r.tier === 'contact'), () => receive(bharat(), message(hostA, chainA, LEAF_B, { ts: nowS + 300, exp: nowS + 900 })));
+scenario('time', 'one second past that, in the other direction', 'outside the time window', () => receive(bharat(), message(hostA, chainA, LEAF_B, { ts: nowS + 301, exp: nowS + 900 })).why);
+
+// ── The carrier: a MITM by construction ─────────────────────────────────────────
+// In edge mode the TLS ends at the edge, so a party that can read, drop, reorder, replay
+// and ANSWER every call is not a hypothetical position an attacker must reach — it is the
+// deployment. These say what that party still cannot do.
+scenario('carrier', 'a v: 1 header, the retired generation', 'version or suite', () => receive(bharat(), message(hostA, chainA, LEAF_B, { header: { v: 1 } })).why);
+scenario('carrier', 'a header claiming a version that does not exist yet', 'version or suite', () => receive(bharat(), message(hostA, chainA, LEAF_B, { header: { v: 3 } })).why);
+scenario('carrier', 'a card of the retired generation', 'bad_request', () => decodeCard(card(chainA).replace('X-PACT-VERSION:2', 'X-PACT-VERSION:1')).error);
+// The retired properties are not merely unwritten: §3 says an implementation "honours none
+// of them". A carrier that appends one to a card in flight must move nothing.
+scenario('carrier', 'X-PACT-KEY appended to a card in flight is ignored', blockedIf((r) => r.root === FP_A && r.endpoint === E_A), () => {
+  const c = decodeCard(card(chainA).replace('END:VCARD', 'X-PACT-KEY:sha256:AAAA\r\nEND:VCARD'));
+  return { root: c.root, endpoint: c.endpoint };
+});
+scenario('carrier', 'X-PACT-GATEWAY appended to a card in flight buys no store-and-forward', blockedIf((r) => r.endpoint === E_A && r.gateway === undefined), () => {
+  const c = decodeCard(card(chainA).replace('END:VCARD', 'X-PACT-GATEWAY:' + E_M + '\r\nEND:VCARD'));
+  return { endpoint: c.endpoint, gateway: c.gateway };
+});
+// §13.5: the carrier sees kid, timing and sizes — and NOT who sent the message. The chain
+// rides inside the ciphertext, so it can neither be read nor stripped to force the small
+// form: the wire bytes carry no certificate at all.
+scenario('carrier', 'the sender\'s chain is not on the wire to be read or stripped', 'not on the wire', () => {
+  const e = message(hostA, chainA, LEAF_B), wire = JSON.stringify(e);
+  return wire.includes(b64url(LEAF_A)) || wire.includes(b64url(ROOT_A)) ? 'visible to the carrier' : 'not on the wire';
+});
+// Reflection: the carrier bounces a request back at whoever sent it. The envelope is sealed
+// to the RECIPIENT's leaf key, which the sender does not hold, so it does not even open.
+scenario('carrier', 'a request reflected back at its own sender', 'unknown kid', () => {
+  const a = makeNode({ path: '/alina', leafKey: hostA.sign, chain: chainA, now: NOW });
+  pin(a, fingerprintOf(parse(ROOT_B)), { endpoint: E_B, leafDer: LEAF_B });
+  return receive(a, message(hostA, chainA, LEAF_B)).why;
+});
+
 // ── Report ──────────────────────────────────────────────────────────────────────
 let last = '';
 for (const r of results) {
