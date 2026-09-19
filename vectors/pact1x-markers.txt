@@ -1,0 +1,34 @@
+# The names PACT 1.x had and PACT 2.x does not: what a grep is run for.
+#
+# One regular expression per line, matched case-sensitively against every tracked text file of a
+# repository. A name may appear only in an append-only migration, a dated record, or a file on
+# the guard's allow-list with its reason (see the guard). The generation's own name — "1.x" — is
+# not here on purpose: the specification has to say that it is not supported.
+#
+# This file has three copies, one per repository that has a guard, and they are the same bytes:
+#   pact-gateway/internal/integrationtest/testdata/pact1x-markers.txt   (the node, and pact-identity)
+#   pact-cloud/gateway/scripts/pact1x-markers.txt
+#   pact-protocol/vectors/pact1x-markers.txt
+# The node's guard fails when a sibling's copy differs from this one.
+
+# Card properties: a 1.x card spelled the key and the address out; a 2.x card carries the leaf.
+X-PACT-(KEY|ENDPOINT|GATEWAY|SPKI|RELAY)
+# The 1.x seal's HPKE info string.
+PACT-SEAL-v1
+# Key rotation: the flag, the columns, the audit actions, the events.
+rotate-key|rotate_key|RotateKey|rotateKey
+prev_key_sealed|prev_fingerprint|grace_until|PrevKeySealed|PrevFingerprint|GraceUntil
+account_rotate|rotate_introduce|identity\.rotated|contact\.rotated
+rotation_fanout|RotationFanout|rotationFanout|renewal_1x
+verifyRotationProof|AnnounceLegacyRenewal
+# Coexistence knobs.
+accept_1x|accept1x|Accept1x|notified_1x|identity\.upgraded
+contacts1x|OneXArchiveRefused|ONE_X_ARCHIVE
+EncodeCompatCard|encode_compat|card\.compat
+# The relay role: mode, env, routes, tools, tables, delivery state, audit actions.
+relay-assisted|RelayAssisted|PACT_RELAY|PACT_GATEWAY_|/relay/mcp
+relay_allowlist|relay_queue|relay_call|relay_ack|relay_fetch|relay_process|fetch_queued|queued_at_relay
+# Contact sync: every contact of an account, on a timer or on request.
+sync_contacts|SyncContacts|syncContacts
+# Bundles that carried a key.
+StripKeys|StripLeafKeys|StripAccountKeys|backup identity|restore-identity

@@ -170,7 +170,7 @@
 
 <header class="mast">
   <div class="wrap mast-in">
-    <div class="wordmark">PACT<span class="v"> / 1.0</span></div>
+    <div class="wordmark">PACT<span class="v"> / 2.1</span></div>
     <div class="mast-sub">agent-to-agent messaging over MCP + mTLS</div>
     <div class="mast-chip mono">spec · SPEC.md</div>
   </div>
@@ -180,9 +180,9 @@
   <div>
     <div class="eyebrow">Protocol explainer</div>
     <h1>WhatsApp, but the ones talking are your agents.</h1>
-    <p class="lede">PACT connects two people's AI assistants across the open internet. <strong>Contacts live in your phone book</strong>, identity is a TLS key, and sending a message is just <strong>calling a tool on your friend's MCP server</strong>. Humans stay in charge: every contact is manually approved, and every capability is a per-contact switch.</p>
+    <p class="lede">PACT connects two people's AI assistants across the open internet. <strong>Contacts live in your phone book</strong>, identity is a certificate you issue yourself, and sending a message is just <strong>calling a tool on your friend's MCP server</strong>. Humans stay in charge: every contact is manually approved, and every capability is a per-contact switch.</p>
     <div class="hero-facts">
-      <div class="fact"><div class="k">1 keypair</div><div class="l">is your identity</div></div>
+      <div class="fact"><div class="k">1 root</div><div class="l">is your identity</div></div>
       <div class="fact"><div class="k">1 vCard</div><div class="l">is your contact card</div></div>
       <div class="fact"><div class="k">1 tool call</div><div class="l">is a message</div></div>
     </div>
@@ -205,9 +205,9 @@
   <div class="wrap">
     <div class="eyebrow">Architecture</div>
     <h2>The whole idea in one picture</h2>
-    <p class="intro">Everyone runs (or is hosted with) an agent that exposes an <strong>MCP server over HTTPS</strong>. Your agent calls your contact's server; their server recognizes you by the client certificate you present, checks what they've allowed <em>you</em> specifically, and answers. There is no in-between protocol to invent — it's MCP end to end.</p>
+    <p class="intro">Everyone runs (or is hosted with) an agent that exposes an <strong>MCP server over HTTPS</strong>. Your agent calls your contact's server; their server recognizes you by the certificate chain you present — a leaf your own root signed — checks what they've allowed <em>you</em> specifically, and answers. There is no in-between protocol to invent — it's MCP end to end.</p>
     <figure>
-      <svg viewBox="0 0 960 372" role="img" aria-label="Two people each have an agent with an MCP server and private tools. The agents call each other's MCP servers over mutual TLS. An optional gateway relays queued calls when one side is offline.">
+      <svg viewBox="0 0 960 300" role="img" aria-label="Two people each have an agent with an MCP server and private tools. The agents call each other's MCP servers over mutual TLS.">
         <defs>
           <marker id="mI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"></polygon></marker>
           <marker id="mA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" style="fill:var(--accent)"></polygon></marker>
@@ -248,16 +248,8 @@
         <line x1="696" y1="126" x2="266" y2="196" style="stroke:var(--accent)" stroke-width="1.8" marker-end="url(#mA)"></line>
         <text x="480" y="222" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="600">mTLS · reply on the same thread</text>
 
-        <!-- gateway -->
-        <rect x="390" y="292" width="180" height="46" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"></rect>
-        <text x="480" y="311" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Gateway (optional)</text>
-        <text x="480" y="327" text-anchor="middle" class="d-lab-s d-mut">store &amp; forward queue</text>
-        <line x1="240" y1="154" x2="386" y2="300" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#mI)"></line>
-        <text x="268" y="248" text-anchor="middle" class="d-lab-s d-mut">relay_call when B offline</text>
-        <line x1="574" y1="300" x2="722" y2="154" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#mI)"></line>
-        <text x="692" y="248" text-anchor="middle" class="d-lab-s d-mut">fetch_queued when back</text>
       </svg>
-      <figcaption>Symmetry is the design: both sides are agent + public MCP server. The green edges are the protocol — mutually authenticated tool calls. The dashed gateway only appears when someone is offline or unreachable.</figcaption>
+      <figcaption>Symmetry is the design: both sides are agent + public MCP server. The green edges are the protocol — mutually authenticated tool calls, delivered directly. Nothing sits in between.</figcaption>
     </figure>
   </div>
 </section>
@@ -268,14 +260,14 @@
     <h2>Three pieces, all borrowed from things that already work</h2>
     <div class="pillars">
       <div class="pillar">
-        <h3>Identity = one TLS keypair</h3>
-        <p>Your agent's client certificate is you. Contacts pin your key's fingerprint when you connect; every later call proves possession, both ways. No accounts, no passwords, no CA hierarchy to run.</p>
-        <div class="art mono">fingerprint = <span class="hl">sha256:</span>rAGyIJ6GNU-4UyN7XeD0…<br>rotate: sign new key with old → <span class="hl">update_contact</span><br>2.0: the fingerprint names a <span class="hl">root</span> in your wallet; hosts hold a leaf</div>
+        <h3>Identity = a root you hold</h3>
+        <p>A self-signed root certificate in your own wallet is you. Contacts pin its fingerprint when you connect; every host serves under a leaf the root issued, and every call proves a chain to it, both ways. No accounts, no passwords, and no certificate authority but yourself.</p>
+        <div class="art mono">fingerprint = <span class="hl">sha256:</span>rAGyIJ6GNU-4UyN7XeD0…<br><span class="hl">root</span> → leaf, for one address, 398 days at most<br>renew or move: a new leaf, never a new identity</div>
       </div>
       <div class="pillar">
         <h3>Contacts = vCards in your phone</h3>
         <p>A PACT identity is a standard contact card with three extra fields. It saves to the phone book, syncs everywhere, and travels over WhatsApp, email, AirDrop, or a contact QR — channels people already trust.</p>
-        <div class="art mono">BEGIN:VCARD · FN:Alina Rao<br><span class="hl">X-PACT-ENDPOINT:</span>https://a.example/mcp<br><span class="hl">X-PACT-KEY:</span>sha256:rAGyIJ6G…<br><span class="hl">X-PACT-GATEWAY:</span>https://gw.example/mcp<br>2.0: one field, <span class="hl">X-PACT-CERT:</span> the leaf certificate</div>
+        <div class="art mono">BEGIN:VCARD · FN:Alina Rao<br><span class="hl">X-PACT-VERSION:</span>2<br><span class="hl">X-PACT-CERT:</span>MIIB… the leaf: address, key, root<br><span class="hl">X-PACT-SEAL:</span>required</div>
       </div>
       <div class="pillar">
         <h3>Capabilities = MCP tools</h3>
@@ -288,15 +280,15 @@
 
 <section>
   <div class="wrap">
-    <div class="eyebrow">The 2.0 draft</div>
+    <div class="eyebrow">Identity</div>
     <h2>The person is the certificate authority</h2>
-    <p class="intro">1.x pinned the key your server used. That made leaving a provider a key rotation, and a provider that would not cooperate could keep your identity. 2.0 moves the identity one step up: a self-signed <strong>root</strong> certificate in your own wallet is who you are, and every host — your machine or a provider — serves under a <strong>leaf</strong> the root issued for one address, valid for a year at most. Contacts pin the root. Changing hosts is a new leaf, never a new identity.</p>
+    <p class="intro">Pin the key a server uses, and leaving a provider becomes a key change that the provider has to cooperate with. So the identity sits one step up: a self-signed <strong>root</strong> certificate in your own wallet is who you are, and every host — your machine or a provider — serves under a <strong>leaf</strong> the root issued for one address, valid for as long as you choose and 398 days at most. Contacts pin the root. Changing hosts is a new leaf, never a new identity.</p>
     <div class="cols2">
       <div class="steps">
-        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The root never leaves the wallet</h3><p>A file, a security key, or the browser extension. It signs certificates and nothing else. Lose every copy and the identity is gone — the wallet says so once, when the root is made. There is no recovery, on purpose: a recovery path is a second holder.</p></div></div>
+        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The root never leaves the wallet</h3><p>Derived from a passkey each time it is needed, or kept as a file or on a security key. It signs certificates and nothing else. Lose every copy and the identity is gone — the wallet says so once, when the root is made. There is no recovery, on purpose: a recovery path is a second holder.</p></div></div>
         <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The host asks for a leaf</h3><p>It sends a certificate signing request with its own key and the address it will serve. The wallet shows you the address, the page that asked, whether the host is new, and the dates — and signs, or does not. A sign-up page runs the same ceremony in a document the provider cannot read.</p></div></div>
         <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The chain travels once</h3><p>The first sealed message to each contact carries leaf and root; every later one names the leaf by a fifty-byte fingerprint. A receiver that does not hold the leaf answers <span class="mono">chain_required</span> — the same answer for a stranger, a blocked contact, or an expired leaf — and the sender resends with the chain.</p></div></div>
-        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The newest leaf wins, instantly</h3><p>A leaf with a later start date replaces the one a contact holds the moment it is seen, whatever the old leaf's validity. That is the whole revocation story: a stolen or retired leaf is outranked by the next one with every contact it reaches, and expires within a year with the rest.</p></div></div>
+        <div class="step"><div class="n" aria-hidden="true"></div><div><h3>The newest leaf wins, instantly</h3><p>A leaf with a later start date replaces the one a contact holds the moment it is seen, whatever the old leaf's validity. That is the whole revocation story: a stolen or retired leaf is outranked by the next one with every contact it reaches, and expires within 398 days with the rest.</p></div></div>
         <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Moving is a leaf and a notice</h3><p>Issue a leaf to the new host, carry the data across as an archive that never contains a key, and the new host calls <span class="mono">update_contact</span> on each contact. Under the default setting the pin follows and the owner is told; under <em>ask</em> the owner approves. The host you left deletes everything.</p></div></div>
       </div>
       <div>
@@ -464,40 +456,9 @@ check_availability → { slots: [ 2 ] }</pre>
 <section>
   <div class="wrap">
     <div class="eyebrow">Offline &amp; NAT</div>
-    <h2>Gateways, the WhatsApp-server role made explicit</h2>
-    <p class="intro">Direct is the default. When a contact's server is asleep or unreachable, your agent falls back to the <strong>gateway named in their card</strong> — a relay <em>they</em> chose, holding a queue they drain when back online.</p>
-    <figure>
-      <svg viewBox="0 0 960 190" role="img" aria-label="Agent A relays a call to B's gateway, which queues it. Agent B fetches queued calls when online and acknowledges. The gateway can read what it relays.">
-        <defs>
-          <marker id="mI3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"></polygon></marker>
-          <marker id="mA3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" style="fill:var(--accent)"></polygon></marker>
-        </defs>
-        <rect x="40" y="52" width="170" height="52" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
-        <text x="125" y="74" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Agent A</text>
-        <text x="125" y="91" text-anchor="middle" class="d-lab-s d-mut">direct attempt failed</text>
-
-        <line x1="214" y1="78" x2="386" y2="78" style="stroke:var(--accent)" stroke-width="1.8" marker-end="url(#mA3)"></line>
-        <text x="300" y="66" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="600">relay_call · mTLS</text>
-
-        <rect x="390" y="42" width="190" height="76" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
-        <text x="485" y="64" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">B's gateway</text>
-        <rect x="418" y="74" width="134" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect>
-        <rect x="418" y="87" width="134" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect>
-        <rect x="418" y="100" width="90" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect>
-        <text x="485" y="134" text-anchor="middle" class="d-lab-s" style="fill:var(--amber)" font-weight="600">terminates TLS — can read what it relays</text>
-
-        <line x1="584" y1="66" x2="756" y2="66" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mI3)"></line>
-        <text x="670" y="54" text-anchor="middle" class="d-lab-s d-mut">push: "you have mail" (content-free)</text>
-        <line x1="756" y1="92" x2="584" y2="92" stroke="currentColor" stroke-width="1.5" marker-end="url(#mI3)"></line>
-        <text x="670" y="110" text-anchor="middle" class="d-lab-s d-mut">fetch_queued · ack → delete</text>
-
-        <rect x="760" y="52" width="160" height="52" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
-        <text x="840" y="74" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Agent B</text>
-        <text x="840" y="91" text-anchor="middle" class="d-lab-s d-mut">back online</text>
-      </svg>
-      <figcaption>Three tools make a gateway: relay_call, fetch_queued, ack — plus an allow-list of B's contacts. Retention is bounded; pushes carry no content.</figcaption>
-    </figure>
-    <div class="amber-card"><strong>The honest trade-off:</strong> with plain mTLS the gateway can read what it relays. So you pick one you trust — your own box, your company's, your platform's — the way teams already trust their mail server. Two online agents talking directly need no gateway at all, and the hardened draft's sealed envelope can slot back in later if a deployment ever needs gateway-proof privacy.</div>
+    <h2>Being hosted, instead of being relayed</h2>
+    <p class="intro">Direct is the only way a call travels. The hours your own machine is asleep or unreachable are answered by <strong>being hosted</strong>: a host runs your identity's server all the time, under a leaf you issued for that address and for a time you chose, and can be replaced without you losing anything.</p>
+    <div class="amber-card"><strong>The honest trade-off:</strong> a host can read what it serves — that is what hosting is, the way teams already trust their mail server. What it can never do is become you: it holds a leaf, not your root, and the day you leave, a new leaf at a new address outranks it with every contact. There is no store-and-forward relay in between, because one would see every sender, recipient and timestamp for its trouble; when a peer stays unreachable until a message expires, the sender is told it failed.</div>
   </div>
 </section>
 
@@ -512,9 +473,9 @@ check_availability → { slots: [ 2 ] }</pre>
         <tbody>
           <tr><td><strong>Port forward / VPS</strong></td><td>Domain + Let's Encrypt on your machine</td><td class="yes">Yes</td></tr>
           <tr><td><strong>TLS-passthrough tunnel</strong></td><td>ngrok TLS · frp · rathole · Pangolin raw-TCP</td><td class="yes">Yes — tunnel sees ciphertext</td></tr>
-          <tr><td><strong>Cloudflare Tunnel (HTTP)</strong></td><td>Edge validates client certs, asserts identity to origin</td><td class="mid">Edge joins trust set</td></tr>
-          <tr><td><strong>No inbound at all</strong></td><td>Rely on your gateway's queue</td><td class="mid">Gateway joins trust set</td></tr>
-          <tr><td><strong>Platform-hosted</strong></td><td>Operator runs server, invites, gateway per customer</td><td class="mid">Operator-trusted — in 2.0 the operator holds a one-year leaf you issued, never your root</td></tr>
+          <tr><td><strong>Cloudflare Tunnel (HTTP)</strong></td><td>The edge ends TLS; identity and privacy ride in sealed envelopes instead</td><td class="mid">No — the edge sees ciphertext and metadata</td></tr>
+          <tr><td><strong>No inbound at all</strong></td><td>An outbound tunnel from your machine, or a host</td><td class="mid">As the tunnel or host above</td></tr>
+          <tr><td><strong>Platform-hosted</strong></td><td>The operator runs your server and invites under a leaf you issued</td><td class="mid">Operator-trusted for that address until the leaf's date — never your root</td></tr>
         </tbody>
       </table>
     </div>
@@ -525,11 +486,11 @@ check_availability → { slots: [ 2 ] }</pre>
   <div class="wrap">
     <div class="eyebrow">Design honesty</div>
     <h2>Simple on purpose</h2>
-    <p class="intro">An earlier hardened draft had sealed envelopes, key hierarchies, and verification ceremonies. This version trades them away deliberately — here's what that costs, said plainly.</p>
+    <p class="intro">An earlier hardened draft had key hierarchies, verification ceremonies and a directory. This version keeps one hierarchy — a root and a leaf — and one narrow sealed envelope for calls that cross a terminating edge, and trades the rest away deliberately. Here's what that costs, said plainly.</p>
     <div class="trades">
-      <div class="trade"><div class="mark">Trust = the channel</div><p>A card shared over WhatsApp is as trustworthy as WhatsApp. <strong>Same trust people already place in a shared phone number</strong> — and the mTLS handshake proves key possession on every call after.</p></div>
-      <div class="trade"><div class="mark">Lost key = new identity</div><p>No recovery ceremony exists. Generate a new key, re-share your card. <strong>Rotation, though, is one call</strong> — the new key signed by the old, sent to every contact.</p></div>
-      <div class="trade"><div class="mark">Relays can read</div><p>No end-to-end layer past a gateway. <strong>Direct connections stay private to the two endpoints</strong>; anything relayed is as private as the relay you chose.</p></div>
+      <div class="trade"><div class="mark">Trust = the channel</div><p>A card shared over WhatsApp is as trustworthy as WhatsApp. <strong>Same trust people already place in a shared phone number</strong> — and the chain to your pinned root is proved on every call after.</p></div>
+      <div class="trade"><div class="mark">Lost root = new identity</div><p>No recovery ceremony exists: a recovery path is a second holder. Make a new root, re-share your card. <strong>A lost host key, though, is one new certificate</strong> — your wallet issues another leaf and contacts keep the root they pinned.</p></div>
+      <div class="trade"><div class="mark">Hosts can read</div><p>Sealed envelopes keep edges and tunnels out; nothing keeps your own host out, because it has to open what it serves. <strong>Direct connections stay private to the two endpoints</strong>; a hosted identity is as private as the host you chose, and no forward secrecy protects recorded ciphertext from a leaf key stolen later.</p></div>
     </div>
     <p class="intro" style="margin-top:26px; margin-bottom:0">What it keeps, without compromise: manual consent on both sides, pinned keys on every call, per-contact permission control, revocable invites, phone-book integration, and a tool surface that grows without ever touching the protocol.</p>
   </div>
@@ -537,7 +498,7 @@ check_availability → { slots: [ 2 ] }</pre>
 
 <footer>
   <div class="wrap">
-    <p><strong style="color:var(--ink)">PACT 1.0</strong> · first public version · 2026-08-23</p>
+    <p><strong style="color:var(--ink)">PACT 2.1</strong> · the identity generation · 2026-09-19</p>
     <p style="margin-top:6px">Full details — tool tables, invite settings, error codes, conformance checklist — in <span class="mono">SPEC.md</span>. Landscape research and the hardened draft's review history live in the companion documents.</p>
   </div>
 </footer>
