@@ -97,7 +97,7 @@
   .pillar{border:1px solid var(--line); background:var(--card); border-radius:2px; padding:20px}
   .pillar h3{font-size:17px; margin-bottom:8px}
   .pillar p{font-size:14px; color:var(--muted)}
-  .pillar .art{margin-top:14px; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px 12px; font-size:11.5px; line-height:1.55; overflow-x:auto; white-space:nowrap}
+  .art{margin-top:14px; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px 12px; font-size:11.5px; line-height:1.55; overflow-x:auto; white-space:nowrap}
   .art .hl{color:var(--accent); font-weight:600}
 
   pre{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:16px 18px; font-size:12.8px; line-height:1.55; overflow-x:auto; margin:0}
@@ -292,37 +292,37 @@
         <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Moving is a leaf and a notice</h3><p>Issue a leaf to the new host, carry the data across as an archive that never contains a key, and the new host calls <span class="mono">update_contact</span> on each contact. Under the default setting the pin follows and the owner is told; under <em>ask</em> the owner approves. The host you left deletes everything.</p></div></div>
       </div>
       <div>
-        <svg viewBox="0 0 440 330" role="img" aria-label="The wallet holds the root and issues a leaf to the host; the contact pins the root and seals to the leaf" style="width:100%;height:auto;display:block">
+        <svg viewBox="0 0 520 340" role="img" aria-label="The wallet holds the root and issues a leaf to the host; the contact pins the root and seals to the leaf" style="width:100%;height:auto;display:block">
           <defs><marker id="m20" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
           <g fill="none" stroke="currentColor" stroke-width="1.4">
-            <rect x="24" y="22" width="170" height="86" rx="8"/>
-            <rect x="246" y="22" width="170" height="86" rx="8"/>
-            <rect x="135" y="224" width="170" height="86" rx="8"/>
+            <rect x="10" y="22" width="180" height="86" rx="8"/>
+            <rect x="330" y="22" width="180" height="86" rx="8"/>
+            <rect x="170" y="236" width="180" height="86" rx="8"/>
           </g>
           <g font-family="Bricolage Grotesque, sans-serif" font-size="13" fill="currentColor">
-            <text x="109" y="46" text-anchor="middle" font-weight="700">Your wallet</text>
-            <text x="109" y="68" text-anchor="middle">root certificate</text>
-            <text x="109" y="88" text-anchor="middle" font-size="11.5">= the identity, by fingerprint</text>
-            <text x="331" y="46" text-anchor="middle" font-weight="700">A host</text>
-            <text x="331" y="68" text-anchor="middle">leaf: one address, ≤ 1 year</text>
-            <text x="331" y="88" text-anchor="middle" font-size="11.5">its own key; TLS, signing, sealing</text>
-            <text x="220" y="248" text-anchor="middle" font-weight="700">A contact</text>
-            <text x="220" y="270" text-anchor="middle">pins the root</text>
-            <text x="220" y="290" text-anchor="middle" font-size="11.5">learns each leaf from the chain</text>
+            <text x="100" y="46" text-anchor="middle" font-weight="700">Your wallet</text>
+            <text x="100" y="68" text-anchor="middle">root certificate</text>
+            <text x="100" y="89" text-anchor="middle" font-size="11">the identity, by fingerprint</text>
+            <text x="420" y="46" text-anchor="middle" font-weight="700">A host</text>
+            <text x="420" y="68" text-anchor="middle" font-size="12.5">leaf: 1 address, ≤ 398 days</text>
+            <text x="420" y="89" text-anchor="middle" font-size="11">own key: TLS, signing, sealing</text>
+            <text x="260" y="260" text-anchor="middle" font-weight="700">A contact</text>
+            <text x="260" y="282" text-anchor="middle">pins the root</text>
+            <text x="260" y="303" text-anchor="middle" font-size="11">learns each leaf from the chain</text>
           </g>
           <g stroke="currentColor" stroke-width="1.2" fill="none">
-            <line x1="246" y1="52" x2="194" y2="52" marker-end="url(#m20)" stroke-dasharray="5 4"/>
-            <line x1="194" y1="80" x2="246" y2="80" marker-end="url(#m20)"/>
-            <line x1="331" y1="108" x2="252" y2="224" marker-end="url(#m20)"/>
-            <line x1="188" y1="224" x2="109" y2="108" marker-end="url(#m20)" stroke-dasharray="2 4"/>
+            <line x1="330" y1="52" x2="190" y2="52" marker-end="url(#m20)" stroke-dasharray="5 4"/>
+            <line x1="190" y1="84" x2="330" y2="84" marker-end="url(#m20)"/>
+            <line x1="420" y1="108" x2="300" y2="236" marker-end="url(#m20)"/>
+            <line x1="220" y1="236" x2="100" y2="108" marker-end="url(#m20)" stroke-dasharray="2 4"/>
           </g>
           <g font-family="Bricolage Grotesque, sans-serif" font-size="11.5" fill="currentColor">
-            <text x="220" y="44" text-anchor="middle">CSR: my key, my address</text>
-            <text x="220" y="96" text-anchor="middle">leaf, signed by the root</text>
-            <text x="318" y="176" text-anchor="start">chain once, then</text>
-            <text x="318" y="191" text-anchor="start">the leaf's fingerprint</text>
-            <text x="20" y="176" text-anchor="start">a move: a new leaf,</text>
-            <text x="20" y="191" text-anchor="start">the pin follows the root</text>
+            <text x="260" y="44" text-anchor="middle">CSR: my key, my address</text>
+            <text x="260" y="102" text-anchor="middle">leaf, signed by the root</text>
+            <text x="384" y="176" text-anchor="start">chain once, then</text>
+            <text x="384" y="191" text-anchor="start">the leaf's fingerprint</text>
+            <text x="136" y="176" text-anchor="end">a move: a new leaf,</text>
+            <text x="136" y="191" text-anchor="end">the pin follows the root</text>
           </g>
         </svg>
         <div class="art mono">chain = [leaf, root] · pin = root fingerprint + endpoint + latest leaf<br>renewal: a fresh key, learned on the next exchange<br>lost root = a new identity · lost leaf = a renewal</div>
@@ -334,11 +334,11 @@
 <section>
   <div class="wrap">
     <div class="eyebrow">Becoming contacts</div>
-    <h2>The friend request is the key exchange</h2>
-    <p class="intro">Two ways in, both ending the same place: keys pinned on both sides, cards in both phone books, and a human said yes on each end. <strong>Invites</strong> are for reaching out; <strong>shared vCards</strong> are for people who already have your card.</p>
+    <h2>The friend request is the certificate exchange</h2>
+    <p class="intro">Two ways in, both ending the same place: roots pinned on both sides, cards in both phone books, and a human said yes on each end. <strong>Invites</strong> are for reaching out; <strong>shared vCards</strong> are for people who already have your card.</p>
 
     <figure>
-      <svg viewBox="0 0 960 210" role="img" aria-label="Invite flow: Alina creates an invite with settings, shares it as a QR or link, Bharat's agent redeems it proving key possession over mTLS, Alina approves, and both sides pin keys.">
+      <svg viewBox="0 0 960 210" role="img" aria-label="Invite flow: Alina creates an invite with settings, shares it as a QR or link, Bharat's agent redeems it proving his certificate chain, Alina approves, and both sides pin each other's root.">
         <defs>
           <marker id="mI2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"></polygon></marker>
         </defs>
@@ -360,7 +360,7 @@
           <circle cx="532" cy="64" r="15" fill="none" style="stroke:var(--accent)" stroke-width="1.5"></circle><text x="532" y="69" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="700">3</text>
           <rect x="558" y="34" width="170" height="62" rx="3" style="fill:var(--accent-soft); stroke:var(--accent)" stroke-width="1.5"></rect>
           <text x="643" y="58" text-anchor="middle" class="d-lab" fill="currentColor" font-weight="700">Bharat redeems</text>
-          <text x="643" y="76" text-anchor="middle" class="d-lab-s d-mut">mTLS: his cert = his card's key</text>
+          <text x="643" y="76" text-anchor="middle" class="d-lab-s d-mut">his chain = his card's cert</text>
         </g>
         <line x1="732" y1="65" x2="760" y2="65" stroke="currentColor" stroke-width="1.5" marker-end="url(#mI2)"></line>
         <g>
@@ -371,15 +371,15 @@
         </g>
         <line x1="480" y1="110" x2="480" y2="136" stroke="currentColor" stroke-width="1.5" marker-end="url(#mI2)"></line>
         <rect x="270" y="140" width="420" height="44" rx="3" fill="none" style="stroke:var(--accent)" stroke-width="1.5"></rect>
-        <text x="480" y="160" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="700">Keys pinned both ways · vCards saved to both phone books</text>
-        <text x="480" y="176" text-anchor="middle" class="d-lab-s d-mut">every future call is mutually authenticated against exactly these keys</text>
+        <text x="480" y="160" text-anchor="middle" class="d-lab" style="fill:var(--accent)" font-weight="700">Roots pinned both ways · vCards saved to both phone books</text>
+        <text x="480" y="176" text-anchor="middle" class="d-lab-s d-mut">every future call proves a chain to exactly these roots</text>
       </svg>
-      <figcaption>The redeem call itself completes the key exchange: Bharat proves he holds his key by presenting it as his TLS client certificate, and Alina's signed card arrives over the endpoint she personally handed out in the QR. No extra ceremony.</figcaption>
+      <figcaption>The redeem call itself completes the exchange: Bharat proves his chain — the leaf on his card, signed by his root — as his TLS client certificate, or inside a sealed envelope when an edge sits in between, and Alina's signed card arrives over the endpoint she personally handed out in the QR. No extra ceremony.</figcaption>
     </figure>
 
     <div class="steps measure" style="margin-top:28px">
       <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Invites are revocable at the protocol level</h3><p>All settings — expiry, <code>max_uses</code> (set it high for a QR shown to a room), auto-accept, permission preset — live on the sender's server, not in the link. Delete the token and the link is dead everywhere, instantly.</p></div></div>
-      <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Shared vCards use channels people already trust</h3><p>Someone sends you their card over WhatsApp or AirDrop; your agent spots the <code>X-PACT-*</code> fields and offers "connect our agents?". The card you already hold is the trust anchor — the accepting caller must present exactly that key.</p></div></div>
+      <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Shared vCards use channels people already trust</h3><p>Someone sends you their card over WhatsApp or AirDrop; your agent spots the <code>X-PACT-*</code> fields and offers "connect our agents?". The card you already hold is the trust anchor — the accepting caller must prove a chain under exactly the root that card names.</p></div></div>
       <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Unsolicited requests are always manual</h3><p>Strangers get exactly two tools: <code>redeem_invite</code> and <code>request_contact</code>. Nothing else exists for them until a human approves. Blocking is silent — a blocked contact simply becomes a stranger again.</p></div></div>
     </div>
   </div>
@@ -492,7 +492,7 @@ check_availability → { slots: [ 2 ] }</pre>
       <div class="trade"><div class="mark">Lost root = new identity</div><p>No recovery ceremony exists: a recovery path is a second holder. Make a new root, re-share your card. <strong>A lost host key, though, is one new certificate</strong> — your wallet issues another leaf and contacts keep the root they pinned.</p></div>
       <div class="trade"><div class="mark">Hosts can read</div><p>Sealed envelopes keep edges and tunnels out; nothing keeps your own host out, because it has to open what it serves. <strong>Direct connections stay private to the two endpoints</strong>; a hosted identity is as private as the host you chose, and no forward secrecy protects recorded ciphertext from a leaf key stolen later.</p></div>
     </div>
-    <p class="intro" style="margin-top:26px; margin-bottom:0">What it keeps, without compromise: manual consent on both sides, pinned keys on every call, per-contact permission control, revocable invites, phone-book integration, and a tool surface that grows without ever touching the protocol.</p>
+    <p class="intro" style="margin-top:26px; margin-bottom:0">What it keeps, without compromise: manual consent on both sides, a pinned root behind every call, per-contact permission control, revocable invites, phone-book integration, and a tool surface that grows without ever touching the protocol.</p>
   </div>
 </section>
 

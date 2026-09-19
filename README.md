@@ -9,7 +9,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 | Path | What it is |
 |---|---|
 | `SPEC.md` | **The protocol.** PACT 1.0 — identity & mTLS, vCard contact cards, invites, contact flows, the MCP tool surface, permissions, threads, gateway mode, deployment, security notes, errors & conformance checklist. Mermaid diagrams throughout. |
-| `explainer/pact-explainer.html` | Self-contained visual explainer (open in any browser). Also published privately at claude.ai/code/artifact/6410d04a-ec41-45b5-bb97-fbc3801c4da1. |
+| `explainer/pact-explainer.html` | Self-contained visual explainer (open in any browser). Also published privately at claude.ai/artifact/7txRRL4VBVXyMhsNUcuLJX. |
 | `docs/landscape-and-roadmap.md` | Informative companion: survey of existing protocols/products (A2A, ANP, DIDComm, AGNTCY, Iroh, OpenClaw ecosystem, schedulers…), requirements-vs-systems comparison matrix, build-vs-reuse guidance, roadmap, and the full review-disposition history. |
 | `archive/hardened-draft-spec.md` | Superseded hardened draft (E2E sealed envelopes, key hierarchies, SAS, key transparency). Kept because its envelope can return as an optional layer if gateway-proof privacy is ever required. |
 | `archive/design-study-v0.1.md` | The original design study that started the project. |
