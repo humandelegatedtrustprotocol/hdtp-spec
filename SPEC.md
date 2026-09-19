@@ -511,7 +511,7 @@ What this spec relies on, and what it consciously gave up relative to the earlie
 |---|---|---|
 | Who am I talking to | A root pinned from a vCard/invite exchanged human-to-human; every call proves the leaf key of a chain that validates to it and names the address in use | Directory + SAS ceremonies. 2.0 re-invented nothing here: X.509 chain validation with the person as the authority, and one rule about which leaf is newest |
 | Consent | Manual approval on both sides, always; invites = pre-approval by the issuer; a contact's new address is accepted on the strength of their own root's signature, or on the owner's say-so (§5.3) | Same property, much less machinery |
-| Wire privacy | TLS 1.3 between the two endpoints; sealed envelopes past terminating edges (§13, added in 1.1) | Forward secrecy at the envelope layer: **none** — and carriers always see metadata (§13.5) |
+| Wire privacy | TLS 1.3 between the two endpoints; sealed envelopes past terminating edges (§13) | Forward secrecy at the envelope layer: **none** — and carriers always see metadata (§13.5) |
 | Harvest now, decrypt later | Nothing yet, by decision. The path is set (§13.5): sealing first, as a hybrid key the leaf carries and one suite; the card as a pointer and the chain sent once, so the change touches neither card nor wire | Post-quantum today — deferred on 2026-09-13 |
 | Impersonation of a link | Invite redemption anchored to the issuer-distributed URL; card signature by the issuer's leaf key; the card's certificate names its issuer | Commit-reveal SAS (residual: whoever controls the sharing channel can swap the card/URL — same trust as sharing a phone number) |
 | Impersonation by name | Nothing at the protocol layer: `FN` is the sender's claim (§3). Attribution is cryptographic — a chain validates to the pinned root or it is refused — so a contact can never *send as* another. What it can do is call itself what another calls itself | Petnames are a UI answer, not a wire one (residual: on first contact, before the owner has named anyone, the only name on screen is the one the peer chose) |
@@ -540,7 +540,7 @@ Also dropped: DIDs, SAS wordlists, per-pact route/gateway keys, the verb registr
 
 ## 13. Sealed envelopes
 
-*Added in 1.1. Optional at the protocol level, negotiated per §3's `X-PACT-SEAL`; an implementation that never seals remains a conforming 1.0 peer toward `none` recipients.*
+*Optional at the protocol level, negotiated per §3's `X-PACT-SEAL`; an implementation that never seals remains conforming toward `none` recipients.*
 
 Plain mTLS ends where TLS ends. A terminating tunnel edge reads whatever crosses it and sees no client certificate — so behind such a pipe, both confidentiality and caller identity need a carrier that survives termination. The sealed envelope is that carrier: HPKE encryption to the recipient's leaf key plus a detached signature by the sender's leaf key. One key does all three jobs — TLS, signature, sealing — and it belongs to a leaf under a root (§2); the sender's chain rides inside the envelope until the receiver holds the leaf, and is named by fingerprint after that — which is how a new or renewed leaf travels without every "hi" carrying a kilobyte of certificates (§13.2).
 
