@@ -14,6 +14,11 @@ const DAY = 86_400_000;
 const FOREVER = new Date(Date.UTC(9999, 11, 31, 23, 59, 59));
 
 const name = (cn, cnOid) => seq(set(seq(cnOid ?? oid(OID.cn), utf8(cn))));
+// The ASN.1 type each profile extension's VALUE is: SEQUENCE for the four structured ones, BIT STRING
+// for keyUsage, OCTET STRING for subjectKeyIdentifier (RFC 5280 §4.2.1).
+const VALUE_TAG = {
+  [OID.basicConstraints]: 0x30, [OID.keyUsage]: 0x03, [OID.eku]: 0x30, [OID.san]: 0x30, [OID.ski]: 0x04, [OID.aki]: 0x30,
+};
 const sigAlg = (alg) => seq(oid(alg === 'ed25519' ? OID.ed25519 : OID.ecdsaSha256));
 const ext = (o, critical, value) => seq(oid(o), ...(critical ? [bool(true)] : []), octet(value));
 function keyUsage(bits) {
@@ -23,12 +28,14 @@ function keyUsage(bits) {
 }
 const serialOf = (label) => sha256(Buffer.from('serial/' + label)).subarray(0, 8);
 
-export function buildRoot({ cn, key, notBefore, label }) {
+// `basicConstraints` (DER bytes, hex) exists so the intrusion suite can build a root a wallet never
+// would: the two readings of that extension only matter on a certificate that claims to be a CA.
+export function buildRoot({ cn, key, notBefore, label, basicConstraints }) {
   const spki = spkiOf(key.pub), id = keyId(key.pub), alg = sigAlg(algorithmOf(key.priv));
   const tbs = seq(
     explicit(0, int(2)), int(serialOf(label)), alg, name(cn), seq(time(notBefore), time(FOREVER)), name(cn), spki,
     explicit(3, seq(
-      ext(OID.basicConstraints, true, seq(bool(true), int(0))),
+      ext(OID.basicConstraints, true, basicConstraints ? Buffer.from(basicConstraints, 'hex') : seq(bool(true), int(0))),
       ext(OID.keyUsage, true, keyUsage([5])),
       ext(OID.ski, false, octet(id)),
     )),
@@ -53,6 +60,8 @@ export function buildRoot({ cn, key, notBefore, label }) {
 //                  self-consistent and is refused for the encoding rather than for a stale identifier
 //   serial         the serialNumber INTEGER's content (DER: the shortest two's-complement form)
 //   notBefore      the notBefore UTCTime's content, as ASCII (DER: a date that exists)
+//   retag          `{ oid, tag }` — that extension's VALUE under another ASN.1 tag (DER: its own type)
+//   basicConstraints  the basicConstraints value, as DER bytes (DER: nothing, [TRUE] or [TRUE, n])
 //   sigTwin        write the ECDSA signature's OTHER twin, `(r, n − s)` — it verifies, under the same
 //                  key over the same bytes, and §14.1 admits only the low-S one
 export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid, misencode = {} }) {
@@ -71,12 +80,13 @@ export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, 
     if (critical) return [o === OID.basicConstraints && misencode.criticalTrue ? tlv(0x01, Buffer.from(misencode.criticalTrue)) : bool(true)];
     return misencode.explicitFalse === o ? [bool(false)] : [];
   };
-  const xt = (o, critical, value) => seq(extOid(o), ...flag(o, critical), octet(value));
+  const retagged = (o, value) => (misencode.retag?.oid === o ? Buffer.concat([Buffer.from([misencode.retag.tag]), value.subarray(1)]) : value);
+  const xt = (o, critical, value) => seq(extOid(o), ...flag(o, critical), octet(retagged(o, value)));
   const tbs = seq(
     explicit(0, int(2)), misencode.serial ? tlv(0x02, Buffer.from(misencode.serial)) : int(serialOf(label)),
     alg, name(rootCn, cnOid), seq(misencode.notBefore ? tlv(0x17, Buffer.from(misencode.notBefore, 'ascii')) : time(notBefore), time(notAfter)), name(cn, cnOid), spki,
     explicit(3, seq(
-      xt(OID.basicConstraints, true, cA ? seq(bool(true)) : seq()),
+      xt(OID.basicConstraints, true, misencode.basicConstraints ? Buffer.from(misencode.basicConstraints, 'hex') : cA ? seq(bool(true)) : seq()),
       xt(OID.keyUsage, true, misencode.keyUsage ? tlv(0x03, Buffer.from(misencode.keyUsage)) : keyUsage(bits)),
       xt(OID.eku, false, seq(misencode.ekuOid ? Buffer.from(misencode.ekuOid, 'hex') : oid(OID.serverAuth), oid(OID.clientAuth))),
       xt(OID.san, false, seq(...sanNames)),
@@ -125,13 +135,33 @@ export function parse(der) {
     const critical = parts.length === 3;
     if (critical && !boolTrue(parts[1])) throw new Error('BOOLEAN not in the DER form');
     const id = readOidStrict(parts[0]);
-    const value = read(parts[parts.length - 1].content);
+    const octets = parts[parts.length - 1].content;
+    const value = read(octets);
+    // The value fills its OCTET STRING, and is the TYPE its extension names. Neither was checked
+    // here, in the library CONTRACT §0 calls the authority, while both ports refused a trailing byte
+    // — and none of the three looked at the value's own tag, so a `keyUsage` that is an OCTET STRING
+    // whose body happens to look like a BIT STRING's was read as one, a `subjectKeyIdentifier` took
+    // its 32 bytes from anything, and a `subjectAltName` could be a SET. §14.1's profile is exact:
+    // "a name of another shape" is not a PACT certificate, and neither is a value of another type.
+    if (value.end !== octets.length) throw new Error('extension value has trailing bytes');
+    if (VALUE_TAG[id] !== undefined && value.tag !== VALUE_TAG[id]) throw new Error('extension value of another type');
     out.extensions.push({ id, critical });
     switch (id) {
       case OID.basicConstraints: {
+        // BasicConstraints ::= SEQUENCE { cA BOOLEAN DEFAULT FALSE, pathLenConstraint INTEGER OPTIONAL },
+        // which in DER is exactly one of: nothing, [TRUE], [TRUE, n]. This read `c[0]` and `c.at(-1)`,
+        // so `SEQUENCE { NULL }` was a valid leaf, and `SEQUENCE { TRUE, 5, 0 }` was a root whose
+        // pathLen is 0 here and 5 to every other X.509 reader — the two-readings case §14.1 exists for.
         const c = children(value);
-        if (c[0]?.tag === 0x01) { if (!boolTrue(c[0])) throw new Error('BOOLEAN not in the DER form'); out.ca = true; }
-        if (c.at(-1)?.tag === 0x02) { if (!intMinimal(c.at(-1).content)) throw new Error('INTEGER not minimal'); out.pathLen = c.at(-1).content[0]; }
+        const shape = c.map((x) => x.tag).join(',');
+        if (!['', '1', '1,2'].includes(shape)) throw new Error('basicConstraints not in the DER form');
+        if (c[0]) { if (!boolTrue(c[0])) throw new Error('BOOLEAN not in the DER form'); out.ca = true; }
+        if (c[1]) {
+          if (!intMinimal(c[1].content) || c[1].content.length > 8) throw new Error('INTEGER not minimal');
+          // The WHOLE integer. This read `content[0]`, so a pathLenConstraint of 128 — `02 02 00 80` —
+          // read as 0, and a root carrying it was in the profile here while both ports refused it.
+          out.pathLen = c[1].content.length === 0 ? -1 : Number(c[1].content.reduce((acc, b) => (acc << 8n) | BigInt(b), 0n));
+        }
         break;
       }
       case OID.keyUsage: {
