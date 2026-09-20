@@ -120,6 +120,12 @@ scenario('certificate', 'a duplicated extension', 'rule 1', () => rule([leafOf(r
 scenario('certificate', 'certificate over 4 KiB', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { extra: [{ oid: '1.3.6.1.4.1.99999.2', critical: false, value: Buffer.concat([Buffer.from('04821000', 'hex'), Buffer.alloc(4096)]) }] }), ROOT_A]));
 scenario('certificate', 'trailing bytes after the certificate', 'rule 1', () => rule([Buffer.concat([LEAF_A, Buffer.from([0])]), ROOT_A]));
 scenario('certificate', 'a padded DER length', 'rule 1', () => { const t = Buffer.concat([Buffer.from([0x30, 0x83, 0x00]), LEAF_A.subarray(1)]); return rule([t, ROOT_A]); });
+// A four-octet DER length. The suite had no such shape — the padded case above is caught by the
+// minimal-length check before any arithmetic — and it is the only one that can reach an
+// implementation's length guard with a value near 2^32. A parser that adds `at + len` before
+// comparing wraps on a 32-bit target, passes its own guard, and panics on the slice: measured in
+// pact-identity's wasm build on 2026-09-20, `RuntimeError: unreachable` from these six bytes.
+scenario('certificate', 'a four-octet DER length that overruns the buffer', 'rule 1', () => rule([Buffer.from([0x30, 0x84, 0xff, 0xff, 0xff, 0xff]), ROOT_A]));
 scenario('certificate', 'exactly 398 days is accepted', 'accepted', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2026-09-01T00:00:00Z'), notAfter: new Date(at('2026-09-01T00:00:00Z').getTime() + 398 * D) }), ROOT_A]));
 scenario('certificate', '398 days and one second is refused', 'rule 4', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2026-09-01T00:00:00Z'), notAfter: new Date(at('2026-09-01T00:00:00Z').getTime() + 398 * D + 1000) }), ROOT_A]));
 for (const [what, uris, dns] of [
