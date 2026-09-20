@@ -137,5 +137,46 @@ export function readTime(node) {
   const s = node.content.toString('ascii');
   const full = node.tag === 0x17 ? (Number(s.slice(0, 2)) < 50 ? '20' : '19') + s : s;
   if (!/^\d{14}Z$/.test(full)) throw new Error('time not in the DER form');
-  return new Date(Date.UTC(+full.slice(0, 4), +full.slice(4, 6) - 1, +full.slice(6, 8), +full.slice(8, 10), +full.slice(10, 12), +full.slice(12, 14)));
+  // A DER time is a DATE. `Date.UTC` rolls an out-of-range field over — `20260230120000Z` became
+  // March 2nd — and this, the authority, handed that reading to the Rust port, while the Go port's
+  // `time.Parse` refused the same bytes: one certificate, accepted by two implementations and refused
+  // by the third, in a field a TLS stack refuses too (and the leaf IS the TLS certificate). So the
+  // fields are set and read back, and a field that did not survive the trip is a refusal, in the Go
+  // port's words. `setUTCFullYear`, not `Date.UTC`, which maps years 0-99 onto 1900-1999.
+  const [y, mo, d, h, mi, sec] = [[0, 4], [4, 6], [6, 8], [8, 10], [10, 12], [12, 14]].map(([a, b]) => +full.slice(a, b));
+  const at = new Date(0);
+  at.setUTCFullYear(y, mo - 1, d);
+  at.setUTCHours(h, mi, sec, 0);
+  const back = [at.getUTCFullYear(), at.getUTCMonth() + 1, at.getUTCDate(), at.getUTCHours(), at.getUTCMinutes(), at.getUTCSeconds()];
+  if (![y, mo, d, h, mi, sec].every((v, i) => v === back[i])) throw new Error('time not in the DER form');
+  return at;
+}
+
+// ── ECDSA signature values: the low-S form (§14.1) ─────────────────────────────────────────────
+//
+// An ECDSA signature (r, s) has a twin, (r, n − s), that verifies under the same key over the same
+// bytes — and anybody can compute it, no key required. For most signatures that is harmless. For a
+// CERTIFICATE it mints a second byte string for one leaf: same key, same fingerprint, same endpoint,
+// same notBefore, different bytes — which §14.3 reads as a conflict, so a card altered in transit
+// pins a leaf the real host can never match, invisibly to the one check §3 asks of a person. So the
+// profile admits exactly one of the pair, the one with s ≤ n/2; issuers normalise, receivers refuse.
+const P256_N = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
+const sigParts = (der) => {
+  const outer = read(der, 0);
+  if (outer.tag !== 0x30 || outer.end !== der.length) throw new Error('ECDSA signature not in the DER form');
+  const parts = children(outer);
+  if (parts.length !== 2 || parts.some((p) => p.tag !== 0x02 || !intMinimal(p.content))) throw new Error('ECDSA signature not in the DER form');
+  return parts.map((p) => BigInt('0x' + (p.content.toString('hex') || '0')));
+};
+/** The OTHER twin, `(r, n − s)`: what anybody can compute from a signature, with no key. For the vectors and the intrusion suite. */
+export function ecdsaTwin(der) {
+  const [r, s] = sigParts(der);
+  return seq(int(r), int(P256_N - s));
+}
+/** Whether a DER ECDSA-Sig-Value over P-256 is in the low-S form. */
+export const ecdsaIsLowS = (der) => sigParts(der)[1] <= P256_N / 2n;
+/** The same signature in the low-S form: unchanged if it already is, `(r, n − s)` otherwise. */
+export function ecdsaLowS(der) {
+  const [r, s] = sigParts(der);
+  return s <= P256_N / 2n ? der : seq(int(r), int(P256_N - s));
 }

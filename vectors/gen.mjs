@@ -29,8 +29,15 @@ const certs = {
   leaf_a_expired: leafA('leaf_a_expired', { notBefore: at('2025-06-01T00:00:00Z'), notAfter: at('2026-06-01T00:00:00Z') }),
   leaf_a_long: leafA('leaf_a_long', { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-10-10T00:00:00Z') }),
   leaf_a_next: leafA('leaf_a_next', { host: 'leaf_a_next', notBefore: at('2027-08-02T00:00:00Z'), notAfter: at('2028-08-01T00:00:00Z') }),
+  // Two certificates that exist to be refused (§14.1), so every implementation reading this appendix
+  // is held to both refusals. `leaf_b_twin` is leaf_b signed again with the signature swapped for its
+  // twin `(r, n − s)`: it VERIFIES under root_b, which is the point. `leaf_a_feb30` is leaf_a with a
+  // notBefore of 30 February, which a reader that normalises dates takes for 2 March.
+  leaf_b_twin: buildLeaf({ cn: 'Bharat Mehta', rootCn: 'Bharat Mehta', root: rootB, hostKey: hosts.leaf_b, endpoint: ENDPOINT_B, notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), label: 'leaf_b', misencode: { sigTwin: true } }),
+  leaf_a_feb30: leafA('leaf_a_feb30', { notBefore: at('2026-03-02T12:00:00Z'), notAfter: at('2027-03-01T00:00:00Z'), misencode: { notBefore: '260230120000Z' } }),
 };
 const hex = (b) => Buffer.from(b).toString('hex');
+const REFUSED = ['leaf_b_twin', 'leaf_a_feb30'];
 const notes = {
   root_a: 'Ed25519 root, self-signed, CN "Alina Rao", notAfter 9999-12-31',
   root_b: 'P-256 root, self-signed, CN "Bharat Mehta"',
@@ -39,6 +46,8 @@ const notes = {
   leaf_a_expired: 'leaf_a\'s key and endpoint, 2025-06-01 to 2026-06-01: expired at NOW',
   leaf_a_long: 'leaf_a\'s key and endpoint, 2026-09-01 to 2027-10-10: 404 days',
   leaf_a_next: 'a fresh key for the same endpoint, 2027-08-02 to 2028-08-01: the renewal that supersedes leaf_a',
+  leaf_b_twin: 'leaf_b\'s TBS under the OTHER twin of an ECDSA signature, (r, n − s): it verifies under root_b and is refused by the profile (§14.1: low-S)',
+  leaf_a_feb30: 'leaf_a\'s key and endpoint with a notBefore of 260230120000Z, 30 February: refused, not read as 2 March (§14.1)',
 };
 
 const chainCases = [
@@ -54,6 +63,8 @@ const chainCases = [
   { name: 'leaf not yet valid', chain: ['leaf_a_next', 'root_a'], now: NOW, expect: 'refuse', rule: 4 },
   { name: 'leaf longer than 398 days', chain: ['leaf_a_long', 'root_a'], now: NOW, expect: 'refuse', rule: 4 },
   { name: 'endpoint mismatch', chain: ['leaf_a', 'root_a'], expected_endpoint: ENDPOINT_A + '/', now: NOW, expect: 'refuse', rule: 5 },
+  { name: 'an ECDSA signature swapped for its twin', chain: ['leaf_b_twin', 'root_b'], now: NOW, expect: 'refuse', rule: 1 },
+  { name: 'a validity field that is not a date', chain: ['leaf_a_feb30', 'root_a'], now: NOW, expect: 'refuse', rule: 1 },
 ];
 
 const newestLeafCases = [
@@ -117,7 +128,10 @@ const derivation = [
 const out = {
   generated_by: 'vectors/gen.mjs (deterministic; Ed25519 signatures and every certificate reproduce byte for byte, ECDSA signatures are one valid signature)',
   now: NOW,
-  certificates: Object.fromEntries(Object.entries(certs).map(([k, v]) => [k, { der_hex: hex(v), note: notes[k] }])),
+  // `refused: true` marks a certificate that exists to be REFUSED, so a reader of this appendix is
+  // told which is which by the data rather than by a name: a conforming implementation refuses it at
+  // rule 1 (it does not parse, or it parses and is outside the profile), and accepts every other one.
+  certificates: Object.fromEntries(Object.entries(certs).map(([k, v]) => [k, { der_hex: hex(v), note: notes[k], ...(REFUSED.includes(k) ? { refused: true } : {}) }])),
   leaf_keys_pkcs8_hex: Object.fromEntries(Object.entries(hosts).map(([k, h]) => [k, hex(pkcs8Of(h.priv))])),
   chain_cases: chainCases, newest_leaf_cases: newestLeafCases, certificate_renewed_cases: renewedCases, envelopes,
   derivation,

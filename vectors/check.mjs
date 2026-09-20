@@ -3,7 +3,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
 import { open, verifyDetached, suiteForLeaf } from './lib/hpke.mjs';
-import { validateChain, compareLeaves, parse } from './lib/x509.mjs';
+import { validateChain, compareLeaves, parse, profileError } from './lib/x509.mjs';
 import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, spkiOf } from './lib/keys.mjs';
 
 const specPath = new URL('../SPEC.md', import.meta.url);
@@ -26,6 +26,16 @@ if (!v2) {
 
   console.log('certificates parse under OpenSSL as well');
   for (const [name, bytes] of Object.entries(der)) {
+    // A certificate marked `refused` exists to be refused (§14.1): it must NOT come out of parse and
+    // the profile check clean. `leaf_b_twin` is the instructive one — OpenSSL verifies it under
+    // root_b, because the twin of an ECDSA signature is a valid signature; the profile is what refuses.
+    if (v2.certificates[name].refused) {
+      let why = null;
+      try { why = profileError(parse(bytes), 'leaf'); } catch (e) { why = e.message; }
+      ok(why !== null, `${name}: marked refused, and parse + profile let it through`);
+      if (name === 'leaf_b_twin') ok(new X509Certificate(bytes).verify(new X509Certificate(der.root_b).publicKey), `${name}: the twin VERIFIES under root_b per OpenSSL, which is why the profile has to refuse it`);
+      continue;
+    }
     const c = new X509Certificate(bytes), mine = parse(bytes);
     ok(c.subject.includes(mine.subject), `${name}: subject`);
     ok(c.ca === mine.ca, `${name}: cA`);
