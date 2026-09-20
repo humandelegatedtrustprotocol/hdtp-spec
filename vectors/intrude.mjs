@@ -126,6 +126,15 @@ scenario('certificate', 'a padded DER length', 'rule 1', () => { const t = Buffe
 // comparing wraps on a 32-bit target, passes its own guard, and panics on the slice: measured in
 // pact-identity's wasm build on 2026-09-20, `RuntimeError: unreachable` from these six bytes.
 scenario('certificate', 'a four-octet DER length that overruns the buffer', 'rule 1', () => rule([Buffer.from([0x30, 0x84, 0xff, 0xff, 0xff, 0xff]), ROOT_A]));
+// An ECDSA signature has a twin, (r, n − s), that anybody can compute and that VERIFIES. On a leaf it
+// mints a second byte string for one certificate — same key, same fingerprint, same address, same
+// notBefore — which §14.3 reads as a conflict, so a card altered in transit pins a leaf the real host
+// can never match, and reading the fingerprint aloud (§3) finds nothing wrong. §14.1 admits only the
+// low-S twin; this is the other one, built honestly and then swapped.
+scenario('certificate', 'a P-256 leaf whose signature was swapped for its twin', 'rule 1', () => rule([leafOf(rootB, 'Bharat Mehta', hostB, E_B, { misencode: { sigTwin: true } }), ROOT_B]));
+// A notBefore of 30 February. A reader that normalises dates takes it for 2 March and accepts; the
+// leaf IS the TLS certificate, and no TLS stack reads that date at all.
+scenario('certificate', 'a validity field that is not a date', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode: { notBefore: '260230120000Z' } }), ROOT_A]));
 scenario('certificate', 'exactly 398 days is accepted', 'accepted', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2026-09-01T00:00:00Z'), notAfter: new Date(at('2026-09-01T00:00:00Z').getTime() + 398 * D) }), ROOT_A]));
 scenario('certificate', '398 days and one second is refused', 'rule 4', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2026-09-01T00:00:00Z'), notAfter: new Date(at('2026-09-01T00:00:00Z').getTime() + 398 * D + 1000) }), ROOT_A]));
 for (const [what, uris, dns] of [

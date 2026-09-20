@@ -1,5 +1,6 @@
 // HPKE Base mode (RFC 9180) for the two PACT suites, and the detached signature of §13.1.
 import { createHmac, createCipheriv, createDecipheriv, createECDH, diffieHellman, createPublicKey, randomBytes, sign, verify } from 'node:crypto';
+import { ecdsaLowS } from './der.mjs';
 import { algorithmOf, ed25519PublicToX25519, ed25519PrivateToX25519, x25519Raw, x25519FromSeed, p256Uncompressed, p256Scalar, p256FromSeed } from './keys.mjs';
 
 // `npk` is the encapsulated key's length, which is the KEM's public-key length (RFC 9180 §7.1): an
@@ -92,8 +93,13 @@ export function open(suite, recipientPriv, recipientPub, info, aad, enc, ct) {
 }
 
 // §13.1: Ed25519 pure, or ECDSA P-256/SHA-256 in DER, by the signer's own algorithm.
+// An ECDSA signature leaves here in the low-S form (§14.1): OpenSSL returns either twin, and a
+// certificate carrying the high one is not a PACT certificate. Normalised for EVERY signature rather
+// than for certificates alone, so there is one kind of signature this library writes. Verifying is
+// untouched — an envelope's or a request's signature is never pinned or compared as bytes, so its
+// twin harms nobody, and refusing it would refuse honest signers that never heard of this rule.
 export function signDetached(priv, data) {
-  return algorithmOf(priv) === 'ed25519' ? sign(null, data, priv) : sign('sha256', data, { key: priv, dsaEncoding: 'der' });
+  return algorithmOf(priv) === 'ed25519' ? sign(null, data, priv) : ecdsaLowS(sign('sha256', data, { key: priv, dsaEncoding: 'der' }));
 }
 export function verifyDetached(pub, data, sig) {
   return algorithmOf(pub) === 'ed25519' ? verify(null, data, pub, sig) : verify('sha256', data, { key: pub, dsaEncoding: 'der' }, sig);
