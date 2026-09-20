@@ -135,6 +135,22 @@ scenario('certificate', 'a P-256 leaf whose signature was swapped for its twin',
 // A notBefore of 30 February. A reader that normalises dates takes it for 2 March and accepts; the
 // leaf IS the TLS certificate, and no TLS stack reads that date at all.
 scenario('certificate', 'a validity field that is not a date', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode: { notBefore: '260230120000Z' } }), ROOT_A]));
+// An extension VALUE under another type, and a basicConstraints that reads two ways. None of the three
+// implementations looked at a value's own tag, and the reference library read basicConstraints by its
+// first and last elements and a pathLenConstraint by its first BYTE — so a root carrying
+// SEQUENCE { TRUE, 5, 0 } was a root with pathLen 0 here and pathLen 5 to every other X.509 reader,
+// and one carrying a pathLenConstraint of 128 (`02 02 00 80`) was in the profile here while both
+// ports refused it. §14.1: a certificate that reads one way to one parser and another to the next.
+const rootWith = (basicConstraints, label) => buildRoot({ cn: 'Alina Rao', key: rootA, notBefore: at('2026-09-01T00:00:00Z'), label, basicConstraints });
+const leafUnder = (root) => rule([LEAF_A, root]);
+for (const [what, o] of [
+  ['a keyUsage whose value is an OCTET STRING', { retag: { oid: '2.5.29.15', tag: 0x04 } }],
+  ['a subjectKeyIdentifier that is a BIT STRING', { retag: { oid: '2.5.29.14', tag: 0x03 } }],
+  ['a subjectAltName that is a SET', { retag: { oid: '2.5.29.17', tag: 0x31 } }],
+  ['a leaf whose basicConstraints holds a NULL', { basicConstraints: '30020500' }],
+]) scenario('certificate', what, 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode: o }), ROOT_A]));
+scenario('certificate', 'a root whose basicConstraints reads two ways: TRUE, 5, 0', 'rule 1', () => leafUnder(rootWith('30090101ff020105020100', 'i/root_bc3')));
+scenario('certificate', 'a root whose pathLenConstraint is 128', 'rule 1', () => leafUnder(rootWith('30070101ff02020080', 'i/root_pl128')));
 scenario('certificate', 'exactly 398 days is accepted', 'accepted', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2026-09-01T00:00:00Z'), notAfter: new Date(at('2026-09-01T00:00:00Z').getTime() + 398 * D) }), ROOT_A]));
 scenario('certificate', '398 days and one second is refused', 'rule 4', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2026-09-01T00:00:00Z'), notAfter: new Date(at('2026-09-01T00:00:00Z').getTime() + 398 * D + 1000) }), ROOT_A]));
 for (const [what, uris, dns] of [
