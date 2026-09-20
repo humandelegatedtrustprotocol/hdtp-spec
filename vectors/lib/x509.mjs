@@ -1,6 +1,6 @@
 // The §14.1 profile as bytes, the exact-profile check and §14.2 chain validation, and the §14.3 comparison.
 import { createPublicKey } from 'node:crypto';
-import { seq, set, explicit, implicit, octet, utf8, bool, int, bitstr, oid, time, tlv, read, children, readOid, readOidStrict, readTime, boolTrue, intMinimal, oidMinimal, namedBitsOk } from './der.mjs';
+import { seq, set, explicit, implicit, octet, utf8, bool, int, bitstr, oid, time, tlv, read, children, readOid, readOidStrict, readTime, boolTrue, intMinimal, oidMinimal, namedBitsOk, ecdsaIsLowS, ecdsaTwin } from './der.mjs';
 import { spkiOf, keyId, sha256, b64url, algorithmOf } from './keys.mjs';
 import { signDetached, verifyDetached } from './hpke.mjs';
 
@@ -52,6 +52,9 @@ export function buildRoot({ cn, key, notBefore, label }) {
 //                  subjectKeyIdentifier follows the bytes written, so the certificate stays
 //                  self-consistent and is refused for the encoding rather than for a stale identifier
 //   serial         the serialNumber INTEGER's content (DER: the shortest two's-complement form)
+//   notBefore      the notBefore UTCTime's content, as ASCII (DER: a date that exists)
+//   sigTwin        write the ECDSA signature's OTHER twin, `(r, n − s)` — it verifies, under the same
+//                  key over the same bytes, and §14.1 admits only the low-S one
 export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid, misencode = {} }) {
   const plainSpki = spkiOf(hostKey.pub);
   const spki = misencode.spkiAlgOid
@@ -71,7 +74,7 @@ export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, 
   const xt = (o, critical, value) => seq(extOid(o), ...flag(o, critical), octet(value));
   const tbs = seq(
     explicit(0, int(2)), misencode.serial ? tlv(0x02, Buffer.from(misencode.serial)) : int(serialOf(label)),
-    alg, name(rootCn, cnOid), seq(time(notBefore), time(notAfter)), name(cn, cnOid), spki,
+    alg, name(rootCn, cnOid), seq(misencode.notBefore ? tlv(0x17, Buffer.from(misencode.notBefore, 'ascii')) : time(notBefore), time(notAfter)), name(cn, cnOid), spki,
     explicit(3, seq(
       xt(OID.basicConstraints, true, cA ? seq(bool(true)) : seq()),
       xt(OID.keyUsage, true, misencode.keyUsage ? tlv(0x03, Buffer.from(misencode.keyUsage)) : keyUsage(bits)),
@@ -84,7 +87,8 @@ export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, 
   );
   // `outerAlgOid` writes a different AlgorithmIdentifier outside the TBS than inside — what one
   // parser reads one way and another the other, which RFC 5280 §4.1.1.2 forbids and parse() refuses.
-  return seq(tbs, outerAlgOid ? seq(oid(outerAlgOid)) : alg, bitstr(signDetached(root.priv, tbs)));
+  const signature = signDetached(root.priv, tbs);
+  return seq(tbs, outerAlgOid ? seq(oid(outerAlgOid)) : alg, bitstr(misencode.sigTwin ? ecdsaTwin(signature) : signature));
 }
 
 // Reading a certificate back into the fields the rules need. Throws on anything malformed.
@@ -164,6 +168,17 @@ export function profileError(c, kind) {
   if (c.der.length > MAX_CERT_BYTES) return 'over 4 KiB';
   if (c.serial.length < 8 || c.serial.length > 20 || c.serial[0] & 0x80) return 'serial not 64–160 bits positive';
   if (![OID.ed25519, OID.ecdsaSha256].includes(c.sigAlg)) return 'signature algorithm not in the profile';
+  // §14.1: of an ECDSA signature's two twins, only the low-S one is a PACT certificate (der.mjs).
+  // Judged only where the bits ARE an ECDSA value. A certificate that declares ECDSA over bytes that
+  // are not one — an Ed25519 root's signature under the wrong label — is not a profile matter: it
+  // cannot verify under any key, so rule 3 refuses it as "a certificate the key did not sign", which
+  // is what §14.1's first sentence says a mismatch is. Refusing it here first would have moved that
+  // refusal to rule 1 and told the caller something else.
+  if (c.sigAlg === OID.ecdsaSha256) {
+    let low = true;
+    try { low = ecdsaIsLowS(c.sig); } catch { /* not an ECDSA value at all: rule 3's to refuse */ }
+    if (!low) return 'ECDSA signature not in the low-S form';
+  }
   try { algorithmOf(c.publicKey); } catch { return 'key algorithm not in the profile'; }
   const tagFor = (d) => (d.getUTCFullYear() < 2050 ? 0x17 : 0x18);
   if (c.timeTags[0] !== tagFor(c.notBefore) || c.timeTags[1] !== tagFor(c.notAfter)) return 'time encoding not per RFC 5280';
