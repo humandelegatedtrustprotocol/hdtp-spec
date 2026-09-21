@@ -230,7 +230,10 @@ export function profileError(c, kind) {
   if (crit(OID.keyUsage) !== true || !same(c.keyUsage, expectedUsage)) return 'leaf keyUsage';
   if (crit(OID.eku) !== false || !same([...c.eku].sort(), [OID.serverAuth, OID.clientAuth].sort())) return 'leaf extendedKeyUsage';
   if (crit(OID.san) !== false || c.otherNames || c.dns.length > 1) return 'leaf subjectAltName carries a name type the profile does not';
-  if (crit(OID.aki) !== false || !c.aki || c.akiExtra) return 'leaf authorityKeyIdentifier is not a key identifier alone';
+  // A key identifier is the 32-byte SHA-256 of a SubjectPublicKeyInfo (§14.1). The subject one is held
+  // to that above; this one was only asked to be THERE, so a leaf could name its issuer in three bytes
+  // — and a card would show those three bytes to a person as the identity to pin.
+  if (crit(OID.aki) !== false || c.aki?.length !== 32 || c.akiExtra) return 'leaf authorityKeyIdentifier is not a key identifier alone';
   return null;
 }
 
