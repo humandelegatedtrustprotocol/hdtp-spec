@@ -112,6 +112,7 @@ scenario('identity', 'a contact still pending_out moves before accepting (auto)'
 scenario('certificate', 'leaf with cA true', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { cA: true }), ROOT_A]));
 scenario('certificate', 'leaf without digitalSignature', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { usage: [4] }), ROOT_A]));
 scenario('certificate', 'leaf whose issuer key identifier names another root', 'rule 3', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { aki: parse(ROOT_M).keyId }), ROOT_A]));
+scenario('certificate', 'leaf whose issuer key identifier is three bytes', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { aki: Buffer.from([1, 2, 3]) }), ROOT_A]));
 scenario('certificate', 'leaf declaring ECDSA but signed by an Ed25519 root', 'rule 3', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { algOid: '1.2.840.10045.4.3.2' }), ROOT_A]));
 scenario('certificate', 'one algorithm inside the TBS, another outside it', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { outerAlgOid: '1.2.840.10045.4.3.2' }), ROOT_A]));
 scenario('certificate', 'an extension the profile does not list, critical', 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { extra: [{ oid: '1.3.6.1.4.1.99999.1', critical: true, value: Buffer.from('0500', 'hex') }] }), ROOT_A]));
@@ -311,6 +312,9 @@ scenario('card', 'two X-PACT-CERT properties', 'bad_request', () => decodeCard(c
 scenario('card', 'an expired leaf is accepted at intake', 'expired but accepted', () => { const c = decodeCard(encodeCard({ fn: 'A', cert: leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2025-06-01T00:00:00Z'), notAfter: at('2026-06-01T00:00:00Z') }) })); return c.error ? c.error : c.expired ? 'expired but accepted' : 'not expired'; });
 scenario('card', 'an unknown endpoint property on a card is ignored; the address comes from the leaf', E_A, () => decodeCard(card(chainA, 'Alina', ['X-PACT-ENDPOINT:' + E_M])).endpoint);
 scenario('card', 'a card without a certificate', 'bad_request', () => decodeCard('BEGIN:VCARD\r\nVERSION:4.0\r\nFN:X\r\nX-PACT-VERSION:2\r\nEND:VCARD\r\n').error);
+// §14.1: a key identifier is 32 bytes. A card turns the leaf's into the identity a person is shown, so
+// three bytes became `sha256:AQID` — a contact no chain could ever satisfy.
+scenario('card', 'a card whose leaf names its issuer in three bytes', 'bad_request', () => decodeCard(encodeCard({ fn: 'A', cert: leafOf(rootA, 'Alina Rao', hostA, E_A, { aki: Buffer.from([1, 2, 3]) }) })).error);
 scenario('card', 'a 2.0 card stays under a kilobyte', blockedIf((got) => got < 1024), () => card(chainA).length);
 
 // ── Chain confusion: §14.2 takes exactly two certificates, in one order ──────────
@@ -346,6 +350,14 @@ scenario('time', 'one second past that, in the other direction', 'outside the ti
 // deployment. These say what that party still cannot do.
 scenario('carrier', 'a v: 1 header, the retired generation', 'version or suite', () => receive(bharat(), message(hostA, chainA, LEAF_B, { header: { v: 1 } })).why);
 scenario('carrier', 'a header claiming a version that does not exist yet', 'version or suite', () => receive(bharat(), message(hostA, chainA, LEAF_B, { header: { v: 3 } })).why);
+// §13.1: a member has ONE spelling. `sig` covers the DECODED bytes, so every other spelling a reader
+// forgives — a character it skips, padding, a line break, a last character with its spare bits set —
+// is a second envelope that verifies. Each of these is a REAL envelope, honestly sealed and signed.
+const respelled = (s) => s.slice(0, -1) + 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'['ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'.indexOf(s.at(-1)) | 1];
+scenario('carrier', 'a real envelope whose protected carries a stray character', 'protected is not JSON', () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, protected: m.protected + '!' }).why; });
+scenario('carrier', 'a real envelope whose enc is padded', 'does not open', () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, enc: m.enc + '='.repeat((4 - (m.enc.length % 4)) % 4 || 4) }).why; });
+scenario('carrier', 'a real envelope whose ct has a line break in it', 'does not open', () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, ct: m.ct.slice(0, 8) + '\n' + m.ct.slice(8) }).why; });
+scenario('carrier', 'a real envelope whose signature is spelled with its spare bits set', "signature is not the chain's leaf key", () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, sig: respelled(m.sig) }).why; });
 scenario('carrier', 'a card of the retired generation', 'bad_request', () => decodeCard(card(chainA).replace('X-PACT-VERSION:2', 'X-PACT-VERSION:1')).error);
 // The retired properties are not merely unwritten: §3 says an implementation "honours none
 // of them". A carrier that appends one to a card in flight must move nothing.

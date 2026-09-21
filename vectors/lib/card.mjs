@@ -4,7 +4,13 @@ import { parse, MAX_LEAF_DAYS } from './x509.mjs';
 
 const DAY = 86_400_000;
 
+// A card is LINES, and everything a caller supplies is written into one. A control character in any of
+// it is refused: a line break writes a property of the writer's choosing, and the decoder reads the
+// FIRST of a name, so `FN` "x\r\nX-PACT-SEAL:none" made a card that requires sealing into one that does
+// not. A name with a line break in it is not a name.
 export function encodeCard({ fn, cert, seal, extra = [] }) {
+  for (const [what, text] of [['fn', fn], ['seal', seal ?? ''], ...extra.map((e) => ['extra', e])])
+    if (/\p{Cc}/u.test(String(text))) throw new Error(`${what} carries a control character`);
   const lines = ['BEGIN:VCARD', 'VERSION:4.0', 'FN:' + fn, 'X-PACT-VERSION:2', 'X-PACT-CERT:' + b64url(cert), ...extra];
   if (seal) lines.push('X-PACT-SEAL:' + seal);
   lines.push('END:VCARD');
@@ -35,6 +41,9 @@ export function decodeCard(text) {
   let leaf;
   try { leaf = parse(fromB64url(certs[0])); } catch (e) { return bad('certificate does not parse: ' + e.message); }
   if (!leaf.aki) return bad('no issuer key identifier');
+  // What is about to be shown to a person as the identity to pin is this value, so it has to BE a key
+  // identifier: 32 bytes (§14.1). Three bytes used to come out as `sha256:AQID`.
+  if (leaf.aki.length !== 32) return bad('issuer key identifier is not 32 bytes');
   if (leaf.uris.length !== 1) return bad(`${leaf.uris.length} endpoints`);
   if (leaf.notAfter - leaf.notBefore > MAX_LEAF_DAYS * DAY) return bad('validity over 398 days');
   return {

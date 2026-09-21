@@ -9,6 +9,22 @@ const P = (1n << 255n) - 19n;
 
 export const b64url = (b) => Buffer.from(b).toString('base64url');
 export const fromB64url = (s) => Buffer.from(s, 'base64url');
+/**
+ * A member of an envelope, as it travels: unpadded base64url in its ONE canonical spelling (§13.1).
+ * Returns the bytes, or null.
+ *
+ * `fromB64url` — Node's `Buffer.from(s, 'base64url')` — cannot fail: it skips every character it does
+ * not know and ignores a last character's spare bits. `sig` covers the DECODED bytes, so an envelope
+ * with a stray character in `protected` decoded to the same header, verified, and was accepted here
+ * and by the Go port, which read the wire as this library did, while the Rust core refused it. Two
+ * spellings of one envelope, and implementations that disagreed about which of them exist (found
+ * 2026-09-21). The round trip is the whole test: there is exactly one string that encodes these bytes.
+ */
+export const wireB64url = (s) => {
+  if (typeof s !== 'string' || !/^[A-Za-z0-9_-]*$/.test(s)) return null;
+  const bytes = Buffer.from(s, 'base64url');
+  return b64url(bytes) === s ? bytes : null;
+};
 export const sha256 = (b) => createHash('sha256').update(b).digest();
 
 // Every secret in the vectors derives from a label, so the generator is reproducible.
