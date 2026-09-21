@@ -35,9 +35,12 @@ const certs = {
   // notBefore of 30 February, which a reader that normalises dates takes for 2 March.
   leaf_b_twin: buildLeaf({ cn: 'Bharat Mehta', rootCn: 'Bharat Mehta', root: rootB, hostKey: hosts.leaf_b, endpoint: ENDPOINT_B, notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), label: 'leaf_b', misencode: { sigTwin: true } }),
   leaf_a_feb30: leafA('leaf_a_feb30', { notBefore: at('2026-03-02T12:00:00Z'), notAfter: at('2027-03-01T00:00:00Z'), misencode: { notBefore: '260230120000Z' } }),
+  // …and a third (2.1.3): leaf_a naming its issuer in THREE bytes. It parses, its signature verifies,
+  // and a card made from it used to show a person `sha256:AQID` as the identity to pin.
+  leaf_a_aki3: leafA('leaf_a_aki3', { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), aki: Buffer.from([1, 2, 3]) }),
 };
 const hex = (b) => Buffer.from(b).toString('hex');
-const REFUSED = ['leaf_b_twin', 'leaf_a_feb30'];
+const REFUSED = ['leaf_b_twin', 'leaf_a_feb30', 'leaf_a_aki3'];
 const notes = {
   root_a: 'Ed25519 root, self-signed, CN "Alina Rao", notAfter 9999-12-31',
   root_b: 'P-256 root, self-signed, CN "Bharat Mehta"',
@@ -48,6 +51,7 @@ const notes = {
   leaf_a_next: 'a fresh key for the same endpoint, 2027-08-02 to 2028-08-01: the renewal that supersedes leaf_a',
   leaf_b_twin: 'leaf_b\'s TBS under the OTHER twin of an ECDSA signature, (r, n − s): it verifies under root_b and is refused by the profile (§14.1: low-S)',
   leaf_a_feb30: 'leaf_a\'s key and endpoint with a notBefore of 260230120000Z, 30 February: refused, not read as 2 March (§14.1)',
+  leaf_a_aki3: 'leaf_a\'s key and endpoint with an authorityKeyIdentifier of three bytes, 01 02 03: refused, because a key identifier is 32 bytes (§14.1), at card intake as much as in a chain',
 };
 
 const chainCases = [
@@ -65,6 +69,7 @@ const chainCases = [
   { name: 'endpoint mismatch', chain: ['leaf_a', 'root_a'], expected_endpoint: ENDPOINT_A + '/', now: NOW, expect: 'refuse', rule: 5 },
   { name: 'an ECDSA signature swapped for its twin', chain: ['leaf_b_twin', 'root_b'], now: NOW, expect: 'refuse', rule: 1 },
   { name: 'a validity field that is not a date', chain: ['leaf_a_feb30', 'root_a'], now: NOW, expect: 'refuse', rule: 1 },
+  { name: 'an issuer key identifier that is not 32 bytes', chain: ['leaf_a_aki3', 'root_a'], now: NOW, expect: 'refuse', rule: 1 },
 ];
 
 const newestLeafCases = [
@@ -126,7 +131,7 @@ const derivation = [
 });
 
 const out = {
-  generated_by: 'vectors/gen.mjs (deterministic; Ed25519 signatures and every certificate reproduce byte for byte, ECDSA signatures are one valid signature)',
+  generated_by: 'vectors/gen.mjs (every key derives from a label; what Ed25519 signs reproduces byte for byte; an ECDSA signature is one valid signature and is NEW EACH RUN, so root_b, leaf_b, leaf_b_twin and the P-256 envelope differ in their signature bytes from one generation to the next, and are to be verified, never compared)',
   now: NOW,
   // `refused: true` marks a certificate that exists to be REFUSED, so a reader of this appendix is
   // told which is which by the data rather than by a name: a conforming implementation refuses it at

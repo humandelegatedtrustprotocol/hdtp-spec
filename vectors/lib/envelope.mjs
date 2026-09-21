@@ -2,7 +2,7 @@
 // Small and in-memory, so intrusions can be replayed against it.
 import { seal, sealDeterministic, open, signDetached, verifyDetached, suiteForLeaf, recipientOf, SUITES } from './hpke.mjs';
 import { validateChain, compareLeaves, parse } from './x509.mjs';
-import { fingerprint, b64url, fromB64url } from './keys.mjs';
+import { fingerprint, b64url, fromB64url, wireB64url } from './keys.mjs';
 import { canonical } from './canonical.mjs';
 import { decodeCard } from './card.mjs';
 
@@ -67,7 +67,9 @@ const invalid = (why) => ({ code: 'envelope_invalid', why });
 
 export function receive(node, envelope, { siblings = [] } = {}) {
   let header;
-  try { header = JSON.parse(fromB64url(envelope.protected).toString()); } catch { return invalid('protected is not JSON'); }
+  const aad = wireB64url(envelope.protected);
+  if (!aad) return invalid('protected is not JSON');
+  try { header = JSON.parse(aad.toString()); } catch { return invalid('protected is not JSON'); }
   if (Object.keys(header).sort().join(',') !== HEADER_MEMBERS) return invalid('header members');
   if (!headerTypesOk(header)) return invalid('header member types');
   if (header.v !== 2 || !SUITES[header.suite]) return invalid('version or suite');
@@ -80,7 +82,8 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   }
   if (suiteForLeaf(parse(held.leafDer)) !== header.suite) return invalid('suite does not fit the leaf');
 
-  const aad = fromB64url(envelope.protected), enc = fromB64url(envelope.enc), ct = fromB64url(envelope.ct);
+  const enc = wireB64url(envelope.enc), ct = wireB64url(envelope.ct);
+  if (!enc || !ct) return invalid('does not open');
   // `sig` covers the three members concatenated with nothing between them, so the suite's own `enc`
   // length is what fixes the boundary: without it a byte moved from `enc` into `ct` leaves the signed
   // bytes identical.
@@ -90,7 +93,8 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   const members = body && typeof body === 'object' ? Object.keys(body).sort().join(',') : '';
   if (members !== 'chain,method,params' && members !== 'leaf,method,params') return invalid('plaintext members');
   if (!['tools/call', 'tools/list'].includes(body.method)) return invalid('plaintext shape');
-  const signed = Buffer.concat([aad, enc, ct]), sig = fromB64url(envelope.sig);
+  // A signature that does not read is no signature: it fails below, in the words of the form it came in.
+  const signed = Buffer.concat([aad, enc, ct]), sig = wireB64url(envelope.sig) ?? Buffer.alloc(0);
   const tool = body.params?.name;
   const freshness = () => {
     if (header.cty !== 'application/pact-call+json') return invalid('not a request');
