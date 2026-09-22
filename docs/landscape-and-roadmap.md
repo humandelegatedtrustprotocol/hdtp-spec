@@ -5,9 +5,11 @@
 primary source, what rests on a secondary one, and what is carried forward unverified.
 
 This document carries the material that informed the design but does not bind implementers. The
-normative protocol is defined solely by `SPEC.md`. One section states a recommendation — §6.3, on
-whether to adopt A2A — and it says so in its own words: it is a recommendation the owner may take
-or leave, and nothing in `SPEC.md` changes on its strength.
+normative protocol is defined solely by `SPEC.md`. **Citation convention: `SPEC §n` (or
+`SPEC §§n, m`) refers to the specification; a bare `§n` refers to a section of this document.**
+One section states a recommendation — §6.3, on whether to adopt A2A — and it says so in its own
+words: it is a recommendation the owner may take or leave, and nothing in `SPEC.md` changes on
+its strength.
 
 > **What changed in this revision, and why it needed one.** The previous revision (2026-08-23)
 > described itself as a companion to "the PACT 1.0 specification" and stated two design decisions as
@@ -15,7 +17,7 @@ or leave, and nothing in `SPEC.md` changes on its strength.
 > keypair expressed as a DID." Neither is true of shipped PACT. Both belonged to the *hardened
 > draft* — `archive/hardened-draft-spec.md` — which was superseded by the 1.0 that actually shipped,
 > a deliberate simplification that dropped DIDs, the verb registry and the negotiation state machine,
-> and by the 2.0 that made the person a certificate authority. Its §8 review disposition documented
+> and by the 2.0 that made the person a certificate authority. Its review disposition documented
 > that superseded draft while appearing to document the shipped one. A reader opening this file to
 > ask "how does PACT relate to A2A and ANP?" was therefore given the answer the project had already
 > stopped acting on. That failure mode — a document whose framing is stale while its prose is
@@ -34,15 +36,15 @@ The requirement as shipped, in the specification's own terms:
 
 - **The identity is the person's; the host serves it.** An identity is the fingerprint of a
   self-signed X.509 root whose private key lives in the person's wallet and signs nothing but
-  certificates. A host holds a leaf the root issued for one address (§2).
+  certificates. A host holds a leaf the root issued for one address (SPEC §2).
 - **Your agent is a publicly exposed MCP server.** Sending a message *is* calling the peer's
   `send_message` tool. Everything a contact may do is an MCP tool, visible and callable only per that
-  contact's permission settings (§6, §8).
+  contact's permission settings (SPEC §§6, 8).
 - **Contacts are vCards.** Shared over WhatsApp, email, AirDrop or QR. Adding one is always a manual,
-  human approval (§3, §5).
+  human approval (SPEC §§3, 5).
 - **Delivery is direct.** There is no relay and no store-and-forward. A person who must be reachable
   while their own machine is off is hosted, under a leaf they issued and can revoke by issuing the
-  next one (§7, §9).
+  next one (SPEC §§7, 9).
 
 And the non-goals, which matter more to this document than the goals, because most of what follows
 compares PACT against systems that chose the opposite (`SPEC.md`, front matter):
@@ -90,7 +92,7 @@ no registry operator to trust or to become.
 **What closing gives up.** Cold reach, entirely — you cannot be found, only introduced. Any
 machine-readable advertisement of capability to a party you have not met. Any role in an open agent
 economy, including discovery-driven commerce. And ecosystem interoperability: the installed base of
-A2A-speaking enterprise agents cannot reach a PACT node at all, which §6 concedes directly —
+A2A-speaking enterprise agents cannot reach a PACT node at all, which SPEC §6 concedes directly —
 *"Consumer MCP clients such as hosted chat apps cannot present client certificates."*
 
 Both halves of that trade are load-bearing in §5 and §6. The first half is why most of ANP's
@@ -250,7 +252,7 @@ pushed in twenty-one months.
 of CA certificates; leaves rotate freely) or pinned self-signed keys with a key-continuity rule.
 PACT 2.0 chose the first and expressed it in the certificates every TLS stack already validates: the
 person *is* the CA, the host holds a leaf. The fundamental limit is unchanged — channel-level mTLS
-dies at any TLS-terminating intermediary — and it is exactly why §13's sealed envelope exists.
+dies at any TLS-terminating intermediary — and it is exactly why SPEC §13's sealed envelope exists.
 **IETF WIMSE** reached the same conclusion for workloads and is standardising application-level proof
 tokens: `draft-ietf-wimse-wpt-01` defines a Workload Proof Token, a signed JWT binding a workload's
 authentication to a specific HTTP request, alongside `draft-ietf-wimse-arch-07` and workload-credential
@@ -347,7 +349,7 @@ and proxy that federates MCP, A2A and REST/gRPC behind one endpoint with central
 guardrails and plugins. Both are the closest prior art to a hosted PACT provider's data plane; PACT
 needs neither today, because it has no relay role.
 
-**Tunnels — re-verified, and one correction of emphasis.** The specification's §10 divides these into
+**Tunnels — re-verified, and one correction of emphasis.** The specification's SPEC §10 divides these into
 edges that pass TLS through (true end-to-end mTLS survives) and edges that terminate it (identity and
 confidentiality must ride the sealed envelope instead). That division holds, with one qualification
 worth recording because it is easy to misconfigure:
@@ -355,7 +357,7 @@ worth recording because it is easy to misconfigure:
 - **Tailscale Funnel** preserves end-to-end mTLS **only in raw TCP mode**. With `--tcp`, Funnel
   *"proxies the TCP connection by verifying a valid SNI name in the TLS ClientHello, then proxying the
   encrypted TCP connections to your Tailscale node, without doing any TLS termination itself"* — so
-  client certificates do reach your server, and §10's claim is correct. In its **default HTTPS mode**
+  client certificates do reach your server, and SPEC §10's claim is correct. In its **default HTTPS mode**
   (and with `--tls-terminated-tcp`), *"the Tailscale server running on your device … terminates the
   TLS connection and passes the decrypted request to the local service"* — TLS ends at `tailscaled`
   on your own machine, and the client certificate does not reach the service behind it. Tailscale's
@@ -383,7 +385,7 @@ the reference answer if a future profile ever needs NAT traversal without a host
 
 **Offline delivery.** DIDComm mediator + Message Pickup 3.0 remains the purpose-built pattern, with
 NATS JetStream or MQTT persistent sessions as pragmatic equivalents. **PACT 2.0 deliberately has
-none of it** (§9): there is no store-and-forward gateway "that would see every sender, recipient and
+none of it** (SPEC §9): there is no store-and-forward gateway "that would see every sender, recipient and
 timestamp for its trouble." Being hosted is the answer instead.
 
 ---
@@ -399,26 +401,26 @@ had no PACT column at all and scored everyone against hardened-draft requirement
 
 | Requirement | **PACT 2.1.3** | A2A v1.0 | MCP 2026-07 | ANP 1.1 | DIDComm v2 | AGNTCY/SLIM | Matrix | Iroh | Blockit | OpenClaw eco |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Person-owned identity, host-independent | ✅ root CA in wallet, leaf at host (§2, §9) | 🟡 signed cards | ❌ | ✅ DID | ✅ DID | 🟡 VC badges | ✅ MXID + cross-sign | 🟡 node key | ❌ vendor account | ❌ API keys |
-| Consent gate before any contact | ✅ mutual human approval, always (§5) | ❌ | ❌ | ❌ | 🟡 OOB invitation | ❌ | 🟡 room invite | ❌ | ❌ | ❌ |
-| Mutual key exchange + pinning | ✅ pin the root, learn each leaf (§14.3) | 🟡 mTLS declarable, unprovisioned | ❌ | ✅ | ✅ | ✅ MLS | ✅ | ✅ key = address | ❌ | ❌ |
-| Per-caller capability surface | ✅ `tools/list` computed per contact (§6, §8) | ❌ static card, no filtering | 🟡 per-session | ❌ | ❌ | ❌ | 🟡 room power levels | n/a | ❌ | ❌ |
-| Instant revocation | ✅ delete contact; tool vanishes (§8, §11) | ❌ unspecified | ❌ | 🟡 deactivate sub-DID | ✅ rotate/revoke | ✅ MLS remove | ✅ | n/a | 🟡 vendor | ❌ |
-| E2EE past a terminating edge | ✅ sealed envelope, HPKE (§13) | ❌ hop-by-hop TLS | ❌ | ✅ P5 | ✅ authcrypt | ✅ MLS | ✅ | ✅ | ❌ | ❌ |
-| Forward secrecy | ❌ **deferred by decision** (§13.5) | ❌ | ❌ | ✅ P5 ratchet (draft) | ❌ | ✅ MLS | ✅ | ✅ QUIC | ❌ | ❌ |
-| Group / multi-party security | ❌ parallel 1:1 threads (§7) | 🟡 contextId grouping | ❌ | ✅ P6 MLS (draft) | 🟡 | ✅ MLS | ✅ | n/a | 🟡 n-way | ❌ |
+| Person-owned identity, host-independent | ✅ root CA in wallet, leaf at host (SPEC §§2, 9) | 🟡 signed cards | ❌ | ✅ DID | ✅ DID | 🟡 VC badges | ✅ MXID + cross-sign | 🟡 node key | ❌ vendor account | ❌ API keys |
+| Consent gate before any contact | ✅ mutual human approval, always (SPEC §5) | ❌ | ❌ | ❌ | 🟡 OOB invitation | ❌ | 🟡 room invite | ❌ | ❌ | ❌ |
+| Mutual key exchange + pinning | ✅ pin the root, learn each leaf (SPEC §14.3) | 🟡 mTLS declarable, unprovisioned | ❌ | ✅ | ✅ | ✅ MLS | ✅ | ✅ key = address | ❌ | ❌ |
+| Per-caller capability surface | ✅ `tools/list` computed per contact (SPEC §§6, 8) | ❌ static card, no filtering | 🟡 per-session | ❌ | ❌ | ❌ | 🟡 room power levels | n/a | ❌ | ❌ |
+| Instant revocation | ✅ delete contact; tool vanishes (SPEC §§8, 11) | ❌ unspecified | ❌ | 🟡 deactivate sub-DID | ✅ rotate/revoke | ✅ MLS remove | ✅ | n/a | 🟡 vendor | ❌ |
+| E2EE past a terminating edge | ✅ sealed envelope, HPKE (SPEC §13) | ❌ hop-by-hop TLS | ❌ | ✅ P5 | ✅ authcrypt | ✅ MLS | ✅ | ✅ | ❌ | ❌ |
+| Forward secrecy | ❌ **deferred by decision** (SPEC §13.5) | ❌ | ❌ | ✅ P5 ratchet (draft) | ❌ | ✅ MLS | ✅ | ✅ QUIC | ❌ | ❌ |
+| Group / multi-party security | ❌ parallel 1:1 threads (SPEC §7) | 🟡 contextId grouping | ❌ | ✅ P6 MLS (draft) | 🟡 | ✅ MLS | ✅ | n/a | 🟡 n-way | ❌ |
 | Long-running task handle | ❌ `queued_for_human`, no id | ✅ Task lifecycle | 🟡 Tasks extension | 🟡 | ❌ | 🟡 | ❌ | n/a | 🟡 internal | ❌ |
 | Streaming / push updates | ❌ | ✅ SSE + webhooks | 🟡 progress | 🟡 | ❌ | ✅ | ✅ | ✅ | n/a | ❌ |
-| Structured artifacts / parts | 🟡 text + media (§6.2) | ✅ Part / Artifact | ✅ content types | ✅ | ✅ | ✅ | ✅ | n/a | n/a | 🟡 |
+| Structured artifacts / parts | 🟡 text + media (SPEC §6.2) | ✅ Part / Artifact | ✅ content types | ✅ | ✅ | ✅ | ✅ | n/a | n/a | 🟡 |
 | Open discovery of strangers | ⛔ **"no directory"** (front matter) | ✅ well-known card | 🟡 registries | ✅ well-known + crawl | 🟡 | ✅ directory | ✅ | ❌ | ❌ vendor-internal | ❌ |
-| Machine-readable capability advertising | ⛔ guest tier is two tools (§6.1) | ✅ skills | ✅ `tools/list` | ✅ JSON-LD ADP | ❌ | ✅ OASF | ❌ | n/a | ❌ | ❌ |
-| Protocol negotiation with a stranger | ⛔ conversation in a thread (§7) | 🟡 extensions | ❌ | ✅ meta-protocol | ❌ | ❌ | ❌ | n/a | ❌ | ❌ |
-| Store-and-forward when offline | ⛔ **no relay role** (§9) | 🟡 push hooks | 🟡 tasks | 🟡 | ✅ pickup | 🟡 | ✅ | 🟡 | ✅ hosted | ❌ |
+| Machine-readable capability advertising | ⛔ guest tier is two tools (SPEC §6.1) | ✅ skills | ✅ `tools/list` | ✅ JSON-LD ADP | ❌ | ✅ OASF | ❌ | n/a | ❌ | ❌ |
+| Protocol negotiation with a stranger | ⛔ conversation in a thread (SPEC §7) | 🟡 extensions | ❌ | ✅ meta-protocol | ❌ | ❌ | ❌ | n/a | ❌ | ❌ |
+| Store-and-forward when offline | ⛔ **no relay role** (SPEC §9) | 🟡 push hooks | 🟡 tasks | 🟡 | ✅ pickup | 🟡 | ✅ | 🟡 | ✅ hosted | ❌ |
 | Directory key transparency | ⛔ no directory to make honest | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | n/a | ❌ | ❌ |
 | Anonymity / traffic analysis resistance | ⛔ stated non-goal (front matter) | ❌ | ❌ | 🟡 sub-DIDs | 🟡 pairwise | 🟡 metadata routing | ❌ | 🟡 | ❌ | ❌ |
-| Post-quantum | ⛔ **deferred, path recorded** (§13.5) | ❌ | ❌ | ❌ | ❌ | 🟡 | ❌ | 🟡 | ❌ | ❌ |
-| Self-host behind NAT | ✅ tunnels + sealed envelope (§10) | 🟡 BYO | 🟡 BYO | 🟡 | ✅ | 🟡 | ✅ | ✅ | ❌ | ✅ |
-| Provider-hostable, and leaveable | ✅ leaf + archive + move (§9) | ✅ | ✅ | 🟡 | 🟡 | ✅ | ✅ | ✅ | 🟡 no exit | 🟡 |
+| Post-quantum | ⛔ **deferred, path recorded** (SPEC §13.5) | ❌ | ❌ | ❌ | ❌ | 🟡 | ❌ | 🟡 | ❌ | ❌ |
+| Self-host behind NAT | ✅ tunnels + sealed envelope (SPEC §10) | 🟡 BYO | 🟡 BYO | 🟡 | ✅ | 🟡 | ✅ | ✅ | ❌ | ✅ |
+| Provider-hostable, and leaveable | ✅ leaf + archive + move (SPEC §9) | ✅ | ✅ | 🟡 | 🟡 | ✅ | ✅ | ✅ | 🟡 no exit | 🟡 |
 | Ecosystem adoption | ❌ **one implementation** | ✅ strong | ✅ strong | 🟡 W3C CG, drafts | 🟡 DIF | 🟡 LF/IETF | ✅ | ✅ | 🟡 funded | ✅ large |
 
 **What the table says.** PACT owns four rows outright that nothing else in the survey holds together
@@ -443,9 +445,9 @@ are listed so that nobody re-proposes them as gaps.
 | Absent | Present in | Why adding it breaks PACT |
 |---|---|---|
 | A crawlable index of who exists | ANP `/.well-known/agent-descriptions`; A2A well-known card; NANDA | The spam model *is* the absence of one. "A bare fingerprint resolves to nothing." A published index means unsolicited reach, and the guest tier's two tools become the whole front door |
-| A stranger-callable capability surface | A2A `skills`; ANP ADP | §6.1 gives an unpinned chain the guest tier only, and §12 makes `blocked_or_unknown` "indistinguishable by design." Advertising capability to strangers is an oracle about who you are and what you run |
+| A stranger-callable capability surface | A2A `skills`; ANP ADP | SPEC §6.1 gives an unpinned chain the guest tier only, and SPEC §12 makes `blocked_or_unknown` "indistinguishable by design." Advertising capability to strangers is an oracle about who you are and what you run |
 | Semantic self-description in JSON-LD | ANP ADP | Same as above, plus a new untrusted-content surface: a description a stranger's model reads is a description an attacker writes |
-| Natural-language protocol negotiation | ANP meta-protocol | §7 already negotiates — *as conversation inside a thread*, "no negotiation state machine on the wire." That works because both sides already consented. Between strangers it would need the whole apparatus PACT removed |
+| Natural-language protocol negotiation | ANP meta-protocol | SPEC §7 already negotiates — *as conversation inside a thread*, "no negotiation state machine on the wire." That works because both sides already consented. Between strangers it would need the whole apparatus PACT removed |
 | Reputation, ranking, search | ERC-8004, NANDA | There is no population to rank. Trust in PACT is a human act with a cryptographic record, not a score |
 
 The right way to read ANP, therefore, is not as a superset of PACT. **It is what PACT would have to
@@ -458,7 +460,7 @@ These are real gaps. None of them requires a directory, a stranger, or an open n
 about two parties who have *already* consented.
 
 **1. No task handle. The clearest gap, and it is visible in the code.**
-`send_message` returns `status: delivered | queued_for_human` (§6.2). In the reference node that is
+`send_message` returns `status: delivered | queued_for_human` (SPEC §6.2). In the reference node that is
 literally all there is — `internal/messaging/service.go:122` declares
 `Status string // delivered | queued_for_human`. A request parked for a human has **no id, no state,
 no way to poll, and no way to cancel**. `msg_id` provides idempotency — a replay is acknowledged, not
@@ -468,17 +470,17 @@ A2A's Task object with `INPUT_REQUIRED` is precisely this, and `queued_for_human
 `INPUT_REQUIRED` without a handle.
 
 **2. No streaming and no push.** A2A has `SendStreamingMessage`, `SubscribeToTask` and
-push-notification webhooks with their own auth. PACT §7 retries with backoff until `expires`
+push-notification webhooks with their own auth. SPEC §7 retries with backoff until `expires`
 (default 24 h) and then reports failure to the sender's human. For a long negotiation or a slow tool,
 the peer learns nothing until it completes.
 
-**3. No structured artifacts.** `text` capped at 16 KiB plus `send_media` (§6.2), against A2A's
+**3. No structured artifacts.** `text` capped at 16 KiB plus `send_media` (SPEC §6.2), against A2A's
 Part (text / file / data) and Artifact. Two consented agents exchanging a structured proposal today
-must encode it in prose or a media blob. Note that §6.2 already anticipates the answer — *"anything
+must encode it in prose or a media blob. Note that SPEC §6.2 already anticipates the answer — *"anything
 else a person wants to expose to contacts … is just another MCP tool"* — so this is additive work,
 not architectural.
 
-**4. No forward secrecy — and this is where ANP is genuinely ahead.** §13.5 is explicit: HPKE Base
+**4. No forward secrecy — and this is where ANP is genuinely ahead.** SPEC §13.5 is explicit: HPKE Base
 mode to a long-lived leaf key means *"a later compromise of a leaf key decrypts ciphertext recorded
 while it was current,"* bounded only by the 300-second skew window and the leaf's ≤398-day life.
 **ANP 1.1 P5 designs X3DH-like session establishment with prekey bundles and Double-Ratchet-like
@@ -488,26 +490,26 @@ independent of the open-network thesis, and therefore the one most worth mining.
 is maturity: P5 is a Draft profile against community implementations, while PACT's sealing layer is
 shipped, vectored in Appendix B and proven by two independent ports.
 
-**5. No group security.** §7 is honest that multi-party is "parallel per-contact threads sharing a
+**5. No group security.** SPEC §7 is honest that multi-party is "parallel per-contact threads sharing a
 `topic` string — still like a CC line, no group crypto." **ANP P6 and AGNTCY/SLIM independently both
 chose MLS (RFC 9420)**, and Matrix is heading the same way. Two unrelated designs converging on the
 same answer is a strong signal about what the eventual answer is, if PACT ever needs real groups.
 
-**6. Metadata linkability — an admitted weakness with an unexplored remedy.** §13.5 concedes a
+**6. Metadata linkability — an admitted weakness with an unexplored remedy.** SPEC §13.5 concedes a
 carrier *"can tie every message to one recipient key for that leaf's life."* ANP's multi-DID strategy
 — a master DID plus scenario sub-DIDs with distinct keys — targets exactly this. PACT's structural
 analogue would be a **leaf per contact** rather than a leaf per identity, which would unlink
 correlation across contacts at the cost of more certificates. It is worth naming that this collides
-with a current rule: §9 states the wallet *"issues one live leaf per identity at a time … and MUST
+with a current rule: SPEC §9 states the wallet *"issues one live leaf per identity at a time … and MUST
 NOT issue a second while one is live except as its replacement,"* because contacts keep one pin and
-the newest leaf wins. Per-contact leaves would need §14.3's newest-leaf-wins rule scoped per contact.
+the newest leaf wins. Per-contact leaves would need SPEC §14.3's newest-leaf-wins rule scoped per contact.
 That is a real design question, not a small one — recorded here, not answered.
 
-**7. Payments.** §6.2's "integrations are tools" already covers the mechanism. AP2 is at v0.2 with
+**7. Payments.** SPEC §6.2's "integrations are tools" already covers the mechanism. AP2 is at v0.2 with
 its **A2A x402 extension described as production-ready** and named deployments (PayPal with Google
 Cloud's Conversational Commerce Agent; a Mastercard Agent Pay pilot), and x402 itself has Stripe and
 Cloudflare support. If PACT ever wants a payment request between contacts, it is an
-`integration.<name>` tool behind the §8 switchboard, and the wire format can be borrowed rather than
+`integration.<name>` tool behind the SPEC §8 switchboard, and the wire format can be borrowed rather than
 invented.
 
 ---
@@ -523,9 +525,9 @@ envelopes, the consent gate) and an agent layer (MCP tools, messages, threads) �
 between them. **It does not, and the reason is the most important structural fact about this
 protocol.**
 
-`SPEC.md` §6: *"Authorization is the proven chain, resolved to a pinned root … that identity selects
+SPEC §6: *"Authorization is the proven chain, resolved to a pinned root … that identity selects
 a tier and a permission profile, and MCP `tools/list` returns only what that caller may use."*
-§8: *"flip a switch → the tool disappears from that caller's `tools/list` and calls return
+SPEC §8: *"flip a switch → the tool disappears from that caller's `tools/list` and calls return
 `permission_denied`."*
 
 The permission switchboard is not a layer sitting above the agent layer. **It is the agent layer's
@@ -580,8 +582,8 @@ the owner's queue as a contact request. Authentication by A2A's own declared sch
 tier is untouched: still MCP, still mTLS, still sealed envelopes, still the switchboard.
 
 *Cost:* a new public surface with its own authentication and its own abuse surface, and node work to
-build it. **No change to §2, §6, §8, §13 or §14. No re-pin of the Wasm core, no new Appendix B
-vectors, no `PROOFS.md` churn, no change to either identity port.** §6 already blesses exactly this
+build it. **No change to SPEC §§2, 6, 8, 13 or 14. No re-pin of the Wasm core, no new Appendix B
+vectors, no `PROOFS.md` churn, no change to either identity port.** SPEC §6 already blesses exactly this
 shape: *"A separate OAuth-protected façade for third-party assistants can be added later without
 touching this protocol."*
 
@@ -598,8 +600,8 @@ is an owner's judgement, not a technical necessity.
 
 **Option B — A2A as the contact-tier wire, PACT as a required extension (the old DD1).**
 
-*Cost:* §6, §7 and §8 rewritten; the §12 conformance checklist re-derived; `PROOFS.md` re-derived;
-§13.2's inner payload re-specified — it currently pins `method` to `tools/call` or `tools/list` —
+*Cost:* SPEC §§6, 7 and SPEC §8 rewritten; the SPEC §12 conformance checklist re-derived; `PROOFS.md` re-derived;
+SPEC §13.2's inner payload re-specified — it currently pins `method` to `tools/call` or `tools/list` —
 and therefore Appendix B's envelope vectors re-cut and the Wasm core re-pinned; the node's harness
 and the cloud's conformance battery rewritten against a new surface. This is a release, not a
 mapping layer.
@@ -613,10 +615,10 @@ the whole exercise is not, in fact, bought.
 **Option C — adopt A2A's semantics without its wire.**
 Take the object model into PACT natively: a `task_id` on results that today say only
 `queued_for_human`, a small task state machine borrowed from A2A's (`working`, `input_required`,
-`completed`, `failed`, `canceled`), and `get_task` / `cancel_task` as new tools behind the §8
+`completed`, `failed`, `canceled`), and `get_task` / `cancel_task` as new tools behind the SPEC §8
 switchboard. Optionally borrow Part/Artifact shape for structured replies.
 
-*Cost:* additive only — new tools in §6.2, task states in §7, new errors in §12. No envelope change,
+*Cost:* additive only — new tools in SPEC §6.2, task states in SPEC §7, new errors in SPEC §12. No envelope change,
 no certificate change, no re-pin. Moderate, and entirely inside PACT's existing extension story
 ("integrations are tools").
 
@@ -646,8 +648,8 @@ is ever adopted, it becomes a plan item under `pact-gateway/docs/release/` and i
 
 **What ANP contributes to this recommendation is separate and narrower**: not its architecture, which
 §5.1 explains PACT should not adopt, but two specific constructions from its messaging profiles —
-**P5's ratchet** as the shape of an eventual answer to §13.5's admitted lack of forward secrecy, and
-**P6's use of MLS** as the shape of an eventual answer to §7's lack of group security. Both are
+**P5's ratchet** as the shape of an eventual answer to SPEC §13.5's admitted lack of forward secrecy, and
+**P6's use of MLS** as the shape of an eventual answer to SPEC §7's lack of group security. Both are
 independent of the open-network thesis; both are Draft; neither is urgent; both should be mined
 rather than depended on.
 
@@ -661,8 +663,8 @@ stated as the shipped specification holds it, with the section that binds it.
 without prior human consent on both sides; there is no directory, and a bare fingerprint resolves to
 nothing. *This replaces the previous DD1 ("layer on A2A v1.0 as a formal extension"), which was never
 argued down on its own merits — it left with the verb registry and the negotiation state machine when
-1.0 simplified, and §11 of `SPEC.md` does not list it among the drops. §6 above is the argument it
-never received.* (Front matter; §5; §6.1)
+1.0 simplified, and SPEC §11 does not list it among the drops. §6 above is the argument it
+never received.* (Front matter; SPEC §5; SPEC §6.1)
 
 **DD2 — The person is a certificate authority; the host holds a leaf.** An identity is the
 fingerprint of a self-signed X.509 root whose key lives in the person's wallet and signs nothing but
@@ -670,34 +672,34 @@ certificates. The host serves the identity under a leaf naming one endpoint, val
 days. The leaf's key does three jobs — TLS, envelope signature, sealing target — and the newest leaf
 at the pinned endpoint wins. *This replaces the previous DD3 ("identity is a DID with short-lived
 delegated agent keys"): X.509 has expressed the control/serve separation since 1988, and every TLS
-stack already validates it.* (§2, §9, §14)
+stack already validates it.* (SPEC §§2, 9, 14)
 
 **DD3 — Capabilities are MCP tools behind a per-contact switchboard.** Everything a contact may do is
 a tool; `tools/list` is computed per caller at call time; revoking a permission removes the tool.
-There is no verb registry, and new integrations need no protocol change. (§6, §8)
+There is no verb registry, and new integrations need no protocol change. (SPEC §§6, 8)
 
 **DD4 — Channel security where it survives, message security where it does not.** mTLS end-to-end
 where the transport permits it; past a terminating edge, the sealed envelope carries both identity
 and confidentiality — HPKE Base to the recipient's leaf key plus a detached signature by the
-sender's. Stated non-goal: no forward secrecy. (§13, §13.5)
+sender's. Stated non-goal: no forward secrecy. (SPEC §§13, 13.5)
 
 **DD5 — The consent gate is the spam model.** An unpinned chain reaches a guest tier of two tools at
 ten calls per hour; `blocked_or_unknown` is indistinguishable by design; invites carry expiry, use
-counts and server-side revocation. No admission tokens, no reputation, no ranking. (§5, §6.1, §12)
+counts and server-side revocation. No admission tokens, no reputation, no ranking. (SPEC §§5, 6.1, 12)
 
 **DD6 — Negotiation is conversation, not a state machine.** Agents negotiate inside a thread, with
 two structured calendar tools where structure genuinely matters — `check_availability` returns at
-most five policy-filtered slots and never raw free/busy. (§7)
+most five policy-filtered slots and never raw free/busy. (SPEC §7)
 
 **DD7 — Direct delivery only; being hosted is the answer to being offline.** No relay, no
 store-and-forward, no gateway that would see every sender, recipient and timestamp. A host runs the
 identity under a leaf the person issued and can be replaced without the person losing anything;
 moving is a new leaf, an archive carrying contacts and conversations and no keys, and a new-address
-contact request to everyone. (§7, §9)
+contact request to everyone. (SPEC §§7, 9)
 
 **DD8 — Nothing is recoverable that cannot be proven.** No root rotation and no recovery: a
 compromised root's holder could rotate too, so rotation could not distinguish the person from the
-thief. The person's backups are the only copy, and the wallet says so once. (§2, §11)
+thief. The person's backups are the only copy, and the wallet says so once. (SPEC §§2, 11)
 
 ---
 
@@ -710,10 +712,10 @@ thief. The person's backups are the only copy, and the wallet says so once. (§2
 | Tool/message surface | **Reused: MCP** (Streamable HTTP) | Integrations become tools; no verb registry to maintain |
 | Contact format | **Reused: vCard** with `X-PACT-*` properties | Shares the channels people already use |
 | Transport security | **Reused: TLS 1.3 / mTLS**; WebPKI or the contact's own chain | Every stack validates X.509 already |
-| Reachability for self-hosters | **Reused:** raw-TCP tunnels for end-to-end mTLS; terminating edges with `X-PACT-SEAL: required` | §10, and §3.4 above for the per-vendor detail |
+| Reachability for self-hosters | **Reused:** raw-TCP tunnels for end-to-end mTLS; terminating edges with `X-PACT-SEAL: required` | SPEC §10, and §3.4 above for the per-vendor detail |
 | Task semantics *(if §6.3's Option C is taken)* | **Reuse the model, not the wire:** A2A's Task states | Stress-tested by the A2A TSC; composes with a later façade |
 | Ecosystem reach *(if §6.3's Option A is taken)* | **Reuse: A2A** at the guest tier only | The installed base is the whole reason |
-| Forward secrecy *(not scheduled)* | **Mine ANP P5's shape** when it is taken up | §13.5 records the deferral; §5.2 item 4 records why P5 is the pattern |
+| Forward secrecy *(not scheduled)* | **Mine ANP P5's shape** when it is taken up | SPEC §13.5 records the deferral; §5.2 item 4 records why P5 is the pattern |
 | Group security *(not scheduled)* | **Mine MLS (RFC 9420)** when it is taken up | ANP P6 and AGNTCY/SLIM converged on it independently |
 | Directory, key transparency, relay, mailbox | **Not built, by decision** | ⛔ rows in §4; see DD1 and DD7 |
 
@@ -734,7 +736,7 @@ in the existing ecosystem can ask to become a contact. This is the only item on 
 changes PACT's strategic position rather than its feature list, and the reason is §10's first
 paragraph.
 
-**Later, and unscheduled — the deferred cryptography.** Post-quantum first, on the path §13.5 already
+**Later, and unscheduled — the deferred cryptography.** Post-quantum first, on the path SPEC §13.5 already
 records (sealing before signatures; a hybrid KEM in the leaf; the card as a pointer). Forward secrecy
 and group security after, on the shapes §8 names. None of these is urgent; all of them are recorded
 so that they are not reinvented.
@@ -792,8 +794,8 @@ sealed envelope, in reduced form. PACT 2.0 introduced the root/leaf certificate 
 
 The full disposition table is preserved in `archive/design-study-v0.1.md` and in this file's git
 history. Two of its findings remain live against shipped PACT and are carried into §5.2 above rather
-than left here: **S6** (no forward secrecy — deferred then, deferred now, §13.5) and **S14/S17**
-(metadata exposure — admitted then, admitted now, §13.5 and §5.2 item 6). Everything else in that
+than left here: **S6** (no forward secrecy — deferred then, deferred now, SPEC §13.5) and **S14/S17**
+(metadata exposure — admitted then, admitted now, SPEC §13.5 and §5.2 item 6). Everything else in that
 table refers to machinery that no longer exists.
 
 ---
@@ -824,9 +826,9 @@ re-verification, and it is stated as such rather than silently upgraded.
 | Privacy Pass RFC 9576 and deployments | **Secondary** — RFC listing and Cloudflare docs via search | |
 | Tailnet Lock general availability | **Secondary** — Tailscale docs and announcement via search | |
 | SPIFFE/SPIRE federation, Matrix cross-signing | **Secondary** — project docs via search | Model unchanged; no material 2026 change found |
-| **Tailscale Funnel TLS behaviour, both modes** | **Primary** — Tailscale Funnel KB and CLI reference | Checked specifically because `SPEC.md` §10 makes a claim about it. **§10 is correct** for raw `--tcp`; the default HTTPS mode terminates on-device. Recorded in §3.4 because the distinction is easy to misconfigure |
-| ngrok edge mTLS and TLS termination | **Secondary** — ngrok documentation via search | Enough to confirm §10's division; the header-forwarding detail is ngrok's own wording |
-| Cloudflare Tunnel termination; AOP incompatible with Tunnel | **Secondary** — Cloudflare docs via search | The AOP point is new and strengthens §10 rather than challenging it |
+| **Tailscale Funnel TLS behaviour, both modes** | **Primary** — Tailscale Funnel KB and CLI reference | Checked specifically because SPEC §10 makes a claim about it. **SPEC §10 is correct** for raw `--tcp`; the default HTTPS mode terminates on-device. Recorded in §3.4 because the distinction is easy to misconfigure |
+| ngrok edge mTLS and TLS termination | **Secondary** — ngrok documentation via search | Enough to confirm SPEC §10's division; the header-forwarding detail is ngrok's own wording |
+| Cloudflare Tunnel termination; AOP incompatible with Tunnel | **Secondary** — Cloudflare docs via search | The AOP point is new and strengthens SPEC §10 rather than challenging it |
 | Pangolin (AGPL-3.0, WireGuard, Fossorial) | **Secondary** — project and third-party writeups via search | **TLS-passthrough and client-certificate behaviour NOT verified.** The previous revision's characterisation is carried; do not cite it as checked |
 | **Blockit** — loop, funding, 100k+ meetings | **Secondary** — TechCrunch and the company's own blog via search | Load-bearing for §3.3, §9 and §10. Figures are the company's own claim, reported by a third party; treat as a vendor claim, not a measurement |
 | Cal.com v6.3 Agents (Mar 2026) | **Secondary** — Cal.com release blog via search | |
@@ -849,7 +851,7 @@ re-verification, and it is stated as such rather than silently upgraded.
 `agent-network-protocol.com` (ANP 1.1 white paper, `did:wba` method, ANP-06, instant-messaging
 profiles) · `datatracker.ietf.org` (`draft-mpsb-agntcy-slim`, `draft-mpsb-agntcy-messaging`,
 `draft-ietf-wimse-wpt`, `draft-ietf-wimse-arch`, RFC 9576) · `identity.foundation` (DIDComm v2) ·
-W3C AI Agent Protocol Community Group · RFCs cited in `SPEC.md` §19.
+W3C AI Agent Protocol Community Group · the RFCs cited throughout SPEC §§13 and 14.
 
 **Security machinery.** `signal.org` (Automatic Key Verification, August 2026) · `github.com/facebook/akd` ·
 `security.apple.com` (Contact Key Verification) · `matrix.org` (cross-signing) · `spiffe.io`
