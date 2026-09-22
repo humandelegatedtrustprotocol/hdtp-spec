@@ -661,10 +661,14 @@ stated as the shipped specification holds it, with the section that binds it.
 
 **DD1 — PACT is a closed network, and nearly everything else follows.** No relationship exists
 without prior human consent on both sides; there is no directory, and a bare fingerprint resolves to
-nothing. *This replaces the previous DD1 ("layer on A2A v1.0 as a formal extension"), which was never
-argued down on its own merits — it left with the verb registry and the negotiation state machine when
-1.0 simplified, and SPEC §11 does not list it among the drops. §6 above is the argument it
-never received.* (Front matter; SPEC §5; SPEC §6.1)
+nothing. *This replaces the previous DD1 ("layer on A2A v1.0 as a formal extension"), which was
+never argued down on its own merits, and the evidence for that is checkable: the hardened draft
+carried a normative "§8 Message layer: A2A profile" and defined PACT as "an extension profile of
+A2A version 1.0"; shipped `SPEC.md` contains no A2A at all; and no document in this repository
+gives a reason for the removal. SPEC §11's list of what 1.0 dropped names DIDs, SAS wordlists,
+per-pact route keys, the verb registry and the negotiation state machine — but not A2A, which
+appears to have left as collateral of the verb registry. §6 above is the argument it never
+received.* (Front matter; SPEC §5; SPEC §6.1)
 
 **DD2 — The person is a certificate authority; the host holds a leaf.** An identity is the
 fingerprint of a self-signed X.509 root whose key lives in the person's wallet and signs nothing but
@@ -840,6 +844,7 @@ re-verification, and it is stated as such rather than silently upgraded.
 | **ANEX dormancy** | **Primary** — GitHub API on the repository | 3 stars, last commit 2024-12-10, not archived |
 | agentgateway at the Linux Foundation; ContextForge scope | **Secondary** — Linux Foundation press and IBM docs via search | |
 | Schedulers (Skej, Howie, Reclaim, Motion, Ohai, Clara, x.ai) | **Carried / secondary** — aggregator reviews only | Positions unchanged from the previous revision; **no vendor-primary verification.** Ohai's cross-household sync remains unverified, as before |
+| **DD1's claim that A2A was never argued down** | **Primary** — `archive/hardened-draft-spec.md` and `SPEC.md` | The hardened draft has a normative "§8 Message layer: A2A profile"; shipped `SPEC.md` has no A2A; SPEC §11's drop list omits it; no rationale found anywhere in the repository |
 | Every PACT claim in this document | **Primary** — `SPEC.md` 2.1.3, cited by section | The `queued_for_human` claim in §5.2 additionally checked against the reference node at `internal/messaging/service.go:122` |
 
 ---
