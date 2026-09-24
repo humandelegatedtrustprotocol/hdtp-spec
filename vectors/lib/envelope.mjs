@@ -96,6 +96,10 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   // A signature that does not read is no signature: it fails below, in the words of the form it came in.
   const signed = Buffer.concat([aad, enc, ct]), sig = wireB64url(envelope.sig) ?? Buffer.alloc(0);
   const tool = body.params?.name;
+  // What a `pending_out` pin may do (§6.1): call one of the pending tier's tools, or list them. A
+  // listing names no tool, and `tools/list` answers what the caller's tier may use, so a pending
+  // contact's sealed listing answers at the pending tier. Anything else waits for the approval.
+  const pendingAllows = body.method === 'tools/list' || PENDING_TOOLS.includes(tool);
   const freshness = () => {
     if (header.cty !== 'application/pact-call+json') return invalid('not a request');
     const nowS = Math.floor(node.now / 1000);
@@ -119,7 +123,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
     if (!verifyDetached(held.publicKey, signed, sig)) return chainRequired;
     const early = freshness(); if (early) return early;
     const result = (tier) => { node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint: p.endpoint, method: body.method, tool, form: 'leaf' }; };
-    if (p.state === 'pending_out') return PENDING_TOOLS.includes(tool) ? result('pending') : { code: 'pending_approval' };
+    if (p.state === 'pending_out') return pendingAllows ? result('pending') : { code: 'pending_approval' };
     return result('contact');
   }
 
@@ -169,6 +173,6 @@ export function receive(node, envelope, { siblings = [] } = {}) {
     node.events.push({ event: 'new_address', root, endpoint });
   } else if (cmp === 'newer') { p.leafDer = chain[0]; node.events.push({ event: 'renewal', root }); }
 
-  if (p.state === 'pending_out') return PENDING_TOOLS.includes(tool) ? result('pending') : { code: 'pending_approval' };
+  if (p.state === 'pending_out') return pendingAllows ? result('pending') : { code: 'pending_approval' };
   return result('contact');
 }

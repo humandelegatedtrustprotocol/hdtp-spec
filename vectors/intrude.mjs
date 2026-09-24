@@ -101,6 +101,18 @@ scenario('identity', 'former host\'s superseded leaf cannot claim any address', 
   receive(b, update(hostN, [fresh(hostN, E_N), ROOT_A], LEAF_B));
   return receive(b, update(hostA, chainA, LEAF_B));
 });
+// §6.1: a caller at the pending tier may list its two tools, and nothing else passes before the
+// owner decides. The listing is the control that must get through; the message must not.
+scenario('identity', 'a contact still pending_out lists the pending tier (baseline)', blockedIf((r) => r.code === 'ok' && r.tier === 'pending' && r.method === 'tools/list'), () => {
+  const b = makeNode({ path: '/bharat', leafKey: hostB.sign, chain: chainB, now: NOW });
+  pin(b, FP_A, { endpoint: E_A, leafDer: LEAF_A, state: 'pending_out' });
+  return receive(b, env({ senderKey: hostA.sign, senderChain: chainA, recipientLeaf: LEAF_B, method: 'tools/list', params: {} }));
+});
+scenario('identity', 'a contact still pending_out cannot message before accepting', blockedIf((r) => r.code === 'pending_approval'), () => {
+  const b = makeNode({ path: '/bharat', leafKey: hostB.sign, chain: chainB, now: NOW });
+  pin(b, FP_A, { endpoint: E_A, leafDer: LEAF_A, state: 'pending_out' });
+  return receive(b, message(hostA, chainA, LEAF_B));
+});
 scenario('identity', 'a contact still pending_out moves before accepting (auto)', blockedIf((r) => r.tier === 'pending'), () => {
   const b = makeNode({ path: '/bharat', leafKey: hostB.sign, chain: chainB, now: NOW });
   pin(b, FP_A, { endpoint: E_A, leafDer: LEAF_A, state: 'pending_out' });

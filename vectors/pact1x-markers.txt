@@ -26,11 +26,14 @@ accept_1x|accept1x|Accept1x|notified_1x|identity\.upgraded
 contacts1x|OneXArchiveRefused|ONE_X_ARCHIVE
 EncodeCompatCard|encode_compat|card\.compat
 # The relay role: mode, env, routes, tools, tables, delivery state, audit actions.
-relay-assisted|RelayAssisted|PACT_RELAY|PACT_GATEWAY_|/relay/mcp
+[Rr]elay-assisted|RelayAssisted|PACT_RELAY|PACT_GATEWAY_|/relay/mcp
 relay_allowlist|relay_queue|relay_call|relay_ack|relay_fetch|relay_process|fetch_queued|queued_at_relay
 # The relay role's settings. The node dropped them with the role; the hosted platform went on
 # reporting all four as locked knobs, with reasons citing a section the specification no longer has.
 relay_recipients|gateway_fingerprint|gateway_url
+# The relay's delivery path, which outlived the role in code: an envelope's delivery kind (a relay
+# fetch exempt from the timestamp window), and the recipient list's parse and render helpers.
+DeliveryRelay|SplitRecipients|JoinRecipients|relay fetch
 # Contact sync: every contact of an account, on a timer or on request.
 sync_contacts|SyncContacts|syncContacts
 # Bundles that carried a key.
