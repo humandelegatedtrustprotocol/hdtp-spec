@@ -330,7 +330,7 @@ flowchart TD
     F -- "active,<br/>pinned endpoint" --> A["CONTACT tier<br/>tools filtered by this contact's<br/>permission profile (§8)"]
 ```
 
-A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way through: that is a renewal, learned (§2). A guest whose endpoint belongs to a pinned contact, or did within 30 days, reaches the owner with that contact's name beside it and is never auto-accepted (§5).
+A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way through: that is a renewal, learned (§2). A caller at the pending tier MAY list its tools: its `tools/list` MUST answer at the pending tier, naming `contact_accepted` and `contact_rejected`, and every other call from it MUST answer `pending_approval` until the owner decides. A guest whose endpoint belongs to a pinned contact, or did within 30 days, reaches the owner with that contact's name beside it and is never auto-accepted (§5).
 
 ### 6.2 Core tools
 
@@ -361,7 +361,7 @@ All tools return MCP tool results; errors use the codes of §12. `msg_id`-bearin
 | `check_availability` | `calendar.availability` | `window {from,to,tz}`, `duration_min` | `slots: [≤5 of {start,end,tz}]` |
 | `book_slot` | `calendar.book` | `msg_id`, `slot`, `subject`, `thread_id?` | `booking_id`, `ics` |
 | `cancel_booking` | `calendar.book` | `booking_id`, `reason?` | `ok` |
-| `update_contact` | (always) | `card` (new) | `ok` — a card refresh, or `status: pending` from a new address under `ask` (§5.3). The caller's chain is the authority: the card's certificate MUST equal the chain's leaf |
+| `update_contact` | (always) | `card` (new) | `ok` — a card refresh, or `status: pending` from a new address under `ask` (§5.3). The caller's chain is the authority: the card's certificate MUST equal the chain's leaf, and a card that names another root or carries a certificate that is not that leaf MUST be refused `bad_request`, the card-intake code of §3 |
 | `remove_contact` | (always) | — | `ok` |
 | `get_card` | (always) | — | `card` (current signed vCard), `card_sig` (by the leaf key), `chain` (§2) — always the chain, which is how a caller that cannot verify a result gets it (§13.2) — `limits` (§12) |
 
