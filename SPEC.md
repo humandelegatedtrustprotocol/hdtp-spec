@@ -489,7 +489,7 @@ A host asks a web wallet for a leaf with a **signing request**: an HTML form sub
 | `state` | 32 random bytes, base64url without padding — exactly 43 characters — minted by the host for this request; the wallet echoes it and reads nothing in it |
 | `recipient` | at most 200 characters: what the host calls itself, which is the host's own claim |
 | `valid_days` | the validity the host suggests, in days: a decimal integer from 1 to 398, with no leading zero |
-| `expires` | an RFC 3339 time at most ten minutes after the request is made |
+| `expires` | an RFC 3339 instant in UTC — ending in `Z`, with a fraction of a second, where there is one, after a `.` and never a `,` — at most ten minutes after the request is made |
 
 A wallet MUST refuse a request that is not a top-level navigation, as the browser's fetch metadata reports it (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`), so that a script on another page cannot probe it. A wallet MUST refuse a request whose `Origin` is absent, `null`, or different from the origin of `redirect`: the host that asks is the host that collects. A wallet MUST refuse a request with a field the table above does not list, a field that is not a string, or a field that breaks the table, and a request that has expired or expires more than ten minutes ahead. A wallet MUST refuse a request whose CSR fails the checks of §9 — its own signature, and a key that is not a root — or names an endpoint that is not in the normal form of §14.1 or fails the address guard of §3.
 
