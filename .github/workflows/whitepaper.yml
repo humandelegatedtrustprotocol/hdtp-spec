@@ -11,10 +11,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Mapped here because `if:` cannot read secrets directly; the publish step tests the env.
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    # Builds and checks only. Publishing is local and the owner's (`make publish`): no Cloudflare
+    # credential is given to CI (the umbrella's standing rule 4).
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -39,8 +37,3 @@ jobs:
           path: dist/pact-whitepaper.pdf
           if-no-files-found: error
 
-      - name: Publish to R2
-        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
-        run: |
-          npx wrangler r2 object put pact-cloud-private/pact-whitepaper.pdf --file dist/pact-whitepaper.pdf --remote
-          npx wrangler r2 object put pact-cloud-private/pact-whitepaper.meta.json --file dist/pact-whitepaper.meta.json --content-type application/json --remote
