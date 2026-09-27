@@ -504,7 +504,7 @@ A host MUST accept an answer only once, only with the `state` it minted for a pe
 An **export** is the file that carries a person's contacts, conversations and files from one host to another, and the archive of §9 is an export. It is one zip file, and it is **not encrypted**, so that any host can import it. It holds no key of any kind — neither the host's nor the person's — and is not the file of §9 that backs up a root: a wallet's export of its root (§2.1) is that file, and never this one. The name of the file is not significant; an importer reads nothing from it.
 
 ```
-manifest.json      format version, owner, time, counts, the sha256 of every other member
+manifest.json      format version, owner, time, counts, the sha256 of each text member
 contacts.csv       one row per contact
 threads.csv        one row per thread; several threads per contact
 messages.jsonl     one JSON object per line: bodies, replies, attachments
