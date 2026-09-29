@@ -2,9 +2,11 @@
 // Reads the vectors from SPEC.md itself, so the bytes in the document are the bytes proven.
 import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
-import { open, verifyDetached, suiteForLeaf } from './lib/hpke.mjs';
-import { validateChain, compareLeaves, parse, profileError } from './lib/x509.mjs';
-import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, spkiOf } from './lib/keys.mjs';
+import { open, verifyDetached, suiteForLeaf, suiteForKey, sealDeterministic, signDetached } from './lib/hpke.mjs';
+import { validateChain, compareLeaves, parse, profileError, buildRoot, buildLeaf, fingerprintOf } from './lib/x509.mjs';
+import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, spkiOf, seed } from './lib/keys.mjs';
+import { canonical } from './lib/canonical.mjs';
+import { makeNode, pin, receive } from './lib/envelope.mjs';
 
 const specPath = new URL('../SPEC.md', import.meta.url);
 const spec = readFileSync(specPath, 'utf8');
@@ -127,6 +129,50 @@ if (!v2) {
     console.log(`  ${d.label} (${d.info}): ${d.fingerprint ?? 'seed only'}`);
   }
   ok((v2.derivation ?? []).length >= 3, 'all three info strings are covered');
+}
+
+// The receiving node reads a header and a body as JSON exactly when every port does
+// (pact-identity CONTRACT §0): a number that is infinite as a double (`1e400`) or containers nested
+// more than 127 deep is not JSON. JSON.parse read 1e400 as Infinity, and the node decided `ok` on a
+// validly signed call whose body held one, where both ports refuse it. The body and header are
+// written as text, because JSON.stringify writes 1e400 as null; the controls hold the largest double
+// and 127 deep, and are decided.
+console.log('JSON as the ports read it (§13.1, §13.3)');
+{
+  const at = (iso) => new Date(iso), now = at('2026-09-13T12:00:00Z'), nowS = Math.floor(now / 1000);
+  const key = (label) => ed25519FromSeed(seed('check/json/' + label));
+  const rootA = key('root/a'), hostA = key('host/a'), rootB = key('root/b'), hostB = key('host/b');
+  const whole = { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z') };
+  const ROOT_A = buildRoot({ cn: 'A', key: rootA, notBefore: whole.notBefore, label: 'check/json/root/a' });
+  const ROOT_B = buildRoot({ cn: 'B', key: rootB, notBefore: whole.notBefore, label: 'check/json/root/b' });
+  const LEAF_A = buildLeaf({ cn: 'A', rootCn: 'A', root: rootA, hostKey: hostA, endpoint: 'https://a.example/mcp', ...whole, label: 'check/json/leaf/a' });
+  const LEAF_B = buildLeaf({ cn: 'B', rootCn: 'B', root: rootB, hostKey: hostB, endpoint: 'https://b.example/mcp', ...whole, label: 'check/json/leaf/b' });
+  const node = () => {
+    const n = makeNode({ path: '/b', leafKey: hostB, chain: [LEAF_B, ROOT_B], now });
+    pin(n, fingerprintOf(parse(ROOT_A)), { endpoint: 'https://a.example/mcp', leafDer: LEAF_A });
+    return n;
+  };
+  let msg = 0;
+  const call = (argsText, header = (t) => t) => {
+    const to = parse(LEAF_B).publicKey, suite = suiteForKey(to);
+    const aad = Buffer.from(header(canonical({ v: 2, suite, kid: fingerprint(to), msg_id: 'json-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/pact-call+json' })));
+    const body = `{"method":"tools/call","params":{"name":"send_message","arguments":${argsText}},"chain":${JSON.stringify([b64url(LEAF_A), b64url(ROOT_A)])}}`;
+    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('PACT-SEAL-v2'), aad, Buffer.from(body), Buffer.alloc(32, 9));
+    return { protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(signDetached(hostA.priv, Buffer.concat([aad, enc, ct]))) };
+  };
+  // The body is the first container and params the second; `arguments` is the rest.
+  const nested = (n) => '['.repeat(n) + '1' + ']'.repeat(n);
+  for (const [what, envelope, want] of [
+    ['a body holding a number past the largest double', call('{"n":1e400}'), 'envelope_invalid: does not open'],
+    ['a body nested 128 deep', call(nested(126)), 'envelope_invalid: does not open'],
+    ['a header holding a ts past the largest double', call('{}', (t) => t.replace(`"ts":${nowS}`, '"ts":1e400')), 'envelope_invalid: protected is not JSON'],
+    ['a body holding the largest double (the control)', call('{"n":1.7976931348623157e308}'), 'ok'],
+    ['a body nested 127 deep (the control)', call(nested(125)), 'ok'],
+  ]) {
+    const r = receive(node(), envelope), got = r.why ? `${r.code}: ${r.why}` : r.code;
+    ok(got === want, `${what}: ${want}, not ${got}`);
+    console.log(`  ${what}: ${got}`);
+  }
 }
 
 console.log(`${checks - failures}/${checks} checks passed`);
