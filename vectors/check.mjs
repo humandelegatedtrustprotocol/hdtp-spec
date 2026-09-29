@@ -219,5 +219,72 @@ console.log('keys outside the profile (§14.1)');
   }
 }
 
+// Bytes this library did not write are read as both pact-identity ports read them (its CONTRACT §0):
+// base64url, forgiving the padding and the standard alphabet, and nothing else — a card's certificate,
+// and the chain in a peer's plaintext. Buffer.from skipped a stray character, so a card carrying one was
+// taken here and by the Go port and a chain carrying one validated, where the Rust core refused each
+// (the port-parity audit of 2026-09-29: R24, T11, C7, T10). An empty X-PACT-VERSION names no version.
+// The controls — padded, and in the standard alphabet — read.
+console.log('bytes this library did not write (§3, §13.3)');
+{
+  const { strictB64url } = await import('./lib/keys.mjs');
+  const { decodeCard, encodeCard } = await import('./lib/card.mjs');
+  for (const [text, want] of [
+    ['AQID', '010203'], ['AQ', '01'], ['AQ==', '01'], ['AQ===', '01'], ['+/8', 'fbff'], ['-_8', 'fbff'],
+    ['A Q', null], ['A\tQ', null], ['A\nQ', null], ['AQ==\n', null], ['A\u000bQ', null], ['A Q', null],
+    ['A', null], ['A=Q', null], ['AR', null], ['AQ!', null], ['A.Q', null], [7, null],
+  ]) {
+    const got = strictB64url(text);
+    ok((got === null ? null : got.toString('hex')) === want, `strictB64url(${JSON.stringify(text)}) is ${want ?? 'refused'}, not ${got === null ? 'refused' : got.toString('hex')}`);
+  }
+  const at = (iso) => new Date(iso), now = at('2026-09-13T12:00:00Z'), nowS = Math.floor(now / 1000);
+  const key = (label) => ed25519FromSeed(seed('check/strict/' + label));
+  const rootA = key('root/a'), hostA = key('host/a'), rootB = key('root/b'), hostB = key('host/b');
+  const whole = { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z') };
+  const ROOT_A = buildRoot({ cn: 'A', key: rootA, notBefore: whole.notBefore, label: 'check/strict/root/a' });
+  const ROOT_B = buildRoot({ cn: 'B', key: rootB, notBefore: whole.notBefore, label: 'check/strict/root/b' });
+  const LEAF_A = buildLeaf({ cn: 'A', rootCn: 'A', root: rootA, hostKey: hostA, endpoint: 'https://a.example/mcp', ...whole, label: 'check/strict/leaf/a' });
+  const LEAF_B = buildLeaf({ cn: 'B', rootCn: 'B', root: rootB, hostKey: hostB, endpoint: 'https://b.example/mcp', ...whole, label: 'check/strict/leaf/b' });
+  const leafText = b64url(LEAF_A), pad = '='.repeat((4 - (leafText.length % 4)) % 4);
+  const stray = leafText.slice(0, 8) + '!' + leafText.slice(8);
+  const withCert = (value) => `BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nX-PACT-VERSION:2\r\nX-PACT-CERT:${value}\r\nEND:VCARD\r\n`;
+  for (const [what, value, want] of [
+    ['a stray character', stray, 'certificate does not parse: not base64url'],
+    ['a no-break space', leafText.slice(0, 8) + ' ' + leafText.slice(8), 'certificate does not parse: not base64url'],
+    ['a space', leafText.slice(0, 8) + ' ' + leafText.slice(8), 'certificate does not parse: not base64url'],
+    ['padding inside', leafText.slice(0, 8) + '=' + leafText.slice(8), 'certificate does not parse: not base64url'],
+    ['nothing wrong with it (the control)', leafText, 'read'],
+    ['padding at the end (the control)', leafText + pad, 'read'],
+    ['the standard alphabet (the control)', leafText.replace(/-/g, '+').replace(/_/g, '/'), 'read'],
+  ]) {
+    const card = decodeCard(withCert(value)), got = card.error ? card.why : card.cert.equals(LEAF_A) ? 'read' : 'another certificate';
+    ok(got === want, `a card whose certificate has ${what}: ${want}, not ${got}`);
+  }
+  const empty = decodeCard(encodeCard({ fn: 'A', cert: LEAF_A }).replace('X-PACT-VERSION:2', 'X-PACT-VERSION:'));
+  ok(empty.why === 'no X-PACT-VERSION', `a card with an empty X-PACT-VERSION: no X-PACT-VERSION, not ${empty.why}`);
+  const node = () => {
+    const n = makeNode({ path: '/b', leafKey: hostB, chain: [LEAF_B, ROOT_B], now });
+    pin(n, fingerprintOf(parse(ROOT_A)), { endpoint: 'https://a.example/mcp', leafDer: LEAF_A });
+    return n;
+  };
+  let msg = 0;
+  const call = (chain) => {
+    const to = parse(LEAF_B).publicKey, suite = suiteForKey(to);
+    const aad = Buffer.from(canonical({ v: 2, suite, kid: fingerprint(to), msg_id: 'strict-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/pact-call+json' }));
+    const body = JSON.stringify({ method: 'tools/call', params: { name: 'send_message', arguments: {} }, chain });
+    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('PACT-SEAL-v2'), aad, Buffer.from(body), Buffer.alloc(32, 9));
+    return { protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(signDetached(hostA.priv, Buffer.concat([aad, enc, ct]))) };
+  };
+  for (const [what, member, want] of [
+    ['a stray character', stray, 'envelope_invalid: plaintext shape'],
+    ['a vertical tab', leafText.slice(0, 8) + '\u000b' + leafText.slice(8), 'envelope_invalid: plaintext shape'],
+    ['padding (the control)', leafText + pad, 'ok'],
+  ]) {
+    const r = receive(node(), call([member, b64url(ROOT_A)])), got = r.why ? `${r.code}: ${r.why}` : r.code;
+    ok(got === want, `a chain in the plaintext whose leaf has ${what}: ${want}, not ${got}`);
+    console.log(`  a chain in the plaintext whose leaf has ${what}: ${got}`);
+  }
+}
+
 console.log(`${checks - failures}/${checks} checks passed`);
 process.exit(failures ? 1 : 0);
