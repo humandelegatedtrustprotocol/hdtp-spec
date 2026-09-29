@@ -11,7 +11,6 @@ export const HEADER_MEMBERS = 'cty,exp,kid,msg_id,suite,ts,v';
 // implementations cannot disagree about what was signed; latitude in the types reopens the same gap,
 // since `"1757000000"` and `1757000000` are different bytes under one signature and compare alike.
 const INTEGER_MEMBERS = ['v', 'ts', 'exp'], STRING_MEMBERS = ['suite', 'kid', 'msg_id', 'cty'];
-const isInt = (n) => typeof n === 'number' && Number.isSafeInteger(n);
 // JSON as every port reads it (pact-identity CONTRACT §0): a number that is infinite as a double
 // (`1e400`) and containers nested more than 127 deep are text that is not JSON. One port's parser
 // refuses both and another's reads them, so both ports refuse them; JSON.parse read `1e400` as
@@ -26,7 +25,29 @@ function readJSON(bytes) {
   if (v !== null && typeof v === 'object' && nestedPast(v, 1)) throw new Error('nested more than 127 deep');
   return v;
 }
-const headerTypesOk = (h) => INTEGER_MEMBERS.every((k) => isInt(h[k])) && STRING_MEMBERS.every((k) => typeof h[k] === 'string');
+// An integer is what every port reads as one (pact-identity CONTRACT §0; serde_json's `as_i64`): an
+// optional minus and digits, no fraction and no exponent, within 64 bits, and not `-0`, which
+// serde_json reads as a float. JSON.parse keeps no spelling — `-0`, `1757764800.0` and `1.7577648e9`
+// read as the integers they name, and a ts past 2^53 but within 64 bits was refused here for its size
+// where the ports read it and judged its time — so the header's integers are judged on their text,
+// which JSON.parse's reviver hands over (Node 21 and later). A runtime that does not is refused
+// loudly rather than read loosely.
+const INTEGER_TEXT = /^-?(0|[1-9][0-9]*)$/;
+const I64 = [-(2n ** 63n), 2n ** 63n - 1n];
+const integerText = (t) => typeof t === 'string' && INTEGER_TEXT.test(t) && t !== '-0' && BigInt(t) >= I64[0] && BigInt(t) <= I64[1];
+function spellings(bytes) {
+  const spelled = {};
+  JSON.parse(bytes.toString(), (k, x, context) => {
+    if (typeof x === 'number') {
+      if (typeof context?.source !== 'string') throw new Error("this runtime's JSON.parse hands no number its text");
+      spelled[k] = context.source;
+    }
+    return x;
+  });
+  return spelled;
+}
+const headerTypesOk = (h, spelled) =>
+  INTEGER_MEMBERS.every((k) => typeof h[k] === 'number' && integerText(spelled[k])) && STRING_MEMBERS.every((k) => typeof h[k] === 'string');
 export const SKEW_S = 300;
 export const MAX_LIFETIME_S = 30 * 86_400; // §13.1: exp − ts is at most 30 days
 export const CLAIM_WINDOW_MS = 30 * 86_400_000;
@@ -85,7 +106,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   if (!aad) return invalid('protected is not JSON');
   try { header = readJSON(aad); } catch { return invalid('protected is not JSON'); }
   if (Object.keys(header).sort().join(',') !== HEADER_MEMBERS) return invalid('header members');
-  if (!headerTypesOk(header)) return invalid('header member types');
+  if (!headerTypesOk(header, spellings(aad))) return invalid('header member types');
   if (header.v !== 2 || !SUITES[header.suite]) return invalid('version or suite');
 
   const held = node.keys.find((k) => k.kid === header.kid && (k.current || node.now <= k.notAfter));
