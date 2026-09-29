@@ -136,7 +136,9 @@ if (!v2) {
 // more than 127 deep is not JSON. JSON.parse read 1e400 as Infinity, and the node decided `ok` on a
 // validly signed call whose body held one, where both ports refuse it. The body and header are
 // written as text, because JSON.stringify writes 1e400 as null; the controls hold the largest double
-// and 127 deep, and are decided.
+// and 127 deep, and are decided. A header's integers likewise: the ports read `-0`, `1757764800.0`
+// and a number past 64 bits as no integer, and this node read the first two as integers and refused a
+// ts past 2^53 that the ports read and judged by its time.
 console.log('JSON as the ports read it (§13.1, §13.3)');
 {
   const at = (iso) => new Date(iso), now = at('2026-09-13T12:00:00Z'), nowS = Math.floor(now / 1000);
@@ -166,6 +168,16 @@ console.log('JSON as the ports read it (§13.1, §13.3)');
     ['a body holding a number past the largest double', call('{"n":1e400}'), 'envelope_invalid: does not open'],
     ['a body nested 128 deep', call(nested(126)), 'envelope_invalid: does not open'],
     ['a header holding a ts past the largest double', call('{}', (t) => t.replace(`"ts":${nowS}`, '"ts":1e400')), 'envelope_invalid: protected is not JSON'],
+    // The header's integers, judged on their text as the ports read them (serde_json's `as_i64`):
+    // -0, a fraction and an exponent are not integers, however JSON.parse reads them; past 64 bits is
+    // not one either; past 2^53 and within 64 bits is one, and is judged by its time, as the ports
+    // judge it.
+    ['a header whose ts is -0', call('{}', (t) => t.replace(`"ts":${nowS}`, '"ts":-0')), 'envelope_invalid: header member types'],
+    ['a header whose exp is -0', call('{}', (t) => t.replace(`"exp":${nowS + 600}`, '"exp":-0')), 'envelope_invalid: header member types'],
+    ['a header whose ts is written with a fraction', call('{}', (t) => t.replace(`"ts":${nowS}`, `"ts":${nowS}.0`)), 'envelope_invalid: header member types'],
+    ['a header whose ts is written with an exponent', call('{}', (t) => t.replace(`"ts":${nowS}`, `"ts":${(nowS / 1e8).toString()}e8`)), 'envelope_invalid: header member types'],
+    ['a header whose ts is past 64 bits', call('{}', (t) => t.replace(`"ts":${nowS}`, '"ts":9223372036854775808')), 'envelope_invalid: header member types'],
+    ['a header whose ts is past 2^53 and within 64 bits', call('{}', (t) => t.replace(`"ts":${nowS}`, '"ts":9223372036854775807')), 'envelope_invalid: outside the time window'],
     ['a body holding the largest double (the control)', call('{"n":1.7976931348623157e308}'), 'ok'],
     ['a body nested 127 deep (the control)', call(nested(125)), 'ok'],
   ]) {
