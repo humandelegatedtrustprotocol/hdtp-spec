@@ -12,6 +12,20 @@ export const HEADER_MEMBERS = 'cty,exp,kid,msg_id,suite,ts,v';
 // since `"1757000000"` and `1757000000` are different bytes under one signature and compare alike.
 const INTEGER_MEMBERS = ['v', 'ts', 'exp'], STRING_MEMBERS = ['suite', 'kid', 'msg_id', 'cty'];
 const isInt = (n) => typeof n === 'number' && Number.isSafeInteger(n);
+// JSON as every port reads it (pact-identity CONTRACT §0): a number that is infinite as a double
+// (`1e400`) and containers nested more than 127 deep are text that is not JSON. One port's parser
+// refuses both and another's reads them, so both ports refuse them; JSON.parse read `1e400` as
+// Infinity, and this node decided `ok` on a call whose body held one.
+const JSON_MAX_DEPTH = 127;
+const nestedPast = (v, depth) => depth > JSON_MAX_DEPTH || Object.values(v).some((x) => x !== null && typeof x === 'object' && nestedPast(x, depth + 1));
+function readJSON(bytes) {
+  const v = JSON.parse(bytes.toString(), (_, x) => {
+    if (typeof x === 'number' && !Number.isFinite(x)) throw new Error('a number is outside the range of a double');
+    return x;
+  });
+  if (v !== null && typeof v === 'object' && nestedPast(v, 1)) throw new Error('nested more than 127 deep');
+  return v;
+}
 const headerTypesOk = (h) => INTEGER_MEMBERS.every((k) => isInt(h[k])) && STRING_MEMBERS.every((k) => typeof h[k] === 'string');
 export const SKEW_S = 300;
 export const MAX_LIFETIME_S = 30 * 86_400; // §13.1: exp − ts is at most 30 days
@@ -69,7 +83,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   let header;
   const aad = wireB64url(envelope.protected);
   if (!aad) return invalid('protected is not JSON');
-  try { header = JSON.parse(aad.toString()); } catch { return invalid('protected is not JSON'); }
+  try { header = readJSON(aad); } catch { return invalid('protected is not JSON'); }
   if (Object.keys(header).sort().join(',') !== HEADER_MEMBERS) return invalid('header members');
   if (!headerTypesOk(header)) return invalid('header member types');
   if (header.v !== 2 || !SUITES[header.suite]) return invalid('version or suite');
@@ -89,7 +103,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   // bytes identical.
   if (enc.length !== SUITES[header.suite].npk) return invalid("encapsulated key is not the suite's length");
   let body;
-  try { body = JSON.parse(open(header.suite, held.key.priv, held.key.pub, Buffer.from('PACT-SEAL-v2'), aad, enc, ct).toString()); } catch { return invalid('does not open'); }
+  try { body = readJSON(open(header.suite, held.key.priv, held.key.pub, Buffer.from('PACT-SEAL-v2'), aad, enc, ct)); } catch { return invalid('does not open'); }
   const members = body && typeof body === 'object' ? Object.keys(body).sort().join(',') : '';
   if (members !== 'chain,method,params' && members !== 'leaf,method,params') return invalid('plaintext members');
   if (!['tools/call', 'tools/list'].includes(body.method)) return invalid('plaintext shape');
