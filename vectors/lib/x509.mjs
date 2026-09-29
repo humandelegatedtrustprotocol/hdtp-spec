@@ -112,7 +112,12 @@ export function parse(der) {
   // RFC 5280 §4.1.1.2: the algorithm inside the TBS and the one outside are the same field twice.
   if (!f[2].raw.equals(alg.raw) || children(alg).length !== 1) throw new Error('signature algorithm inside and outside differ');
   if (!intMinimal(f[1].content)) throw new Error('INTEGER not minimal');
-  const [notBefore, notAfter] = children(f[4]);
+  // A validity of two times and no more, as both ports read it: this took the first two of three, so
+  // the contract's claim that the seed and the ports refuse "a validity of other than two times" alike
+  // was false of the seed (R33).
+  const validity = children(f[4]);
+  if (validity.length !== 2) throw new Error('time not in the DER form');
+  const [notBefore, notAfter] = validity;
   const out = {
     der, tbs: tbs.raw, sigAlg: readOidStrict(children(alg)[0]), sig: sig.content.subarray(1),
     serial: f[1].content, issuer: nameOf(f[3]), subject: nameOf(f[5]),
@@ -142,7 +147,10 @@ export function parse(der) {
   }
   out.publicKey = createPublicKey({ key: out.spki, format: 'der', type: 'spki' });
   out.keyId = sha256(out.spki);
-  for (const e of children(children(f[7])[0])) {
+  // An [3] with nothing in it holds no extensions, in the ports' words: this threw a TypeError (R33).
+  const [extensionList] = children(f[7]);
+  if (!extensionList) throw new Error('not a v3 certificate with extensions');
+  for (const e of children(extensionList)) {
     const parts = children(e);
     if (parts.length < 2 || parts.length > 3) throw new Error('extension shape');
     // Criticality is a DEFAULT FALSE: present means critical, and the only encoding of that is one
