@@ -286,5 +286,36 @@ console.log('bytes this library did not write (§3, §13.3)');
   }
 }
 
+// Certificates the three readers answered three ways (the port-parity audit of 2026-09-29, R33): an
+// empty keyUsage BIT STRING (`03 00`, which X.690 §8.6.2 says is none: the initial octet is required)
+// was a keyUsage of no bits here and to the Rust core, and refused by the Go port; an empty [3] threw a
+// TypeError here; and a validity of three times was read as its first two. Each is refused now in the
+// ports' words. The controls — `03 01 00`, a keyUsage of no bits written with its initial octet, and the
+// leaf rebuilt unchanged — read.
+console.log('certificates the readers answered three ways (§14.1)');
+{
+  const { read, children, seq, tlv } = await import('./lib/der.mjs');
+  const root = ed25519FromSeed(seed('check/r33/root')), host = ed25519FromSeed(seed('check/r33/host'));
+  const at = (iso) => new Date(iso);
+  const leafWith = (misencode) => buildLeaf({ cn: 'A', rootCn: 'A', root, hostKey: host, endpoint: 'https://a.example/mcp', notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), label: 'check/r33/leaf', misencode });
+  const leaf = leafWith({});
+  const [tbs, alg, sig] = children(read(leaf));
+  const fields = children(tbs).map((x) => x.raw);
+  const [nb, na] = children(children(tbs)[4]).map((x) => x.raw);
+  const rebuilt = (over) => seq(seq(...fields.map((x, i) => over[i] ?? x)), alg.raw, sig.raw);
+  const said = (der) => { try { const c = parse(der); return `read, keyUsage [${c.keyUsage}]`; } catch (e) { return e.message; } };
+  for (const [what, der, want] of [
+    ['a keyUsage BIT STRING with no initial octet', leafWith({ keyUsage: [] }), 'BIT STRING not in the DER form'],
+    ['an extensions wrapper with nothing in it', rebuilt({ 7: tlv(0xa3, Buffer.alloc(0)) }), 'not a v3 certificate with extensions'],
+    ['three validity times', rebuilt({ 4: seq(nb, na, na) }), 'time not in the DER form'],
+    ['a keyUsage of no bits, with its initial octet (the control)', leafWith({ keyUsage: [0] }), 'read, keyUsage []'],
+    ['nothing changed (the control)', rebuilt({}), `read, keyUsage [${parse(leaf).keyUsage}]`],
+  ]) {
+    const got = said(der);
+    ok(got === want, `a leaf with ${what}: ${want}, not ${got}`);
+    console.log(`  a leaf with ${what}: ${got}`);
+  }
+}
+
 console.log(`${checks - failures}/${checks} checks passed`);
 process.exit(failures ? 1 : 0);

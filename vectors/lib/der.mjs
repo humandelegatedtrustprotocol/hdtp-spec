@@ -113,7 +113,11 @@ export function oidMinimal(node) {
 // are removed — so the lowest bit still encoded is set. Either spelling of the same set is a second
 // encoding. Not for the signature or the public key, where every bit is carried and `unused` is 0.
 export function namedBitsOk(content) {
-  const unused = content[0] ?? 0, bits = content.subarray(1);
+  // The initial octet is required (X.690 §8.6.2), even for no bits at all (`03 01 00`): `03 00` is no
+  // BIT STRING. This took it as a keyUsage of no bits, as the Rust core did, where the Go port refused it
+  // (the port-parity audit of 2026-09-29, R33).
+  if (content.length === 0) return false;
+  const unused = content[0], bits = content.subarray(1);
   if (unused > 7) return false;
   if (bits.length === 0) return unused === 0;
   const last = bits[bits.length - 1];
