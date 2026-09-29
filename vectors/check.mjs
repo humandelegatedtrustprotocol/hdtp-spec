@@ -175,5 +175,41 @@ console.log('JSON as the ports read it (§13.1, §13.3)');
   }
 }
 
+// A key outside the profile is refused where a certificate is read (§14.1), named by its OID, as both
+// pact-identity ports refuse it: RSA, P-384, a bare X25519 key and an Ed25519 key with a NULL after
+// its OID. parse() read the first three and left them to profileError, so compareLeaves compared a
+// certificate carrying one and decodeCard took it on a card. The control, the same leaf under the
+// same root with Ed25519 as RFC 8410 writes it, parses.
+console.log('keys outside the profile (§14.1)');
+{
+  const { generateKeyPairSync } = await import('node:crypto');
+  const { x25519FromSeed } = await import('./lib/keys.mjs');
+  const { decodeCard, encodeCard } = await import('./lib/card.mjs');
+  const root = ed25519FromSeed(seed('check/outside/root')), host = ed25519FromSeed(seed('check/outside/host'));
+  const whole = { notBefore: new Date('2026-09-01T00:00:00Z'), notAfter: new Date('2027-09-01T00:00:00Z') };
+  const leafFor = (hostKey, o = {}) => buildLeaf({ cn: 'A', rootCn: 'A', root, hostKey, endpoint: 'https://a.example/mcp', ...whole, label: 'check/outside', usage: [0], ...o });
+  const control = leafFor(host);
+  for (const [what, leaf, oid] of [
+    ['an RSA key', leafFor({ pub: generateKeyPairSync('rsa', { modulusLength: 2048 }).publicKey }), '1.2.840.113549.1.1.1'],
+    ['a P-384 key', leafFor({ pub: generateKeyPairSync('ec', { namedCurve: 'secp384r1' }).publicKey }), '1.2.840.10045.2.1'],
+    ['a bare X25519 key', leafFor({ pub: x25519FromSeed(seed('check/outside/x25519')).pub }), '1.3.101.110'],
+    ['an Ed25519 key with a NULL after its OID', leafFor(host, { misencode: { spkiAlgOid: '06032b65700500' } }), '1.3.101.112'],
+  ]) {
+    const why = `unsupported key type ${oid}`;
+    let got = 'parsed';
+    try { parse(leaf); } catch (e) { got = e.message; }
+    ok(got === why, `a leaf holding ${what}: parse says ${JSON.stringify(why)}, not ${JSON.stringify(got)}`);
+    let order = 'refused';
+    try { order = compareLeaves(control, leaf); } catch { /* refused, as it should be */ }
+    ok(order === 'refused', `a leaf holding ${what}: compareLeaves refuses it, not ${order}`);
+    const card = decodeCard(encodeCard({ fn: 'A', cert: leaf, seal: 'required' }));
+    ok(card.why === `certificate does not parse: ${why}`, `a card whose leaf holds ${what} is refused for it, not ${JSON.stringify(card.why ?? card.fn)}`);
+    console.log(`  ${what}: ${got}`);
+  }
+  let controlParsed = true;
+  try { parse(control); } catch { controlParsed = false; }
+  ok(controlParsed && profileError(parse(control), 'leaf') === null, 'the control, an Ed25519 leaf of the profile, parses and is in the profile');
+}
+
 console.log(`${checks - failures}/${checks} checks passed`);
 process.exit(failures ? 1 : 0);
