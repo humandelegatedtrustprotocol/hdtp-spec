@@ -194,8 +194,9 @@ console.log('keys outside the profile (§14.1)');
     ['a P-384 key', leafFor({ pub: generateKeyPairSync('ec', { namedCurve: 'secp384r1' }).publicKey }), '1.2.840.10045.2.1'],
     ['a bare X25519 key', leafFor({ pub: x25519FromSeed(seed('check/outside/x25519')).pub }), '1.3.101.110'],
     ['an Ed25519 key with a NULL after its OID', leafFor(host, { misencode: { spkiAlgOid: '06032b65700500' } }), '1.3.101.112'],
+    ['an Ed25519 key that is not a point (y = 2)', leafFor({ pub: { export: () => Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from([2]), Buffer.alloc(31)]) } }), null],
   ]) {
-    const why = `unsupported key type ${oid}`;
+    const why = oid ? `unsupported key type ${oid}` : 'Ed25519 key is not a point';
     let got = 'parsed';
     try { parse(leaf); } catch (e) { got = e.message; }
     ok(got === why, `a leaf holding ${what}: parse says ${JSON.stringify(why)}, not ${JSON.stringify(got)}`);
@@ -209,6 +210,13 @@ console.log('keys outside the profile (§14.1)');
   let controlParsed = true;
   try { parse(control); } catch { controlParsed = false; }
   ok(controlParsed && profileError(parse(control), 'leaf') === null, 'the control, an Ed25519 leaf of the profile, parses and is in the profile');
+  // y = 3 and every-bit-set decode to points, which both ports read too; so does the identity (y = 1).
+  for (const [what, first, fill] of [['y = 3', 3, 0], ['every bit set', 0xff, 0xff], ['the identity', 1, 0]]) {
+    const pointLeaf = leafFor({ pub: { export: () => Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from([first]), Buffer.alloc(31, fill)]) } });
+    let read = 'parsed';
+    try { parse(pointLeaf); } catch (e) { read = e.message; }
+    ok(read === 'parsed', `an Ed25519 key that is a point (${what}) is read, not refused as ${JSON.stringify(read)}`);
+  }
 }
 
 console.log(`${checks - failures}/${checks} checks passed`);
