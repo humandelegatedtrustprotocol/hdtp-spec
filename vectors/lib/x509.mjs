@@ -5,7 +5,7 @@ import { spkiOf, keyId, sha256, b64url, algorithmOf } from './keys.mjs';
 import { signDetached, verifyDetached } from './hpke.mjs';
 
 export const OID = {
-  cn: '2.5.4.3', ed25519: '1.3.101.112', ecdsaSha256: '1.2.840.10045.4.3.2',
+  cn: '2.5.4.3', ed25519: '1.3.101.112', ecdsaSha256: '1.2.840.10045.4.3.2', ecPublicKey: '1.2.840.10045.2.1', prime256v1: '1.2.840.10045.3.1.7',
   basicConstraints: '2.5.29.19', keyUsage: '2.5.29.15', eku: '2.5.29.37', san: '2.5.29.17', ski: '2.5.29.14', aki: '2.5.29.35',
   serverAuth: '1.3.6.1.5.5.7.3.1', clientAuth: '1.3.6.1.5.5.7.3.2',
 };
@@ -123,7 +123,16 @@ export function parse(der) {
   // most: the fingerprint of §2 is SHA-256 over these bytes, so a second encoding of the OID is a
   // second fingerprint for one key. Checked here rather than left to whatever the platform's key
   // reader happens to refuse, so the rule is the profile's and not OpenSSL's.
-  for (const part of children(children(read(out.spki))[0])) if (part.tag === 0x06) readOidStrict(part);
+  const algorithm = children(children(read(out.spki))[0]);
+  for (const part of algorithm) if (part.tag === 0x06) readOidStrict(part);
+  // And the key is one of the profile's two (§14.1): Ed25519 with no parameters (RFC 8410), or P-256.
+  // Any other is refused here, where it is read, named by its OID, as both ports refuse it. OpenSSL
+  // reads an RSA, P-384 or X25519 key, so a certificate carrying one was parsed here — compared by
+  // compareLeaves, taken on a card by decodeCard — and refused only at the profile, while an Ed25519
+  // key with a NULL after its OID was refused in OpenSSL's words (the port-parity audit, R12, T2).
+  const [algOid, param] = algorithm.map((x) => (x.tag === 0x06 ? readOid(x) : null));
+  const inProfile = (algOid === OID.ed25519 && algorithm.length === 1) || (algOid === OID.ecPublicKey && algorithm.length === 2 && param === OID.prime256v1);
+  if (algOid && !inProfile) throw new Error(`unsupported key type ${algOid}`);
   out.publicKey = createPublicKey({ key: out.spki, format: 'der', type: 'spki' });
   out.keyId = sha256(out.spki);
   for (const e of children(children(f[7])[0])) {
@@ -209,7 +218,6 @@ export function profileError(c, kind) {
     try { low = ecdsaIsLowS(c.sig); } catch { /* not an ECDSA value at all: rule 3's to refuse */ }
     if (!low) return 'ECDSA signature not in the low-S form';
   }
-  try { algorithmOf(c.publicKey); } catch { return 'key algorithm not in the profile'; }
   const tagFor = (d) => (d.getUTCFullYear() < 2050 ? 0x17 : 0x18);
   if (c.timeTags[0] !== tagFor(c.notBefore) || c.timeTags[1] !== tagFor(c.notAfter)) return 'time encoding not per RFC 5280';
   if (!c.ski || !c.ski.equals(c.keyId)) return 'subject key identifier is not the key';
