@@ -5,6 +5,7 @@ import { seed, ed25519FromSeed, p256FromSeed, pkcs8Of, spkiOf, fingerprint, b64u
 import { buildRoot, buildLeaf, fingerprintOf, parse } from './lib/x509.mjs';
 import { signDetached, suiteForLeaf, recipientOf, sealDeterministic } from './lib/hpke.mjs';
 import { canonical } from './lib/canonical.mjs';
+import { appendixB } from './lib/appendix.mjs';
 
 const at = (iso) => new Date(iso);
 const NOW = '2026-09-13T12:00:00Z';
@@ -150,15 +151,14 @@ writeFileSync(path, json + '\n');
 // carrying yesterday's bytes, which is a gate reporting a mistake rather than preventing one.
 const specPath = new URL('../SPEC.md', import.meta.url);
 const spec = readFileSync(specPath, 'utf8');
-const from = spec.indexOf('## Appendix B'), to = spec.indexOf('*End of PACT');
-if (from < 0 || to < 0) throw new Error('SPEC.md: Appendix B and the end marker must both be present');
-const appendix = spec.slice(from, to);
-const blocks = [...appendix.matchAll(/```json\n[\s\S]*?\n```/g)];
+// Read by the one rule the checker reads it by (lib/appendix.mjs): the end marker after the heading,
+// every fence closed, the block JSON. This searched for the end marker from the start of the file.
+const { blocks } = appendixB(spec);
 if (blocks.length !== 1) throw new Error(`SPEC.md: Appendix B should hold one json block, found ${blocks.length}`);
-const b = blocks[0];
-const spliced = appendix.slice(0, b.index) + '```json\n' + json + '\n```' + appendix.slice(b.index + b[0].length);
-if (spliced !== appendix) {
-  writeFileSync(specPath, spec.slice(0, from) + spliced + spec.slice(to));
+const [b] = blocks;
+const spliced = spec.slice(0, b.from) + '```json\n' + json + '\n```' + spec.slice(b.to);
+if (spliced !== spec) {
+  writeFileSync(specPath, spliced);
   console.log('spliced into SPEC.md Appendix B');
 }
 console.log(`wrote ${path.pathname}: ${Object.keys(certs).length} certificates, ${chainCases.length} chain cases, ${envelopes.length} envelopes, ${derivation.length} derivations`);
