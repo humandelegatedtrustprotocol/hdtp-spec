@@ -1,5 +1,5 @@
 // The §3 card: a vCard 4.0 with the leaf in it, folded per RFC 6350, read back with the intake rules.
-import { b64url, fromB64url } from './keys.mjs';
+import { b64url, strictB64url } from './keys.mjs';
 import { parse, MAX_LEAF_DAYS } from './x509.mjs';
 
 const DAY = 86_400_000;
@@ -38,8 +38,12 @@ export function decodeCard(text) {
   if (version !== '2') return bad(version ? 'version not implemented' : 'no X-PACT-VERSION');
   const certs = props.get('X-PACT-CERT') ?? [];
   if (certs.length !== 1) return bad(`${certs.length} certificates`);
+  // Read as the ports read it (strictB64url): Buffer.from skipped a stray character, so a card the
+  // Rust core refused was taken here.
+  const der = strictB64url(certs[0]);
+  if (!der) return bad('certificate does not parse: not base64url');
   let leaf;
-  try { leaf = parse(fromB64url(certs[0])); } catch (e) { return bad('certificate does not parse: ' + e.message); }
+  try { leaf = parse(der); } catch (e) { return bad('certificate does not parse: ' + e.message); }
   if (!leaf.aki) return bad('no issuer key identifier');
   // What is about to be shown to a person as the identity to pin is this value, so it has to BE a key
   // identifier: 32 bytes (§14.1). Three bytes used to come out as `sha256:AQID`.
