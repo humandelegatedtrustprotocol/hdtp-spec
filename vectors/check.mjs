@@ -7,11 +7,11 @@ import { validateChain, compareLeaves, parse, profileError, buildRoot, buildLeaf
 import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, spkiOf, seed } from './lib/keys.mjs';
 import { canonical } from './lib/canonical.mjs';
 import { makeNode, pin, receive } from './lib/envelope.mjs';
+import { appendixB } from './lib/appendix.mjs';
 
 const specPath = new URL('../SPEC.md', import.meta.url);
 const spec = readFileSync(specPath, 'utf8');
-const appendixB = spec.slice(spec.indexOf('## Appendix B'), spec.indexOf('*End of PACT'));
-const blocks = [...appendixB.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]));
+const blocks = appendixB(spec).blocks.map((b) => b.value);
 if (blocks.length < 1) throw new Error('Appendix B has no vector blocks');
 const [v2] = blocks;
 
@@ -314,6 +314,21 @@ console.log('certificates the readers answered three ways (§14.1)');
     const got = said(der);
     ok(got === want, `a leaf with ${what}: ${want}, not ${got}`);
     console.log(`  a leaf with ${what}: ${got}`);
+  }
+}
+
+// Appendix B itself is read by one rule, the checker's and the splicer's (lib/appendix.mjs), held here
+// to vectors/appendix-b-reader.json, refusals word for word (TC-12). The two readers this replaced
+// found the end marker from the start of the file and dropped an open fence without a word.
+console.log('Appendix B, as vectors/appendix-b-reader.json reads it');
+{
+  const { cases } = JSON.parse(readFileSync(new URL('./appendix-b-reader.json', import.meta.url), 'utf8'));
+  ok(cases.length >= 10 && cases.some((c) => c.refused) && cases.some((c) => c.blocks?.length), `vectors/appendix-b-reader.json holds ${cases.length} cases, refusals and reads among them`);
+  for (const c of cases) {
+    let got;
+    try { got = { blocks: appendixB(c.doc).blocks.map((b) => b.value) }; } catch (e) { got = { refused: e.message }; }
+    const want = c.refused ? { refused: c.refused } : { blocks: c.blocks };
+    ok(JSON.stringify(got) === JSON.stringify(want), `${c.name}: ${JSON.stringify(want)}, not ${JSON.stringify(got)}`);
   }
 }
 
