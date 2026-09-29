@@ -1,0 +1,74 @@
+{
+  "about": "How an Appendix B is read, as one list of cases: every JSON block fenced as ```json between the heading `## Appendix B` and the first `*End of PACT` after it; both markers there, every fence closed, every block JSON. A case answers `blocks`, or is `refused` in exactly these words. Two repositories keep byte-identical copies of this file. pact-identity's is js/appendix-b-reader.json, and its four readers are held to it by their tests: js/seed.mjs appendixB (js/seed.test.mjs), the pact CLI's appendix_b (crates/pact/src/vectors/check.rs), the core tests' appendix_b (crates/pact-identity/tests/vectors.rs) and the Go port's appendixB (go/vectors_test.go). pact-protocol's is vectors/appendix-b-reader.json, and vectors/check.mjs holds to it the one reader its checker and its splicer share (vectors/lib/appendix.mjs). No test holds the two copies to each other yet: pact-identity's gate reads pact-protocol's main branch, which gains its copy with pact-protocol PR #10.",
+  "cases": [
+    {
+      "name": "two blocks",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n\n```json\n[2]\n```\n*End of PACT 2.1*\n",
+      "blocks": [
+        {
+          "a": 1
+        },
+        [
+          2
+        ]
+      ]
+    },
+    {
+      "name": "no blocks",
+      "doc": "# Spec\n\n## Appendix B\n\nNothing fenced here.\n*End of PACT 2.1*\n",
+      "blocks": []
+    },
+    {
+      "name": "a fence that is not json is not a block",
+      "doc": "# Spec\n\n## Appendix B\n\n```text\n{\"b\":2}\n```\n\n```json\n{\"a\":1}\n```\n*End of PACT 2.1*\n",
+      "blocks": [
+        {
+          "a": 1
+        }
+      ]
+    },
+    {
+      "name": "an end marker quoted before the heading",
+      "doc": "*End of PACT 2.0* is quoted here\n# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n*End of PACT 2.1*\n",
+      "blocks": [
+        {
+          "a": 1
+        }
+      ]
+    },
+    {
+      "name": "a block after the end marker is not read",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n*End of PACT 2.1*\n\n```json\n[3]\n```\n",
+      "blocks": [
+        {
+          "a": 1
+        }
+      ]
+    },
+    {
+      "name": "no appendix",
+      "doc": "# no appendix",
+      "refused": "the document has no Appendix B"
+    },
+    {
+      "name": "no end marker",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n",
+      "refused": "Appendix B has no end marker (*End of PACT)"
+    },
+    {
+      "name": "an end marker only before the heading",
+      "doc": "*End of PACT 2.0*\n# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n",
+      "refused": "Appendix B has no end marker (*End of PACT)"
+    },
+    {
+      "name": "an open fence",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n\n*End of PACT 2.1*\n",
+      "refused": "an unterminated json fence in Appendix B"
+    },
+    {
+      "name": "a block that is not JSON",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n\n```json\n{\"a\":\n```\n*End of PACT 2.1*\n",
+      "refused": "Appendix B block 2 is not JSON"
+    }
+  ]
+}
