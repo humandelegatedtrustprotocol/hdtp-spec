@@ -133,6 +133,13 @@ export function parse(der) {
   const [algOid, param] = algorithm.map((x) => (x.tag === 0x06 ? readOid(x) : null));
   const inProfile = (algOid === OID.ed25519 && algorithm.length === 1) || (algOid === OID.ecPublicKey && algorithm.length === 2 && param === OID.prime256v1);
   if (algOid && !inProfile) throw new Error(`unsupported key type ${algOid}`);
+  // An Ed25519 key is 32 bytes that decode to a point; OpenSSL reads any 32, so a certificate whose key
+  // decodes to none was a certificate here, and its chain validated, while both ports refuse it.
+  if (algOid === OID.ed25519) {
+    const key = children(read(out.spki))[1].content.subarray(1);
+    if (key.length !== 32) throw new Error('Ed25519 key is not 32 bytes');
+    if (!ed25519IsPoint(key)) throw new Error('Ed25519 key is not a point');
+  }
   out.publicKey = createPublicKey({ key: out.spki, format: 'der', type: 'spki' });
   out.keyId = sha256(out.spki);
   for (const e of children(children(f[7])[0])) {
@@ -199,6 +206,22 @@ function nameOf(node) {
   const [o, v] = children(atvs[0]);
   if (readOidStrict(o) !== OID.cn || v.tag !== 0x0c) throw new Error('name is not a UTF-8 commonName');
   return v.content.toString('utf8');
+}
+
+// Whether 32 bytes encode an Ed25519 point (RFC 8032 §5.1.3, decoding only): x² = (y² − 1)/(d·y² + 1)
+// has a root. The high bit is the sign of x and y is read mod p, as both ports' libraries read it
+// (ed25519-dalek's decompress, filippo.io/edwards25519's SetBytes), so a non-canonical spelling of a
+// point is a point here too; a point of small order is a point.
+const P25519 = (1n << 255n) - 19n;
+const powP = (b, e) => { let r = 1n; b %= P25519; for (; e > 0n; e >>= 1n, b = (b * b) % P25519) if (e & 1n) r = (r * b) % P25519; return r; };
+const D25519 = ((P25519 - 121665n) * powP(121666n, P25519 - 2n)) % P25519;
+function ed25519IsPoint(bytes) {
+  let y = 0n;
+  for (let i = 31; i >= 0; i--) y = (y << 8n) | BigInt(bytes[i]);
+  y = (y & ((1n << 255n) - 1n)) % P25519;
+  const yy = (y * y) % P25519;
+  const xx = (((yy - 1n + P25519) % P25519) * powP((D25519 * yy + 1n) % P25519, P25519 - 2n)) % P25519;
+  return xx === 0n || powP(xx, (P25519 - 1n) / 2n) === 1n;
 }
 
 // §14.1 exactly: every field, every extension and its criticality, nothing else.
