@@ -10,6 +10,25 @@ const P = (1n << 255n) - 19n;
 export const b64url = (b) => Buffer.from(b).toString('base64url');
 export const fromB64url = (s) => Buffer.from(s, 'base64url');
 /**
+ * Bytes this library did not write — a card's certificate, the chain in a peer's plaintext — read as
+ * both pact-identity ports read them (its CONTRACT §0): base64url, forgiving the padding and the
+ * standard alphabet's `+` and `/`, and nothing else. Returns the bytes, or null.
+ *
+ * `fromB64url` above cannot fail: Buffer.from skips every character it does not know, so a card whose
+ * certificate carried a stray `!`, and a plaintext chain member with one, were read here and by the Go
+ * port while the Rust core refused them — the reference and two ports disagreeing about which cards
+ * and which chains exist (the port-parity audit of 2026-09-29, R24, T11, C7, T10). It stays for bytes
+ * this library wrote itself. Whitespace is a character outside the alphabet; a last character with a
+ * spare bit set is a second spelling, which the round trip refuses.
+ */
+export const strictB64url = (s) => {
+  if (typeof s !== 'string') return null;
+  const t = s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  if (!/^[A-Za-z0-9_-]*$/.test(t)) return null;
+  const bytes = Buffer.from(t, 'base64url');
+  return b64url(bytes) === t ? bytes : null;
+};
+/**
  * A member of an envelope, as it travels: unpadded base64url in its ONE canonical spelling (§13.1).
  * Returns the bytes, or null.
  *

@@ -2,7 +2,7 @@
 // Small and in-memory, so intrusions can be replayed against it.
 import { seal, sealDeterministic, open, signDetached, verifyDetached, suiteForLeaf, recipientOf, SUITES } from './hpke.mjs';
 import { validateChain, compareLeaves, parse } from './x509.mjs';
-import { fingerprint, b64url, fromB64url, wireB64url } from './keys.mjs';
+import { fingerprint, b64url, strictB64url, wireB64url } from './keys.mjs';
 import { canonical } from './canonical.mjs';
 import { decodeCard } from './card.mjs';
 
@@ -142,8 +142,11 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   }
 
   // The full form: a chain is a proof from the root and the one way a held leaf is updated.
+  // A member that is not a string, or does not read, is the plaintext's shape, as both ports answer
+  // it: Buffer.from skipped a stray character, so a chain the Rust core refused validated here.
   if (!Array.isArray(body.chain)) return invalid('plaintext shape');
-  const chain = body.chain.map(fromB64url);
+  const chain = body.chain.map(strictB64url);
+  if (chain.some((c) => c === null)) return invalid('plaintext shape');
   const v = validateChain(chain, { now: node.now });
   if (!v.ok) return invalid(`chain rule ${v.rule}: ${v.reason}`);
   if (!verifyDetached(v.leafKey, signed, sig)) return invalid('signature is not the chain\'s leaf key');
