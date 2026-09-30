@@ -1,6 +1,6 @@
 # PACT: Landscape, Comparison & Roadmap
 
-**Companion document to PACT 2.1.3 — informative throughout.**
+**Companion document to PACT 2 — informative throughout. Written against `SPEC.md` 2.1.3 and re-verified on the date below; the specification has moved on since (`CHANGES.md` lists what changed after 2.1.3) and this document has not been re-verified against it. Where it cites the reference node's source (`internal/messaging/service.go`) or its plan directory (`pact-gateway/docs/release/`), that is the node's repository, which is not yet public.**
 **Date:** 2026-09-22. Research re-verified as of this date; §12 records what was checked against a
 primary source, what rests on a secondary one, and what is carried forward unverified.
 
