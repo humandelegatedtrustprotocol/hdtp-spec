@@ -107,9 +107,9 @@ try {
   // slower than its text and prints bigger after scaling — and only when no font reaches
   // the band does the figure bleed 10 mm into each margin (figure.wide). Only flowcharts
   // take a larger font: a sequence diagram's stick figures and sequence numbers are
-  // fixed-size and would shrink instead, and a state diagram's free-floating edge labels
-  // collide. The configuration (the ELK layout among it), the widened notes and the covering
-  // viewBox are site/mermaid.mjs's, shared with the web rendering.
+  // fixed-size and would shrink instead; the state diagram prints inside the band at the base
+  // font (14.0px in the build's report). The configuration (the ELK layout among it), the
+  // widened notes and the covering viewBox are site/mermaid.mjs's, shared with the web rendering.
   await installMermaid(tab)
   const diagrams = await tab.evaluate(async () => {
     const COLUMN = 642, BLEED = 718, HEIGHT = 820   // px at 96 dpi: 170 mm, 190 mm, a page less its heading
