@@ -1,0 +1,61 @@
+{
+  "$comment": "The class contract of a pre-rendered diagram, the one copy. A drawing is an <svg class=\"dg dg-<kind>\"> inside <figure class=\"diagram\">; every primitive in it carries one of the classes below and nothing else: no <style>, no style=, no paint or font attribute, its text as SVG <text>. pact-protocol's site/spec-html.mjs emits exactly these classes and audits every build against its committed copy of this file, held equal to this one by its gate when the repositories are side by side; kit/docs.css styles exactly these; README.md's tables under Diagrams are this file rendered; test/docs.test.mjs holds the stylesheet and the tables to it. A class is a part, then a role, then modifiers; a line carries its part alone. \"text\" is the size and weight every label was laid out at, so the stylesheet draws the text the boxes were measured for: a label not listed takes dg-label's.",
+  "figure": {
+    "diagram": "the `<figure>` around one drawing, with an optional `<figcaption>`"
+  },
+  "svg": {
+    "dg": "the `<svg>`: the page's sans (Inter), scaled to the column, overflow visible; line weights do not scale with it",
+    "dg-flowchart": "with `dg`: the drawing is a flowchart",
+    "dg-state": "with `dg`: the drawing is a state diagram",
+    "dg-sequence": "with `dg`: the drawing is a sequence diagram"
+  },
+  "parts": {
+    "dg-node": "a box: a flowchart's node, a state, a start or end mark",
+    "dg-cluster": "a group: a subgraph, a composite state",
+    "dg-edge": "a connection: a flowchart's or a state diagram's edge, a sequence diagram's message",
+    "dg-actor": "a sequence diagram's participant, drawn at the top and again at the bottom",
+    "dg-lifeline": "a participant's lifeline",
+    "dg-note": "a note",
+    "dg-frame": "a sequence diagram's loop, alt or opt frame: its sides, its tag, its dividers",
+    "dg-number": "a sequence number: the disc, the digit, and the zero-length line that carries the disc's marker",
+    "dg-arrow": "an arrowhead, inside a `<marker>`"
+  },
+  "roles": {
+    "dg-shape": "what is drawn: a rect, polygon, circle, path, or a stick figure's lines",
+    "dg-label": "the text",
+    "dg-bg": "the ground behind a connection's label, knocking the line out"
+  },
+  "modifiers": {
+    "dg-dashed": "dashed: a reply, a frame's divider",
+    "dg-terminal": "a state diagram's start or end mark"
+  },
+  "classes": {
+    "dg-node dg-shape": { "on": ["rect", "polygon"], "draws": "a box: white, ink stroke" },
+    "dg-node dg-shape dg-terminal": { "on": ["circle"], "draws": "a start or end mark: ink" },
+    "dg-node dg-label": { "on": ["text"], "draws": "a box's label: ink" },
+    "dg-cluster dg-shape": { "on": ["rect"], "draws": "a group: cream, dashed faint stroke" },
+    "dg-cluster dg-label": { "on": ["text"], "draws": "a group's title: muted" },
+    "dg-edge": { "on": ["path", "line"], "draws": "a connection: ink-2, 1.5px, no fill" },
+    "dg-edge dg-dashed": { "on": ["path", "line"], "draws": "a dashed connection: a reply" },
+    "dg-edge dg-label": { "on": ["text"], "draws": "a connection's label: muted" },
+    "dg-edge dg-bg": { "on": ["rect"], "draws": "the ground behind a connection's label: the page's background" },
+    "dg-actor dg-shape": { "on": ["rect", "circle", "line"], "draws": "a participant, as a box or a stick figure: white, ink stroke" },
+    "dg-actor dg-label": { "on": ["text"], "draws": "a participant's name: ink" },
+    "dg-lifeline": { "on": ["line"], "draws": "a lifeline: faint" },
+    "dg-note dg-shape": { "on": ["rect"], "draws": "a note: accent-soft, accent stroke" },
+    "dg-note dg-label": { "on": ["text"], "draws": "a note's text: ink" },
+    "dg-frame": { "on": ["line"], "draws": "a frame's side: faint" },
+    "dg-frame dg-dashed": { "on": ["line"], "draws": "a frame's divider, between an alt and its else: faint, dashed" },
+    "dg-frame dg-shape": { "on": ["polygon"], "draws": "a frame's tag, the box saying loop or alt: cream, faint stroke" },
+    "dg-frame dg-label": { "on": ["text"], "draws": "a frame's tag and its condition: ink" },
+    "dg-number": { "on": ["line"], "draws": "the carrier of a sequence number's marker: nothing" },
+    "dg-number dg-shape": { "on": ["circle"], "draws": "a sequence number's disc: ink" },
+    "dg-number dg-label": { "on": ["text"], "draws": "a sequence number: white" },
+    "dg-arrow dg-shape": { "on": ["path", "polygon", "circle"], "draws": "an arrowhead: ink-2" }
+  },
+  "text": {
+    "dg-label": { "font-size": "16px", "font-weight": "400" },
+    "dg-actor dg-label": { "font-weight": "500" },
+    "dg-number dg-label": { "font-size": "12px" }
+  }
+}
