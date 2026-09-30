@@ -15,19 +15,50 @@ export const slugify = (s) =>
    .replace(/-+/g, '-')
    .replace(/^-|-$/g, '')
 
+// "**Version 1.1.0-draft · 2026-08-24 · adds …**" — the version and date come from here,
+// nowhere else, so a spec bump moves the cover without touching the renderers.
+const HEADER = /^\*\*Version\s+(\S+)\s+·\s+(\d{4}-\d{2}-\d{2})(?:\s+·\s+(.+?))?\*\*\s*$/m
+
+// Splits SPEC.md into what its header says and the body every renderer draws. The body
+// starts after the spec's own "## Table of contents" section — a list of markdown links
+// that is redundant wherever a table of contents is generated. The h1 and the version line
+// belong to the cover or the page header; the preamble between them and the table of
+// contents is rendered under a synthesized "Introduction" heading so it has a title.
+export function splitSpec(markdown) {
+  const header = markdown.match(HEADER)
+  if (!header) throw new Error('SPEC.md: could not parse the "**Version … · date …**" header line')
+  const [headerLine, version, date, revisionNote] = header
+  const tocStart = markdown.indexOf('\n## Table of contents')
+  if (tocStart < 0) throw new Error('SPEC.md: "## Table of contents" section not found')
+  const tocEnd = markdown.indexOf('\n## ', tocStart + 1)
+  const preamble = markdown.slice(0, tocStart)
+    .replace(/^# .*\n/, '')
+    .replace(headerLine, '')
+    .trim()
+  const body = `## Introduction\n\n${preamble}\n${markdown.slice(tocEnd)}`
+  return { version, date, revisionNote, body }
+}
+
 // Renders spec markdown to HTML and returns the h2/h3 outline. Throws when a heading exceeds
 // 120 characters: a paragraph followed immediately by `---` (no blank line) is a setext h2 in
 // CommonMark, which silently promotes prose into a section heading here and on GitHub. Long
 // headings are the tell, so the build refuses them.
 // `idPrefix` keeps heading ids CSS-selector-safe ("1-architecture" is not; "s-1-architecture" is).
-export function renderSpec(markdown, { idPrefix = '' } = {}) {
+// `slugify` replaces the default id scheme; `must` wraps every MUST and MUST NOT in prose
+// (never in code) as <span class="must">. Two headings that would share an id are refused
+// rather than renamed: markdown-it-anchor would append "-1", and a citation of the wrong
+// heading is exactly what a stable anchor must never become.
+export function renderSpec(markdown, { idPrefix = '', slugify: slug = slugify, must = false } = {}) {
   const headings = []
 
   const md = new MarkdownIt({ html: true, linkify: true, typographer: false })
     .use(anchor, {
       level: [2, 3],
-      slugify: (s) => idPrefix + slugify(s),
+      slugify: (s) => idPrefix + slug(s),
       callback: (token, info) => {
+        if (info.slug !== idPrefix + slug(info.title)) {
+          throw new Error(`Two headings share the id "${idPrefix + slug(info.title)}"; the second is "${info.title}"`)
+        }
         headings.push({ level: token.tag === 'h2' ? 2 : 3, id: info.slug, title: info.title })
       },
     })
@@ -50,6 +81,27 @@ export function renderSpec(markdown, { idPrefix = '' } = {}) {
   // Spec tables are wide; each gets its own wrapper so the renderer can constrain it.
   md.renderer.rules.table_open = () => '<div class="table-wrap">\n<table>\n'
   md.renderer.rules.table_close = () => '</table>\n</div>\n'
+
+  // Runs after text_join, so it sees each run of prose as one text token. Only `text`
+  // tokens are split: inline code, fences and raw HTML keep their MUSTs as they are.
+  if (must) {
+    md.core.ruler.push('must', (state) => {
+      for (const block of state.tokens) {
+        if (block.type !== 'inline') continue
+        const out = []
+        for (const child of block.children) {
+          if (child.type !== 'text' || !/\bMUST\b/.test(child.content)) { out.push(child); continue }
+          for (const piece of child.content.split(/(\bMUST NOT\b|\bMUST\b)/)) {
+            if (!piece) continue
+            const token = new state.Token(piece === 'MUST' || piece === 'MUST NOT' ? 'html_inline' : 'text', '', 0)
+            token.content = token.type === 'text' ? piece : `<span class="must">${piece}</span>`
+            out.push(token)
+          }
+        }
+        block.children = out
+      }
+    })
+  }
 
   const html = md.render(markdown)
 
