@@ -42,7 +42,10 @@ npm run vectors:intrude   # the compromise cases against the in-memory node; a R
 npm run vectors           # regenerate the vectors (only after a wire-visible edit)
 ```
 
-`make check` and `make build` are the same two gates. `make publish` is the maintainer's: it puts
+`make build` is the build. `make check` is `npm run vectors:check` plus `npm run spec:check`, the
+web renderer's tests; those read the `pact-identity` checkout (not yet public) beside this one, or
+`PACT_IDENTITY_DIR`, and fail without it, so outside the maintainer's workspace the two `npm`
+gates above are the ones to run. `make publish` is the maintainer's: it puts
 the built PDF and its meta into the private bucket that pact-protocol.com serves, with credentials
 read from a local file and from nowhere else.
 

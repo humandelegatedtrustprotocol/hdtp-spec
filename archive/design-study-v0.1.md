@@ -489,7 +489,7 @@ Each PA evaluates every inbound verb against owner policy: **allow-auto** (act w
 
 ### 12.1 Handles
 
-`name@domain` (deliberately email-shaped — humans already know how to share these). Resolution: `https://domain/.well-known/pact/{name}` → **signed identity record**; the same domain serves the A2A agent card. A person on our platform is `sumit@agents.pact.example`; a self-hoster is `sumit@sumit.dev`; both are first-class (R8). WebFinger-style aliasing MAY map existing emails to handles.
+`name@domain` (deliberately email-shaped — humans already know how to share these). Resolution: `https://domain/.well-known/pact/{name}` → **signed identity record**; the same domain serves the A2A agent card. A person on our platform is `sumit@agents.pact.example`; a self-hoster is `sumit@home.example`; both are first-class (R8). WebFinger-style aliasing MAY map existing emails to handles.
 
 ### 12.2 Identity record
 

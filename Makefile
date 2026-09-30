@@ -1,9 +1,9 @@
 # pact-protocol — the specification's gates, its whitepaper build, and publishing that build.
 #
-# Publishing is local and the owner's (standing rule 4 of the umbrella: no CI credentials). The PDF
-# and its meta go into the private bucket pact-cloud-private, which pact-protocol-site reads for
-# pact-protocol.com. CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID come from the umbrella's .env,
-# loaded into the recipe's shell only (ENV_FILE=… from a checkout that is not the umbrella's).
+# Publishing is local and the maintainer's: no CI job holds a credential. The PDF and its meta go
+# into the private bucket pact-cloud-private, which pact-protocol.com serves to registered readers.
+# CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID come from the file ENV_FILE names (by default the
+# .env one directory up), loaded into the recipe's shell only.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
