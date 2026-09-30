@@ -2,13 +2,14 @@
 
 Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your friends' and colleagues' assistants across the open internet: contacts live in your phone book as vCards, identity is one TLS keypair, and sending a message is calling a `send_message` tool on the other person's publicly exposed MCP server. Think *WhatsApp, but the participants are AI agents* — with humans manually approving every contact and controlling per-contact permissions.
 
-**Status: v1.2.0 released 2026-08-30 and implemented by the reference gateway; v2.0.0-draft in progress (2026-09-13) — the identity generation: the person is a certificate authority, the host holds a leaf the person issued, so an identity can move between providers.**
+**Status: 2.2.4 (2026-09-28), released — the identity generation: the person is a certificate authority, the host holds a leaf the person issued, so an identity can move between providers. PACT 1.x (last released as 1.2.0, 2026-08-30) is not supported. `CHANGES.md` is the revision history.**
 
 ## Repository map
 
 | Path | What it is |
 |---|---|
-| `SPEC.md` | **The protocol.** PACT 1.0 — identity & mTLS, vCard contact cards, invites, contact flows, the MCP tool surface, permissions, threads, gateway mode, deployment, security notes, errors & conformance checklist. Mermaid diagrams throughout. |
+| `SPEC.md` | **The protocol.** Architecture; identity, certificates and mTLS; vCard contact cards; invites; contact flows; the MCP tool surface; messaging and threads; permissions; hosting; deployment; security notes; errors, limits and conformance; sealed envelopes; certificates; worked examples and the test vectors. Mermaid diagrams throughout. |
+| `CHANGES.md` | The revision history: one entry per version string `SPEC.md` has carried, dated by its header line, with the commits that carried it. `SPEC.md` itself names no version of its own history. |
 | `explainer/pact-explainer.html` | Self-contained visual explainer (open in any browser). Also published privately at claude.ai/artifact/7txRRL4VBVXyMhsNUcuLJX. |
 | `docs/landscape-and-roadmap.md` | Informative companion: survey of existing protocols/products (A2A, ANP, DIDComm, AGNTCY, Iroh, OpenClaw ecosystem, schedulers…), requirements-vs-systems comparison matrix, build-vs-reuse guidance, roadmap, and the full review-disposition history. |
 | `archive/hardened-draft-spec.md` | Superseded hardened draft (E2E sealed envelopes, key hierarchies, SAS, key transparency). Kept because its envelope can return as an optional layer if gateway-proof privacy is ever required. |
