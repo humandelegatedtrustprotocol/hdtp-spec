@@ -3,20 +3,30 @@
 The specification text is licensed under CC BY 4.0 (`LICENSE-docs`). That licence grants no patent
 rights: its section 2(b)(2) says so. This file adds the patent layer. Sumit Agrawal, the author of
 the specification, makes the Open Web Foundation Final Specification Agreement (OWFa 1.0), Patent
-Only, for it. The declaration is below.
+Only, for it, as an individual and, as its director, for Shailka Systems Private Limited (CIN
+U58201PN2023PTC220355, Pune, Maharashtra, India) as a Bound Entity. The declaration is below.
+
+The copyright in the specification and in this repository's code and data is Sumit Agrawal's, and
+this declaration changes nothing about copyright: the Patent Only agreement grants no copyright
+licence (its section 3).
 
 ## What the declaration does, and what it does not
 
-- **It is a promise not to assert.** Sumit Agrawal promises not to assert the patent claims he owns
-  or controls, now or later, against anyone who makes, uses, sells, offers for sale, imports or
+- **Whose patents it covers.** In the agreement, "I" means the signatory and its Bound Entities
+  (section 7.5), and a Bound Entity is the entity named in the form and any entity it Controls
+  (sections 7.2 and 7.3). The promise therefore covers the patent claims that Sumit Agrawal, and
+  Shailka Systems Private Limited and any entity it Controls, own or control.
+- **It is a promise not to assert.** They promise not to assert those patent claims, owned or
+  controlled now or later, against anyone who makes, uses, sells, offers for sale, imports or
   distributes an implementation of the specification. That covers what the implementation does to
   implement the specification, provided it implements all of the specification's required
-  portions. Section 7.6 of the agreement sets those limits. He also commits to license those
+  portions. Section 7.6 of the agreement sets those limits. They also commit to license those
   claims at no charge, royalty-free, on reasonable and non-discriminatory terms (section 2.2).
-- **It binds his successors.** The promise is made for himself, his successors in interest and
-  his assigns, and is intended to bind any later owner or exclusive licensee of those claims
+- **It binds successors.** The promise is made on behalf of the signatory, its successors in
+  interest and its assigns, and is intended to bind any later owner or exclusive licensee of those claims
   (sections 2.1.1 and 2.1.3).
-- **It is defensive.** Anyone who sues him, or anyone else, asserting that an implementation
+- **It is defensive.** Anyone who sues Sumit Agrawal, Shailka Systems Private Limited or anyone
+  else, asserting that an implementation
   infringes patent claims of their own loses the promise, unless the suit answers one brought
   against them first (section 2.1.2.1).
 - **It binds no one else.** No licence or agreement can stop a third party from filing a patent
@@ -43,8 +53,10 @@ carries.
 Source: <https://www.openwebfoundation.org/the-agreements/the-owf-1-0-agreements-granted-claims/owfa-1-0-patent-only>,
 fetched 2026-09-30. The page's HTML had SHA-256
 `8569ee544527b056cab87fd254f0543c727f42477f1d9d16d5e074dc9a263847` that day. The text below is the
-page's text with the HTML removed. The only edits are to the form at the end: its blanks are filled
-in, and the Bound Entity block is left out because the declaration is made by an individual.
+page's text with the HTML removed. The only edits are to the form at the end, and they fill in its
+blanks: the individual block for Sumit Agrawal, and the Bound Entity block for Shailka Systems
+Private Limited. The company's name, CIN and address, and Sumit Agrawal's title, are as the legal
+pages of PACT Cloud state them (the pact-cloud repository, `docs/legal/privacy.md`).
 
 OWF publishes two OWFa 1.0 agreements, and this is the Patent Only one. OWF's own page describes
 the Patent Only version as "appropriate for uses where the copyright is already covered by another
@@ -126,4 +138,22 @@ Print name
 Email address
 2026-09-30
 Date
+
+If signing this OWFa as a Bound Entity:
+I certify that I am authorized to execute this agreement on behalf of the Bound Entity named below, and that all promises made herein relating to this Specification are commitments of the Bound Entity.
+
+Sumit Agrawal, for Shailka Systems Private Limited (declared by publishing this file on the main branch of pact-cloud/pact-protocol)
+Signed name
+Sumit Agrawal
+Print name
+(not published in this copy)
+Email address
+2026-09-30
+Date
+Director
+Title
+Shailka Systems Private Limited, CIN U58201PN2023PTC220355
+Bound Entity
+HD 072, WeWork Futura, CTS No 4944, Magarpatta, Hadapsar, Pune, Maharashtra 411028, India
+Address
 ```
