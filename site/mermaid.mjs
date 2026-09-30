@@ -53,7 +53,7 @@ function mermaidConfig(font, { htmlLabels = true, base = 16 } = {}) {
     // put `none` at the bottom with every transition climbing back over the others), and
     // network-simplex placement straightens the long edges. Sequence diagrams ignore `layout`.
     layout: 'elk',
-    elk: { mergeEdges: false, nodePlacementStrategy: 'NETWORK_SIMPLEX', cycleBreakingStrategy: 'DEPTH_FIRST', considerModelOrder: 'NODES_AND_EDGES' },
+    elk: { nodePlacementStrategy: 'NETWORK_SIMPLEX', cycleBreakingStrategy: 'DEPTH_FIRST' },
     theme: 'base',
     htmlLabels,
     fontFamily: 'Inter, sans-serif',
