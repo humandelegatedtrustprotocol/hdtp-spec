@@ -19,6 +19,14 @@
 //                no HTML inside the drawing, no font fetched — so the site's stylesheet owns
 //                every colour and font. The classes are pact-web-kit's diagram contract
 //                (site/diagram-classes.json, a copy of the kit's kit/diagram-classes.json).
+//                Flowcharts and state diagrams are laid out by ELK (site/mermaid.mjs); a
+//                flowchart wider than the text column is also laid out the other way round
+//                (LR <-> TB, the rule the whitepaper follows) and drawn whichever way reads
+//                larger in the column.
+//   diagrams.json  what each drawing was drawn from, in document order: [{ kind, source,
+//                turned }] — `source` is the mermaid the SVG was rendered from (SPEC.md's
+//                block, with a flowchart's direction swapped where `turned` is true), so the
+//                site can show the source beside the drawing.
 //   toc.json     the heading tree: [{ level, text, id, children: [...] }].
 //   musts.json   every normative sentence, [{ heading, section, id, hash, text }]: `heading` is
 //                the id of the heading it sits under, `id` is pact-identity's registry id for
@@ -44,9 +52,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { esc, renderSpec, slugify, splitSpec } from './markdown.mjs'
 import { FONT, installMermaid, launch } from './mermaid.mjs'
 
-export const GENERATOR = 'spec-html 1'
+export const GENERATOR = 'spec-html 2'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+// The column a drawing is read in on the site, in px: pact-web-kit's docs layout gives the text
+// 46rem (736 px), and a drawing past 960 px tall no longer fits a laptop's window beside its text.
+const COLUMN = 736, TALL = 960
 
 /* ---------------------------------------------------------- the contract */
 
@@ -217,7 +229,7 @@ export function cleanSvg(svg) {
           ? c('node', 'shape', 'terminal') : c('node', 'shape')
       }
       if (el.closest('g.edgeLabel')) return isText ? c('edge', 'label') : tag === 'rect' ? c('edge', 'bg') : null
-      if (el.closest('g.edgePaths') && tag === 'path') return dashes(el) ? c('edge', 'dashed') : c('edge')
+      if (el.closest('g.edges') && tag === 'path') return dashes(el) ? c('edge', 'dashed') : c('edge')
       return null
     }
     if (el.closest('g.actor-man')) return isText ? c('actor', 'label') : c('actor', 'shape')
@@ -428,24 +440,39 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
     if (fonts.length) throw new Error(`fonts not loaded: ${fonts.join(', ')}`)
     await installMermaid(tab)
     await tab.addScriptTag({ content: `window.pactCleanSvg = ${cleanSvg}` })
-    drawings = await tab.evaluate(async (font) => {
+    drawings = await tab.evaluate(async (font, column, tall) => {
       mermaid.initialize(pactMermaid.config(font, { htmlLabels: false, base: font }))
+      // How large a drawing of w x h reads in the column: never above 1, and a drawing taller
+      // than `tall` counts as shrunk to it, so turning a wide flowchart does not buy a tower.
+      const fit = (w, h) => Math.min(1, column / w, tall / h)
+      const turn = (src) => src.replace(/^(\s*(?:flowchart|graph))\s+(LR|TB|TD)\b/, (m, k, d) => `${k} ${d === 'LR' ? 'TB' : 'LR'}`)
       const out = []
       let n = 0
       for (const pre of document.querySelectorAll('figure.diagram pre.mermaid')) {
         const figure = pre.parentElement
-        const { svg: markup } = await mermaid.render(`spec-diagram-${n++}`, pactMermaid.sideways(pre.textContent))
-        figure.innerHTML = markup
+        const draw = async (source) => {
+          const { svg: markup } = await mermaid.render(`spec-diagram-${n++}`, source)
+          figure.innerHTML = markup
+          const svg = figure.querySelector('svg')
+          pactMermaid.widenNotes(svg)
+          const { x0, y0, x1, y1 } = pactMermaid.cover(svg)
+          return { source, w: x1 - x0, h: y1 - y0, html: figure.innerHTML }
+        }
+        const written = pre.textContent.replace(/\n$/, '')   // the block as SPEC.md writes it
+        let best = await draw(written)
+        if (best.w > column && turn(written) !== written) {
+          const other = await draw(turn(written))
+          if (fit(other.w, other.h) > fit(best.w, best.h)) best = other
+        }
+        figure.innerHTML = best.html
         const svg = figure.querySelector('svg')
-        pactMermaid.widenNotes(svg)
-        const { x0, y0, x1, y1 } = pactMermaid.cover(svg)
         const { unmapped, text } = pactCleanSvg(svg)
-        svg.setAttribute('width', Math.round(x1 - x0))
-        svg.setAttribute('height', Math.round(y1 - y0))
-        out.push({ kind: svg.getAttribute('class').split(' ')[1].replace(/^dg-/, ''), svg: figure.innerHTML, unmapped, text })
+        svg.setAttribute('width', Math.round(best.w))
+        svg.setAttribute('height', Math.round(best.h))
+        out.push({ kind: svg.getAttribute('class').split(' ')[1].replace(/^dg-/, ''), svg: figure.innerHTML, source: best.source, turned: best.source !== written, unmapped, text })
       }
       return out
-    }, FONT)
+    }, FONT, COLUMN, TALL)
     if (problems.length) throw new Error(`browser reported:\n  ${problems.join('\n  ')}`)
   } finally {
     await browser.close()
@@ -496,6 +523,7 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
   mkdirSync(out, { recursive: true })
   const json = (x) => JSON.stringify(x, null, 2) + '\n'
   writeFileSync(join(out, 'spec.html'), fragment)
+  writeFileSync(join(out, 'diagrams.json'), json(drawings.map((d) => ({ kind: d.kind, source: d.source, turned: d.turned }))))
   writeFileSync(join(out, 'toc.json'), json(toc))
   writeFileSync(join(out, 'musts.json'), json(sentences))
   writeFileSync(join(out, 'meta.json'), json(meta))
