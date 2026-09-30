@@ -16,6 +16,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@mermaid-js/layout-elk": "0.2.3",
     "markdown-it": "14.1.0",
     "markdown-it-anchor": "9.2.0",
     "mermaid": "11.17.2",

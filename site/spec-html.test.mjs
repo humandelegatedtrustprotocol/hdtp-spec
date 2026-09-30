@@ -75,7 +75,7 @@ describe('the output', () => {
     assert.equal(meta.version, version)
     assert.equal(meta.date, date)
     assert.match(meta.date, /^\d{4}-\d{2}-\d{2}$/)
-    assert.equal(meta.generator, 'spec-html 1')
+    assert.equal(meta.generator, 'spec-html 2')
   })
 
   it('is a fragment, not a page', () => {
@@ -203,6 +203,29 @@ describe('diagrams', () => {
     await assert.rejects(build({ ref: 'HEAD', out: join(scratch, 'thirteen'), contract: thirteen }), /not laid out as the contract says:\n\s+dg-number dg-label was laid out at font-size 12px; the contract says 13px/)
     const { 'dg-frame dg-shape': _, ...fewer } = contract.classes
     await assert.rejects(build({ ref: 'HEAD', out: join(scratch, 'fewer'), contract: { ...contract, classes: fewer } }), /fails its own audit:\n\s+diagram \d+: <polygon> carries "dg-frame dg-shape", which the contract does not have/)
+  })
+
+  it('are listed in diagrams.json with the mermaid each was drawn from: the block as written, or turned where a wide flowchart reads larger the other way', () => {
+    for (const [out, body] of [[out2, body2], [out1, body1]]) {
+      const blocks = [...body.matchAll(/^```mermaid\n([\s\S]*?)\n```/gm)].map((m) => m[1])
+      const listed = json(out, 'diagrams.json')
+      const kinds = [...read(out, 'spec.html').matchAll(/<svg\b[^>]*class="dg dg-(\w+)"/g)].map((m) => m[1])
+      assert.deepEqual(listed.map((d) => d.kind), kinds, 'one entry per drawing, in document order, of its kind')
+      listed.forEach((d, i) => {
+        if (!d.turned) return assert.equal(d.source, blocks[i], `diagram ${i + 1} is the block as written`)
+        assert.equal(d.kind, 'flowchart', `diagram ${i + 1}: only a flowchart is turned`)
+        const [first, ...rest] = blocks[i].split('\n')
+        const [drawn, ...same] = d.source.split('\n')
+        assert.deepEqual(same, rest, `diagram ${i + 1}: turning changes the direction line only`)
+        assert.match(`${first}|${drawn}`, /^(\s*(?:flowchart|graph)) (LR|TB|TD)\|\1 (LR|TB)$/, `diagram ${i + 1}: ${first} became ${drawn}`)
+        assert.notEqual(first.trim().split(/\s+/)[1] === 'LR', drawn.trim().split(/\s+/)[1] === 'LR', `diagram ${i + 1}: the direction is swapped`)
+      })
+    }
+    // The current text's architecture drawing (§1, flowchart LR) is wider than the column laid
+    // out as written, so it is drawn top to bottom; the permission drawing (§8) fits as written.
+    const listed = json(out2, 'diagrams.json')
+    assert.ok(listed.some((d) => d.turned), 'the rule is exercised on the current text')
+    assert.ok(listed.some((d) => d.kind === 'flowchart' && !d.turned), 'and a flowchart that fits is left as written')
   })
 
   it('keep what places text and drop what paints it', () => {
