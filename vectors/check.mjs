@@ -4,7 +4,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
 import { open, verifyDetached, suiteForLeaf, suiteForKey, sealDeterministic, signDetached } from './lib/hpke.mjs';
 import { validateChain, compareLeaves, parse, profileError, buildRoot, buildLeaf, fingerprintOf, OID } from './lib/x509.mjs';
-import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, p256FromSeed, spkiOf, seed } from './lib/keys.mjs';
+import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, p256FromSeed, spkiOf, seed, p256Uncompressed } from './lib/keys.mjs';
 import { canonical } from './lib/canonical.mjs';
 import { makeNode, pin, receive } from './lib/envelope.mjs';
 import { appendixB } from './lib/appendix.mjs';
@@ -245,6 +245,40 @@ console.log('keys outside the profile (§14.1)');
     let read = 'parsed';
     try { parse(pointLeaf); } catch (e) { read = e.message; }
     ok(read === 'parsed', `an Ed25519 key that is a point (${what}) is read, not refused as ${JSON.stringify(read)}`);
+  }
+}
+
+// A SubjectPublicKeyInfo is read as both pact-identity ports read it (their `from_spki` / `ParseSPKI`),
+// in their words: exactly SEQUENCE { AlgorithmIdentifier, BIT STRING } with no unused bits, an
+// algorithm OID in its one DER form, a curve OID the profile names, and a key that is a point. This
+// read the key past the unused-bits octet whatever it said, so a key with 1 or 7 unused bits was a
+// key here, and it answered a trailing member, a key in an OCTET STRING and an off-curve P-256 point
+// in OpenSSL's words and a padded curve OID as `OID not in the DER form`, where both ports answer
+// the words below. The two leaves as a wallet writes them are the controls.
+console.log('a SubjectPublicKeyInfo as the ports read it (§2, §14.1)');
+{
+  const root = ed25519FromSeed(seed('check/spki/root')), host = ed25519FromSeed(seed('check/spki/host')), hostP = p256FromSeed(seed('check/spki/p256'));
+  const whole = { notBefore: new Date('2026-09-01T00:00:00Z'), notAfter: new Date('2027-09-01T00:00:00Z') };
+  const leafFor = (pub, usage) => buildLeaf({ cn: 'A', rootCn: 'A', root, hostKey: { pub }, endpoint: 'https://a.example/mcp', ...whole, label: 'check/spki', usage });
+  const spki = (hex) => ({ export: () => Buffer.from(hex, 'hex') });
+  const ed = spkiOf(host.pub).subarray(12).toString('hex'), pt = p256Uncompressed(hostP.pub).toString('hex');
+  const offCurve = pt.slice(0, -2) + (parseInt(pt.slice(-2), 16) ^ 1).toString(16).padStart(2, '0');
+  const P256_ALG = '301306072a8648ce3d020106082a8648ce3d030107';
+  for (const [what, pub, usage, want] of [
+    ['an Ed25519 key with 1 unused bit', spki('302a300506032b6570032101' + ed), [0], 'SubjectPublicKeyInfo shape'],
+    ['an Ed25519 key with 7 unused bits', spki('302a300506032b6570032107' + ed), [0], 'SubjectPublicKeyInfo shape'],
+    ['an Ed25519 key followed by a NULL', spki('302c300506032b6570032100' + ed + '0500'), [0], 'SubjectPublicKeyInfo shape'],
+    ['an Ed25519 key in an OCTET STRING', spki('302a300506032b6570042100' + ed), [0], 'SubjectPublicKeyInfo shape'],
+    ['a P-256 key with 1 unused bit', spki('3059' + P256_ALG + '034201' + pt), [0, 4], 'SubjectPublicKeyInfo shape'],
+    ['a P-256 key whose curve OID has a padded subidentifier', spki('305a301406072a8648ce3d020106092a8648ce3d03800107034200' + pt), [0, 4], 'unsupported key type 1.2.840.10045.2.1'],
+    ['a P-256 point that is not on the curve', spki('3059' + P256_ALG + '034200' + offCurve), [0, 4], 'P-256 key is not a point'],
+    ['an Ed25519 key as a wallet writes it (the control)', host.pub, [0], 'parsed'],
+    ['a P-256 key as a wallet writes it (the control)', hostP.pub, [0, 4], 'parsed'],
+  ]) {
+    let got = 'parsed';
+    try { parse(leafFor(pub, usage)); } catch (e) { got = e.message; }
+    ok(got === want, `a leaf holding ${what}: parse says ${JSON.stringify(want)}, not ${JSON.stringify(got)}`);
+    console.log(`  ${what}: ${got}`);
   }
 }
 

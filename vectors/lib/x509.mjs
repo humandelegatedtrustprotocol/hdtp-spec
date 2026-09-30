@@ -75,12 +75,18 @@ export function buildRoot({ cn, key, notBefore, label, basicConstraints }) {
 //                  bytes (DER: the OCTET STRING is the value, one TLV)
 //   compressedPoint  a P-256 host key written as its compressed point, `02`/`03` and x (the readers
 //                  take the uncompressed point only); the subjectKeyIdentifier follows the bytes written
+//   spkiUnusedBits the SubjectPublicKeyInfo key BIT STRING's unused-bits octet (DER, and the
+//                  readers: 0); the subjectKeyIdentifier follows the bytes written
+//   spkiTail       bytes written after the key BIT STRING, inside the SubjectPublicKeyInfo (the
+//                  readers: exactly its AlgorithmIdentifier and its key); the identifier follows them
 export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid, misencode = {} }) {
   const plainSpki = spkiOf(hostKey.pub);
   const point = () => { const u = p256Uncompressed(hostKey.pub); return Buffer.concat([Buffer.from([2 + (u[64] & 1)]), u.subarray(1, 33)]); };
   const spki = misencode.spkiAlgOid
     ? seq(seq(Buffer.from(misencode.spkiAlgOid, 'hex')), children(read(plainSpki))[1].raw)
-    : misencode.compressedPoint ? seq(children(read(plainSpki))[0].raw, bitstr(point())) : plainSpki;
+    : misencode.compressedPoint ? seq(children(read(plainSpki))[0].raw, bitstr(point()))
+    : misencode.spkiUnusedBits !== undefined ? (() => { const [a, k] = children(read(plainSpki)); return seq(a.raw, tlv(0x03, Buffer.concat([Buffer.from([misencode.spkiUnusedBits]), k.content.subarray(1)]))); })()
+    : misencode.spkiTail ? seq(...children(read(plainSpki)).map((x) => x.raw), Buffer.from(misencode.spkiTail, 'hex')) : plainSpki;
   const id = sha256(spki), issuerId = aki ?? keyId(root.pub);
   const bits = usage ?? (algorithmOf(hostKey.pub) === 'p256' ? [0, 4] : [0]);
   const sanNames = (uris ?? [endpoint]).map((u) => implicit(6, Buffer.from(u, 'utf8')));
@@ -138,35 +144,48 @@ export function parse(der) {
     notBefore: readTime(notBefore), notAfter: readTime(notAfter), timeTags: [notBefore.tag, notAfter.tag],
     spki: f[6].raw, extensions: [], ca: false, pathLen: null, keyUsage: [], eku: [], uris: [], dns: [], otherNames: 0, ski: null, aki: null, akiExtra: false,
   };
-  // The SubjectPublicKeyInfo's AlgorithmIdentifier is an OID like any other, and the one that matters
-  // most: the fingerprint of §2 is SHA-256 over these bytes, so a second encoding of the OID is a
-  // second fingerprint for one key. Checked here rather than left to whatever the platform's key
-  // reader happens to refuse, so the rule is the profile's and not OpenSSL's.
-  const algorithm = children(children(read(out.spki))[0]);
-  for (const part of algorithm) if (part.tag === 0x06) readOidStrict(part);
-  // And the key is one of the profile's two (§14.1): Ed25519 with no parameters (RFC 8410), or P-256.
-  // Any other is refused here, where it is read, named by its OID, as both ports refuse it. OpenSSL
-  // reads an RSA, P-384 or X25519 key, so a certificate carrying one was parsed here — compared by
-  // compareLeaves, taken on a card by decodeCard — and refused only at the profile, while an Ed25519
-  // key with a NULL after its OID was refused in OpenSSL's words (the port-parity audit, R12, T2).
-  const [algOid, param] = algorithm.map((x) => (x.tag === 0x06 ? readOid(x) : null));
-  const inProfile = (algOid === OID.ed25519 && algorithm.length === 1) || (algOid === OID.ecPublicKey && algorithm.length === 2 && param === OID.prime256v1);
-  if (algOid && !inProfile) throw new Error(`unsupported key type ${algOid}`);
+  // The SubjectPublicKeyInfo, read as both ports read it (their `from_spki` / `ParseSPKI`), in their
+  // order and words: exactly SEQUENCE { AlgorithmIdentifier, BIT STRING } with no unused bits, then an
+  // algorithm that is an OID in its one DER form, then the key the OID names. The fingerprint of §2
+  // is SHA-256 over these bytes, so every other spelling of one key is a second fingerprint for it.
+  // This read the key as the BIT STRING's content after its first octet whatever that octet said, so
+  // a key written with 1 or 7 unused bits was a certificate here and `SubjectPublicKeyInfo shape` to
+  // both ports; and it left a trailing member, or a key in an OCTET STRING, to OpenSSL's words.
+  const spkiNode = read(out.spki);
+  if (spkiNode.tag !== 0x30) throw new Error('SubjectPublicKeyInfo is not one SEQUENCE');
+  const spkiParts = children(spkiNode);
+  const [algorithmId, keyBits] = spkiParts;
+  if (spkiParts.length !== 2 || algorithmId.tag !== 0x30 || keyBits.tag !== 0x03 || !keyBits.content.length || keyBits.content[0] !== 0) {
+    throw new Error('SubjectPublicKeyInfo shape');
+  }
+  const algorithm = children(algorithmId);
+  if (!algorithm.length || algorithm[0].tag !== 0x06) throw new Error('SubjectPublicKeyInfo algorithm');
+  const algOid = readOidStrict(algorithm[0]);
+  const key = keyBits.content.subarray(1);
+  // And the key is one of the profile's two (§14.1): Ed25519 with no parameters (RFC 8410), or P-256,
+  // its curve named by the one DER form of its OID. Any other is refused here, where it is read, named
+  // by its OID, as both ports refuse it. OpenSSL reads an RSA, P-384 or X25519 key, so a certificate
+  // carrying one was parsed here — compared by compareLeaves, taken on a card by decodeCard — and
+  // refused only at the profile, while an Ed25519 key with a NULL after its OID was refused in
+  // OpenSSL's words (the port-parity audit, R12, T2). A curve OID with a padded subidentifier is no
+  // curve the profile names, as the ports read it; this refused it as an OID not in the DER form.
+  const curve = algorithm[1]?.tag === 0x06 && oidMinimal(algorithm[1]) ? readOid(algorithm[1]) : null;
+  const inProfile = (algOid === OID.ed25519 && algorithm.length === 1) || (algOid === OID.ecPublicKey && algorithm.length === 2 && curve === OID.prime256v1);
+  if (!inProfile) throw new Error(`unsupported key type ${algOid}`);
   // An Ed25519 key is 32 bytes that decode to a point; OpenSSL reads any 32, so a certificate whose key
   // decodes to none was a certificate here, and its chain validated, while both ports refuse it.
   if (algOid === OID.ed25519) {
-    const key = children(read(out.spki))[1].content.subarray(1);
     if (key.length !== 32) throw new Error('Ed25519 key is not 32 bytes');
     if (!ed25519IsPoint(key)) throw new Error('Ed25519 key is not a point');
   }
-  // A P-256 key is read as its uncompressed point only, as both ports read it, so one key has one
+  // A P-256 key is its uncompressed point (SPEC §14.1), as both ports read it, so one key has one
   // SubjectPublicKeyInfo and one fingerprint (§2). RFC 5480 §2.2 also allows the compressed point,
   // which OpenSSL reads, so a certificate whose key was written `02`/`03` and x was a certificate here
-  // — a second fingerprint for the key — while both ports refused it. SPEC §14.1 says "strict DER" and
-  // names the algorithm; it does not spell this out.
+  // — a second fingerprint for the key — while both ports refused it. A point that is not on the curve
+  // is refused in the ports' words: OpenSSL's were `Failed to read asymmetric key`.
   if (algOid === OID.ecPublicKey) {
-    const key = children(read(out.spki))[1].content.subarray(1);
     if (key.length !== 65 || key[0] !== 0x04) throw new Error('P-256 key is not the uncompressed point');
+    try { createPublicKey({ key: out.spki, format: 'der', type: 'spki' }); } catch { throw new Error('P-256 key is not a point'); }
   }
   out.publicKey = createPublicKey({ key: out.spki, format: 'der', type: 'spki' });
   out.keyId = sha256(out.spki);
@@ -343,6 +362,17 @@ export function isNormalHttps(s) {
   if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash || s.includes('#') || s.includes('?')) return false;
   if (u.pathname === '/' || u.pathname.endsWith('/')) return false;
   if (u.href !== s || u.host !== u.host.toLowerCase() || u.port === '0') return false; // the default port is omitted, so an explicit :443 fails href === s; port 0 is no port
+  // The host as both pact-identity ports read it (their `normalHost`): a name of letters, digits, `-`
+  // and `.` with no empty label, or an IPv6 literal that holds no IPv4-mapped address. WHATWG's URL
+  // keeps `a_b.example`, `a.example.`, `a..example` and `[::ffff:102:304]` as written, so each passed
+  // the test above and was the normal form here while both ports refused it (chain rule 5). WHATWG
+  // has already made an IPv4 name canonical and refused a zone id, and writes a mapped address as two
+  // hex groups after `::ffff:`. One difference is left: a name WHATWG's IDNA step refuses, such as
+  // the invalid punycode `xn--a.example`, is refused here and read by both ports.
+  const name = u.hostname;
+  if (name.startsWith('[')) {
+    if (/^\[::ffff:[0-9a-f]{1,4}:[0-9a-f]{1,4}\]$/.test(name)) return false;
+  } else if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(name)) return false;
   // The path in RFC 3986 normal form: pchar only, no dot segments, percent-encoding uppercase and
   // never for an unreserved character — so two strings for one address cannot both be "normal".
   const path = s.slice(s.indexOf('/', 8));
