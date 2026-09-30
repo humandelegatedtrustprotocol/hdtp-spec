@@ -5,3 +5,6 @@ dist/
 # Wrangler's local state, written by any `wrangler` invocation in this directory.
 # A build artifact: it holds a local D1/KV simulation and nothing anybody should commit.
 .wrangler/
+
+# Claude Code worktrees and session files: local tooling state, never part of the repository.
+.claude/
