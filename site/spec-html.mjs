@@ -14,10 +14,11 @@
 //                §2.1 is #s2-1, "Appendix B" is #appendix-b, the preamble is #introduction
 //                (its heading is synthesized, as in the whitepaper); anything else takes its
 //                slug. Every MUST and MUST NOT in prose is <span class="must">. Mermaid blocks
-//                are <figure class="diagram diagram-<kind>"> holding a pre-rendered inline SVG
-//                that carries classes only — no <style>, no style= attribute, no paint or
-//                font attribute, no HTML inside the drawing, no font fetched — so the site's
-//                stylesheet owns every colour and font (the class contract is DIAGRAM_CLASSES).
+//                are <figure class="diagram"> holding a pre-rendered inline SVG that carries
+//                classes only — no <style>, no style= attribute, no paint or font attribute,
+//                no HTML inside the drawing, no font fetched — so the site's stylesheet owns
+//                every colour and font. The classes are pact-web-kit's diagram contract
+//                (site/diagram-classes.json, a copy of the kit's kit/diagram-classes.json).
 //   toc.json     the heading tree: [{ level, text, id, children: [...] }].
 //   musts.json   every normative sentence, [{ heading, section, id, hash, text }]: `heading` is
 //                the id of the heading it sits under, `id` is pact-identity's registry id for
@@ -49,24 +50,24 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 /* ---------------------------------------------------------- the contract */
 
-// Every class an emitted SVG may carry. Each drawing primitive carries a part and a role —
-// `node shape`, `node label`, `edge`, `edge label`, `edge bg`, `actor shape`, `note label`,
-// `frame shape`, `arrow shape`, `number label` … — except an edge, which is its own part
-// (`edge`, or `edge dashed`), and the zero-length line that carries a sequence number's
-// marker (`number` alone; the marker's circle is the `number shape`). A group carries
-// nothing. Modifiers are additive: `dashed` on an edge or frame line, `terminal` on a state
-// diagram's start or end. The <svg> carries `diagram` and its kind. Text was laid out in
-// Inter at 16px (actor names at weight 500, sequence numbers at 12px), so a stylesheet that
-// sets those sizes on `.label` and `.number.label` gets the boxes the text was measured for.
-export const DIAGRAM_CLASSES = Object.freeze({
-  kinds: ['flowchart', 'state', 'sequence'],
-  parts: ['node', 'cluster', 'edge', 'actor', 'note', 'frame', 'number', 'lifeline', 'arrow'],
-  roles: ['shape', 'label', 'bg'],
-  modifiers: ['dashed', 'terminal'],
-})
-const CLASS_SET = new Set(['diagram', ...DIAGRAM_CLASSES.kinds, ...DIAGRAM_CLASSES.parts, ...DIAGRAM_CLASSES.roles, ...DIAGRAM_CLASSES.modifiers])
+// Every class an emitted drawing may carry is pact-web-kit's diagram contract, whose one copy
+// is the kit's kit/diagram-classes.json; site/diagram-classes.json is that file byte for byte,
+// so a build needs no sibling checkout, and site/spec-html.test.mjs holds the copy to the
+// kit's whenever the kit is checked out beside this repository. The shape: the <svg> carries
+// `dg` and its kind (`dg-flowchart`, `dg-state`, `dg-sequence`) inside <figure class="diagram">;
+// each primitive carries a part, then a role, then modifiers — `dg-node dg-shape`,
+// `dg-node dg-label`, `dg-edge dg-label`, `dg-edge dg-bg`, `dg-actor dg-shape`,
+// `dg-note dg-label`, `dg-frame dg-shape`, `dg-arrow dg-shape`, `dg-number dg-label` … — and
+// a line carries its part alone (`dg-edge`, `dg-edge dg-dashed`, `dg-lifeline`, `dg-frame`,
+// and `dg-number` for the zero-length line that carries a sequence number's marker, whose
+// circle is the `dg-number dg-shape`). A <g>, <defs>, <marker> or <tspan> carries nothing.
+// "classes" lists every valid combination with the tags it lands on; "text" is the size and
+// weight every label was laid out at, which the build checks against what mermaid wrote.
+export const CONTRACT_PATH = resolve(root, 'site', 'diagram-classes.json')
+export const CONTRACT = Object.freeze(JSON.parse(readFileSync(CONTRACT_PATH, 'utf8')))
 const PRIMITIVES = ['rect', 'circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'text']
 const SVG_TAGS = new Set(['svg', 'g', 'defs', 'marker', 'tspan', ...PRIMITIVES])
+const kindsOf = (contract) => Object.keys(contract.svg).filter((k) => k !== 'dg')
 
 // A heading's id: the section number where there is one, a slug otherwise.
 export function sectionId(title) {
@@ -140,13 +141,23 @@ export function mustsOf(body, registry) {
 /* --------------------------------------------------------------- the SVG */
 
 // Runs inside the page, over one rendered <svg>: maps mermaid's markup onto the class
-// contract and strips everything else it styled with. Returns what it could not map;
-// the build fails on any. Closes over nothing: installed by string, like site/mermaid.mjs.
+// contract and strips everything else it styled with. Returns what it could not map (the
+// build fails on any) and, per text class, the font sizes and weights mermaid had written
+// on the text before they were stripped (the build holds them to the contract's "text").
+// Closes over nothing: installed by string, like site/mermaid.mjs.
 export function cleanSvg(svg) {
   const KINDS = { 'flowchart-v2': 'flowchart', stateDiagram: 'state', sequence: 'sequence' }
   const kind = KINDS[svg.getAttribute('aria-roledescription')]
   const unmapped = []
-  if (!kind) return [`diagram kind ${svg.getAttribute('aria-roledescription')}`]
+  const text = {}
+  if (!kind) return { unmapped: [`diagram kind ${svg.getAttribute('aria-roledescription')}`], text }
+  // A flowchart's or a state diagram's labels carry no size of their own: they were measured
+  // at the root rule of mermaid's <style> (`#<id>{…font-size:16px…}`), which is recorded as
+  // dg-label's, the base every label takes, before the <style> goes. Missing, it is recorded
+  // as "(none)", which the contract's 16px refuses.
+  const style = svg.querySelector('style')
+  const rootSize = style && new RegExp(`#${CSS.escape(svg.id)}\\{[^}]*font-size:\\s*([^;}]+)`).exec(style.textContent)
+  text['dg-label'] = { 'font-size': [rootSize ? rootSize[1].trim() : '(none)'] }
   for (const el of svg.querySelectorAll('style, symbol, filter, linearGradient')) el.remove()
   for (const defs of svg.querySelectorAll('defs')) if (!defs.children.length) defs.remove()
   // An edge with no label still gets an empty label group; nothing to draw, nothing to keep.
@@ -188,40 +199,54 @@ export function cleanSvg(svg) {
     for (let e = el; e && e !== svg; e = e.parentElement) chain.unshift(`${e.tagName}${e.getAttribute('class') ? '.' + e.getAttribute('class').trim().replace(/\s+/g, '.') : ''}`)
     return chain.join(' > ')
   }
+  // The contract's spelling: a part, a role, modifiers, each under the kit's prefix.
+  const c = (...names) => names.map((n) => `dg-${n}`).join(' ')
   const classify = (el) => {
     const tag = el.tagName
     const marker = el.closest('marker')
     if (tag === 'g' || tag === 'defs' || tag === 'tspan' || tag === 'marker') return ''
-    if (marker) return /sequencenumber$/.test(marker.id) ? 'number shape' : 'arrow shape'
+    if (marker) return /sequencenumber$/.test(marker.id) ? c('number', 'shape') : c('arrow', 'shape')
     const isText = tag === 'text'
     if (kind !== 'sequence') {
-      if (el.closest('g.cluster-label')) return isText ? 'cluster label' : null
-      if (el.closest('g.cluster')) return isText ? null : 'cluster shape'
+      if (el.closest('g.cluster-label')) return isText ? c('cluster', 'label') : null
+      if (el.closest('g.cluster')) return isText ? null : c('cluster', 'shape')
       const node = el.closest('g.node')
       if (node) {
-        if (isText) return 'node label'
+        if (isText) return c('node', 'label')
         return had(node, 'state-start') || had(node, 'state-end') || had(el, 'state-start') || had(el, 'state-end')
-          ? 'node shape terminal' : 'node shape'
+          ? c('node', 'shape', 'terminal') : c('node', 'shape')
       }
-      if (el.closest('g.edgeLabel')) return isText ? 'edge label' : tag === 'rect' ? 'edge bg' : null
-      if (el.closest('g.edgePaths') && tag === 'path') return dashes(el) ? 'edge dashed' : 'edge'
+      if (el.closest('g.edgeLabel')) return isText ? c('edge', 'label') : tag === 'rect' ? c('edge', 'bg') : null
+      if (el.closest('g.edgePaths') && tag === 'path') return dashes(el) ? c('edge', 'dashed') : c('edge')
       return null
     }
-    if (el.closest('g.actor-man')) return isText ? 'actor label' : 'actor shape'
-    if (had(el, 'actor')) return isText ? 'actor label' : 'actor shape'
-    if (had(el, 'actor-line')) return 'lifeline'
-    if (had(el, 'note')) return 'note shape'
-    if (had(el, 'noteText')) return 'note label'
-    if (had(el, 'loopLine')) return dashes(el) ? 'frame dashed' : 'frame'
-    if (had(el, 'labelBox')) return 'frame shape'
-    if (had(el, 'labelText') || had(el, 'loopText') || had(el, 'sectionTitle')) return 'frame label'
-    if (had(el, 'messageText')) return 'edge label'
-    if (had(el, 'messageLine0') || had(el, 'messageLine1')) return dashes(el) ? 'edge dashed' : 'edge'
-    if (had(el, 'sequenceNumber')) return 'number label'
-    // A sequence number's circle is a marker on a zero-length line; the line carries `number`
-    // alone: it draws nothing itself, and the marker's circle is the `number shape`.
-    if (tag === 'line' && /sequencenumber\)$/.test(el.getAttribute('marker-start') || '')) return 'number'
+    if (el.closest('g.actor-man')) return isText ? c('actor', 'label') : c('actor', 'shape')
+    if (had(el, 'actor')) return isText ? c('actor', 'label') : c('actor', 'shape')
+    if (had(el, 'actor-line')) return c('lifeline')
+    if (had(el, 'note')) return c('note', 'shape')
+    if (had(el, 'noteText')) return c('note', 'label')
+    if (had(el, 'loopLine')) return dashes(el) ? c('frame', 'dashed') : c('frame')
+    if (had(el, 'labelBox')) return c('frame', 'shape')
+    if (had(el, 'labelText') || had(el, 'loopText') || had(el, 'sectionTitle')) return c('frame', 'label')
+    if (had(el, 'messageText')) return c('edge', 'label')
+    if (had(el, 'messageLine0') || had(el, 'messageLine1')) return dashes(el) ? c('edge', 'dashed') : c('edge')
+    if (had(el, 'sequenceNumber')) return c('number', 'label')
+    // A sequence number's circle is a marker on a zero-length line; the line carries
+    // `dg-number` alone: it draws nothing itself, and the marker's circle is the
+    // `dg-number dg-shape`.
+    if (tag === 'line' && /sequencenumber\)$/.test(el.getAttribute('marker-start') || '')) return c('number')
     return null
+  }
+  // What mermaid wrote about a text's font, as an attribute or in its style: recorded per
+  // class before it is stripped, so the build can hold it to the contract.
+  const fontOf = (el) => {
+    const out = {}
+    for (const p of (el.getAttribute('style') || '').split(';')) {
+      const [name, value] = p.split(':').map((s) => s?.trim())
+      if ((name === 'font-size' || name === 'font-weight') && value) out[name] = value
+    }
+    for (const name of ['font-size', 'font-weight']) if (el.hasAttribute(name)) out[name] = el.getAttribute(name).trim()
+    return out
   }
 
   const PAINT = /^(style|fill|fill-rule|stroke|stroke-width|stroke-dasharray|stroke-dashoffset|stroke-linecap|stroke-linejoin|font|font-family|font-size|font-weight|font-style|color|opacity|filter|name|data-.*)$/
@@ -230,19 +255,26 @@ export function cleanSvg(svg) {
   const decisions = [...svg.querySelectorAll('*')].map((el) => [el, classify(el), describe(el)])
   for (const [el, cls, where] of decisions) {
     if (cls === null) { unmapped.push(where); continue }
+    if (el.tagName === 'text' && cls) {
+      const seen = (text[cls] ??= {})
+      for (const [name, value] of Object.entries(fontOf(el))) {
+        if (!(seen[name] ??= []).includes(value)) seen[name].push(value)
+      }
+    }
     if (cls) el.setAttribute('class', cls); else el.removeAttribute('class')
     for (const a of [...el.getAttributeNames()]) {
       if (PAINT.test(a) || (a === 'id' && el.tagName !== 'marker')) el.removeAttribute(a)
     }
   }
-  svg.setAttribute('class', `diagram ${kind}`)
+  svg.setAttribute('class', `dg dg-${kind}`)
   for (const a of [...svg.getAttributeNames()]) if (PAINT.test(a)) svg.removeAttribute(a)
-  return unmapped
+  return { unmapped, text }
 }
 
-// What the audit refuses in a fragment. Exported so the tests can show it red on a planted
-// defect, and run by the build on its own output before anything is written.
-export function auditFragment(html) {
+// What the audit refuses in a fragment, against a contract (the committed copy unless the
+// caller passes the kit's). Exported so the tests can show it red on a planted defect, and
+// run by the build on its own output before anything is written.
+export function auditFragment(html, contract = CONTRACT) {
   const problems = []
   if (/\sstyle=/i.test(html)) problems.push('a style= attribute')
   if (/<style\b/i.test(html)) problems.push('a <style> element')
@@ -252,6 +284,9 @@ export function auditFragment(html) {
   const dup = ids.filter((id, i) => ids.indexOf(id) !== i)
   if (dup.length) problems.push(`duplicate ids: ${[...new Set(dup)].join(', ')}`)
   const svgs = html.match(/<svg\b[\s\S]*?<\/svg>/g) ?? []
+  const figures = (html.match(/<figure class="diagram"><svg\b/g) ?? []).length
+  if (figures !== svgs.length) problems.push(`${svgs.length} drawings, ${figures} inside <figure class="diagram">`)
+  const kinds = kindsOf(contract)
   svgs.forEach((svg, i) => {
     const where = `diagram ${i + 1}`
     if (/<foreignObject/i.test(svg)) problems.push(`${where}: a foreignObject (HTML inside the drawing)`)
@@ -261,12 +296,35 @@ export function auditFragment(html) {
       const paint = /\s(fill|stroke|stroke-width|stroke-dasharray|font-family|font-size|font-weight|font-style|color|opacity|filter)=/.exec(attrs)
       if (paint) problems.push(`${where}: <${tag}> carries ${paint[1]}=`)
       const cls = /\sclass="([^"]*)"/.exec(attrs)
-      const tokens = cls ? cls[1].split(/\s+/).filter(Boolean) : []
-      for (const t of tokens) if (!CLASS_SET.has(t)) problems.push(`${where}: <${tag}> carries the class "${t}", which the contract does not have`)
-      if (PRIMITIVES.includes(tag) && !tokens.length) problems.push(`${where}: an unclassed <${tag}>`)
-      if (tag === 'svg' && !(tokens.includes('diagram') && DIAGRAM_CLASSES.kinds.some((k) => tokens.includes(k)))) problems.push(`${where}: the <svg> does not carry "diagram" and its kind`)
+      const classes = cls ? cls[1].trim().replace(/\s+/g, ' ') : ''
+      if (tag === 'svg') {
+        const t = classes.split(' ')
+        if (!(t.length === 2 && t[0] === 'dg' && kinds.includes(t[1]))) problems.push(`${where}: the <svg> carries "${classes}", not "dg" and one of ${kinds.join(', ')}`)
+      } else if (PRIMITIVES.includes(tag)) {
+        if (!classes) problems.push(`${where}: an unclassed <${tag}>`)
+        else if (!contract.classes[classes]) problems.push(`${where}: <${tag}> carries "${classes}", which the contract does not have`)
+        else if (!contract.classes[classes].on.includes(tag)) problems.push(`${where}: <${tag}> carries "${classes}", which the contract puts on ${contract.classes[classes].on.join(', ')}`)
+      } else if (cls) problems.push(`${where}: a <${tag}> carries a class`)
     }
   })
+  return problems
+}
+
+// What the drawings' text was laid out at, held to the contract's "text": every size and
+// weight mermaid wrote on a label is the one the contract records for that class (a class
+// not listed takes dg-label's), so a stylesheet that sets what the contract says draws the
+// text the boxes were measured for. `seen` is cleanSvg's report, merged over the drawings.
+export function auditText(seen, contract = CONTRACT) {
+  const problems = []
+  for (const [cls, fonts] of Object.entries(seen)) {
+    for (const [name, values] of Object.entries(fonts)) {
+      const want = contract.text[cls]?.[name] ?? contract.text['dg-label']?.[name]
+      for (const value of values) {
+        if (want === undefined) problems.push(`${cls} was laid out at ${name} ${value}, which the contract does not record`)
+        else if (value !== want) problems.push(`${cls} was laid out at ${name} ${value}; the contract says ${want}`)
+      }
+    }
+  }
   return problems
 }
 
@@ -329,7 +387,8 @@ function loadRegistry(musts) {
   return { registry: JSON.parse(text), sha256: sha256(text) }
 }
 
-export async function build({ ref, out, musts }) {
+// `contract` is the committed copy unless a test passes another, to show the audits red.
+export async function build({ ref, out, musts, contract = CONTRACT }) {
   const commit = git('rev-parse', '--verify', '--quiet', `${ref}^{commit}`).trim()
   out = resolve(out)
   refuseTrackedOut(out)
@@ -380,10 +439,10 @@ export async function build({ ref, out, musts }) {
         const svg = figure.querySelector('svg')
         pactMermaid.widenNotes(svg)
         const { x0, y0, x1, y1 } = pactMermaid.cover(svg)
-        const unmapped = pactCleanSvg(svg)
+        const { unmapped, text } = pactCleanSvg(svg)
         svg.setAttribute('width', Math.round(x1 - x0))
         svg.setAttribute('height', Math.round(y1 - y0))
-        out.push({ kind: svg.getAttribute('class').split(' ')[1], svg: figure.innerHTML, unmapped })
+        out.push({ kind: svg.getAttribute('class').split(' ')[1].replace(/^dg-/, ''), svg: figure.innerHTML, unmapped, text })
       }
       return out
     }, FONT)
@@ -394,12 +453,23 @@ export async function build({ ref, out, musts }) {
   }
   const unmapped = drawings.flatMap((d, i) => d.unmapped.map((u) => `diagram ${i + 1}: ${u}`))
   if (unmapped.length) throw new Error(`elements the class contract does not cover:\n  ${unmapped.join('\n  ')}`)
+  const seen = {}
+  for (const d of drawings) {
+    for (const [cls, fonts] of Object.entries(d.text)) {
+      for (const [name, values] of Object.entries(fonts)) {
+        const all = ((seen[cls] ??= {})[name] ??= [])
+        for (const v of values) if (!all.includes(v)) all.push(v)
+      }
+    }
+  }
+  const laidOut = auditText(seen, contract)
+  if (laidOut.length) throw new Error(`the drawings' text is not laid out as the contract says:\n  ${laidOut.join('\n  ')}`)
 
   let fragment = html
   figures.forEach((figure, i) => {
-    fragment = fragment.replace(figure, `<figure class="diagram diagram-${drawings[i].kind}">${drawings[i].svg}</figure>`)
+    fragment = fragment.replace(figure, `<figure class="diagram">${drawings[i].svg}</figure>`)
   })
-  const problems = auditFragment(fragment)
+  const problems = auditFragment(fragment, contract)
   if (problems.length) throw new Error(`the fragment fails its own audit:\n  ${problems.join('\n  ')}`)
 
   const toc = []
