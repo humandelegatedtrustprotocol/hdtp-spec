@@ -46,16 +46,34 @@ Publishing is the maintainer's and local: `make publish` runs the gates and the 
 - An independent implementation.
 - An external review of the sealed envelope (§13) and the certificate profile (§14).
 
+## How to cite / attribute
+
+CC BY 4.0 requires attribution when the specification text is shared, as it is or adapted. Use this
+line, with the version you used, read from the header line of `SPEC.md`:
+
+> *PACT — Personal Agent Communication & Trust Protocol*, by Sumit Agrawal, version 2.2.5 (2026-09-30), https://pact-protocol.com/spec/, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+
+State whether you changed the text. `CITATION.cff` carries the same fields for citation tools, and
+`npm run vectors:check` fails when its version or date, or this line's, differs from the header line
+of `SPEC.md`.
+Redistributions of the code and data carry `NOTICE`, as section 4(d) of the Apache License 2.0
+requires.
+
 ## Licensing
 
 | Files | Licence |
 |---|---|
-| The specification text, `SPEC.md` | [CC BY 4.0](LICENSE-docs) |
-| The other prose: `README.md`, `CHANGES.md`, `docs/`, `archive/*.md`, `explainer/pact-explainer.html` (its text and inline SVG) | [CC BY 4.0](LICENSE-docs) |
-| Code: `vectors/**/*.mjs`, `site/*.mjs`, `site/whitepaper.css`, `archive/test-vectors/gen_vectors.py`, `Makefile`, `package.json`, `.github/workflows/whitepaper.yml` | licence to be chosen by the owner (the sibling repositories use Apache-2.0) |
-| Data: `vectors/pact-2.0-vectors.json`, `vectors/pact1x-markers.txt`, `archive/test-vectors/vectors.json` | with the code, under the licence chosen for it |
-| The mark, `site/brand/mark.svg` | the project's mark; not covered by either licence above |
+| The specification text, `SPEC.md` | [CC BY 4.0](LICENSE-docs); patents: the OWFa 1.0 (Patent Only) declaration in [`PATENTS.md`](PATENTS.md) |
+| The other prose: `README.md`, `CHANGES.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CLAUDE.md`, `docs/`, `archive/*.md`, `explainer/pact-explainer.html` (its text and inline SVG), and the project's own prose in `PATENTS.md` (the text outside its fenced agreement) | [CC BY 4.0](LICENSE-docs) |
+| Code: `vectors/**/*.mjs`, `site/*.mjs`, `site/whitepaper.css`, `archive/test-vectors/gen_vectors.py`, `Makefile`, `package.json`, `package-lock.json`, `.gitignore`, `.github/workflows/whitepaper.yml` | [Apache-2.0](LICENSE), with [`NOTICE`](NOTICE) |
+| Data: `vectors/pact-2.0-vectors.json`, `vectors/appendix-b-reader.json`, `vectors/pact1x-markers.txt`, `site/diagram-classes.json`, `archive/test-vectors/vectors.json`, `CITATION.cff`, `NOTICE` | [Apache-2.0](LICENSE) |
+| Licence and agreement texts: `LICENSE` (the Apache License 2.0), `LICENSE-docs` (the CC BY 4.0 legal code), the fenced agreement in `PATENTS.md` (OWFa 1.0, Patent Only), `site/brand/OFL-*.txt` | their authors' texts (the Apache Software Foundation, Creative Commons, the Open Web Foundation, the font authors); not licensed by this project |
+| The mark, `site/brand/mark.svg` | the project's mark; not covered by any licence above |
 | Fonts: `site/brand/inter-*.woff2`, `site/brand/jbmono-*.woff2` | SIL Open Font License 1.1: `site/brand/OFL-inter.txt`, `site/brand/OFL-jetbrains-mono.txt`. The `latin` files are byte-identical to the ones fontsource 5.3.0 packages from the Google Fonts builds; the two `*-symbols-wght.woff2` are subsets cut for this build (‖ → ≠ ≤ ≥). Neither family reserves a font name, so the subsets keep the family names. |
+
+No licence stops a third party from filing a patent application. What this project does about
+patents is in `PATENTS.md`: the author's OWFa pledge not to assert his own claims, and the dated
+public publication of the specification: what was measured as published, where, and when.
 
 `archive/hardened-draft-spec.md` carries a licence line of its own ("CC BY 4.0 … additionally licensed under MIT"). It is the draft's own text, part of the dated record; the draft was never issued.
 
