@@ -200,8 +200,9 @@ for (const [what, misencode] of [
   ['an extnValue that is not an OCTET STRING', { wrapperTag: { oid: OID.ski, tag: 0x03 } }],
   ['an extnValue OCTET STRING holding two TLVs', { valueTail: { oid: OID.ski, der: '0500' } }],
 ]) scenario('certificate', 'DER: ' + what, 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode }), ROOT_A]));
-// §14.1: a P-256 key is its uncompressed point. The compressed one is the same key under a second
-// SubjectPublicKeyInfo, so a second fingerprint; OpenSSL reads it, and the seed did until 2026-09-30.
+// A P-256 key is read as its uncompressed point only. The compressed one is the same key under a
+// second SubjectPublicKeyInfo, so a second fingerprint (§2); OpenSSL reads it, and the seed did until
+// 2026-09-30.
 scenario('certificate', 'DER: a P-256 key written as its compressed point', 'rule 1', () => rule([leafOf(rootB, 'Bharat Mehta', hostB, E_B, { misencode: { compressedPoint: true } }), ROOT_B]));
 
 // A root's dates carry no trust — its fingerprint is the identity, and rule 4 checks the leaf's

@@ -73,8 +73,8 @@ export function buildRoot({ cn, key, notBefore, label, basicConstraints }) {
 //                  contents unchanged (DER: extnValue is an OCTET STRING)
 //   valueTail      `{ oid, der }` — that extension's OCTET STRING holds its value and then these
 //                  bytes (DER: the OCTET STRING is the value, one TLV)
-//   compressedPoint  a P-256 host key written as its compressed point, `02`/`03` and x (§14.1: the
-//                  uncompressed point); the subjectKeyIdentifier follows the bytes written
+//   compressedPoint  a P-256 host key written as its compressed point, `02`/`03` and x (the readers
+//                  take the uncompressed point only); the subjectKeyIdentifier follows the bytes written
 export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid, misencode = {} }) {
   const plainSpki = spkiOf(hostKey.pub);
   const point = () => { const u = p256Uncompressed(hostKey.pub); return Buffer.concat([Buffer.from([2 + (u[64] & 1)]), u.subarray(1, 33)]); };
@@ -159,10 +159,11 @@ export function parse(der) {
     if (key.length !== 32) throw new Error('Ed25519 key is not 32 bytes');
     if (!ed25519IsPoint(key)) throw new Error('Ed25519 key is not a point');
   }
-  // A P-256 key is its uncompressed point (§14.1), so one key has one SubjectPublicKeyInfo and one
-  // fingerprint. RFC 5480 §2.2 also allows the compressed one, which OpenSSL reads, so a certificate
-  // whose key was written `02`/`03` and x was a certificate here — a second fingerprint for the key —
-  // while both ports refuse it.
+  // A P-256 key is read as its uncompressed point only, as both ports read it, so one key has one
+  // SubjectPublicKeyInfo and one fingerprint (§2). RFC 5480 §2.2 also allows the compressed point,
+  // which OpenSSL reads, so a certificate whose key was written `02`/`03` and x was a certificate here
+  // — a second fingerprint for the key — while both ports refused it. SPEC §14.1 says "strict DER" and
+  // names the algorithm; it does not spell this out.
   if (algOid === OID.ecPublicKey) {
     const key = children(read(out.spki))[1].content.subarray(1);
     if (key.length !== 65 || key[0] !== 0x04) throw new Error('P-256 key is not the uncompressed point');
