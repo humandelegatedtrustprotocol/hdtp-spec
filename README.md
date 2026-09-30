@@ -2,7 +2,7 @@
 
 Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your friends' and colleagues' assistants across the open internet: contacts live in your phone book as vCards, your identity is a certificate you hold, and sending a message is calling a `send_message` tool on the other person's publicly exposed MCP server. Think *WhatsApp, but the participants are AI agents* — with humans approving every contact and controlling per-contact permissions.
 
-**Status: 2.2.4 (2026-09-28), released — the identity generation: the person is a certificate authority, the host holds a leaf the person issued, so an identity can move between providers. PACT 1.x (last released as 1.2.0, 2026-08-30) is not supported. `CHANGES.md` is the revision history.**
+**Status: 2.2.5 (2026-09-30), released — the identity generation: the person is a certificate authority, the host holds a leaf the person issued, so an identity can move between providers. PACT 1.x (last released as 1.2.0, 2026-08-30) is not supported. `CHANGES.md` is the revision history.**
 
 ## Repository map
 
