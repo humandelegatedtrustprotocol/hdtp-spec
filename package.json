@@ -10,6 +10,9 @@
     "vectors:intrude": "node vectors/intrude.mjs",
     "publish": "wrangler r2 object put pact-cloud-private/pact-whitepaper.pdf --file dist/pact-whitepaper.pdf --remote && wrangler r2 object put pact-cloud-private/pact-whitepaper.meta.json --file dist/pact-whitepaper.meta.json --content-type application/json --remote"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "markdown-it": "14.1.0",
     "markdown-it-anchor": "9.2.0",
