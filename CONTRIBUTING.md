@@ -66,7 +66,8 @@ gates locally before opening a pull request; the workflow runs them again on it.
   - code and data under the Apache License 2.0 (`LICENSE`);
   - and, for `SPEC.md`, the patent commitment of `PATENTS.md`: you make the Open Web Foundation
     Final Specification Agreement (OWFa 1.0, Patent Only) for the specification that includes your
-    contribution, on the terms and with the scope the declaration there states.
+    contribution, as an individual or, when you contribute for an employer or other organisation, for
+    it as a Bound Entity, on the terms and with the scope the declaration there states.
 
   The README's "Licensing" section says which file falls under which licence.
 - Every commit carries a sign-off: a `Signed-off-by: Your Name <you@example.com>` line, which
