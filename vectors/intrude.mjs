@@ -175,6 +175,13 @@ for (const [what, uris, dns] of [
   ['dot segment', ['https://agent.alina.example/mcp/../admin']],
   ['query string', [E_A + '?x=1']],
   ['dNSName of another host', [E_A], 'mallory.example'],
+  // A host as both ports read one (their `normalHost`): letters, digits, `-` and `.`, no empty label,
+  // and no IPv6 literal that holds an IPv4 address. WHATWG's URL, which the seed parses with, keeps
+  // all four as written, so each was an endpoint in normal form here until 2026-09-30.
+  ['an underscore in the host', ['https://agent_alina.example/mcp']],
+  ['a trailing dot on the host', ['https://agent.alina.example./mcp']],
+  ['an empty label in the host', ['https://agent..alina.example/mcp']],
+  ['an IPv4-mapped IPv6 literal', ['https://[::ffff:102:304]/mcp']],
 ]) scenario('certificate', 'endpoint: ' + what, 'rule 5', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { uris, dnsName: dns }), ROOT_A]));
 
 // The same exactness one layer down. DER has one encoding of each of these, and a certificate that
@@ -204,6 +211,15 @@ for (const [what, misencode] of [
 // second SubjectPublicKeyInfo, so a second fingerprint (§2); OpenSSL reads it, and the seed did until
 // 2026-09-30.
 scenario('certificate', 'DER: a P-256 key written as its compressed point', 'rule 1', () => rule([leafOf(rootB, 'Bharat Mehta', hostB, E_B, { misencode: { compressedPoint: true } }), ROOT_B]));
+// §2: the fingerprint is SHA-256 over the SubjectPublicKeyInfo, so its key BIT STRING has one
+// spelling, with no unused bits, and the structure holds its AlgorithmIdentifier and key and nothing
+// else. The seed read the key after the unused-bits octet whatever it said, until 2026-09-30.
+for (const [what, misencode] of [
+  ['an Ed25519 key BIT STRING with 1 unused bit', { spkiUnusedBits: 1 }],
+  ['an Ed25519 key BIT STRING with 7 unused bits', { spkiUnusedBits: 7 }],
+  ['a SubjectPublicKeyInfo with a member after its key', { spkiTail: '0500' }],
+]) scenario('certificate', 'DER: ' + what, 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode }), ROOT_A]));
+scenario('certificate', 'DER: a P-256 key BIT STRING with 1 unused bit', 'rule 1', () => rule([leafOf(rootB, 'Bharat Mehta', hostB, E_B, { misencode: { spkiUnusedBits: 1 } }), ROOT_B]));
 
 // A root's dates carry no trust — its fingerprint is the identity, and rule 4 checks the leaf's
 // validity alone (§14.2). Recorded as accepted on purpose: an implementation that reaches for RFC 5280
