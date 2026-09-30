@@ -1,0 +1,448 @@
+// Renders one committed SPEC.md into layout-agnostic HTML fragments for the protocol site.
+//
+//   node site/spec-html.mjs --ref <git ref> --out <dir> [--musts <path>|none]
+//
+// The text comes from `git show <ref>:SPEC.md`, never from the working tree, so an uncommitted
+// SPEC is never published and a superseded one (the PACT 1 text, d130444) is rendered without
+// ever being written into this repository as markdown — its retired names would fail
+// vectors/check-no-1x.mjs the day they were committed. For the same reason `--out` may not be
+// a tracked path: inside the repository it must be gitignored (dist/), or it must be outside.
+//
+// Written into <dir>:
+//   spec.html    the whole spec as one fragment: no <html>, <head> or <body>; the site wraps it.
+//                Headings start at h2 with stable ids from the section number — §2 is #s2,
+//                §2.1 is #s2-1, "Appendix B" is #appendix-b, the preamble is #introduction
+//                (its heading is synthesized, as in the whitepaper); anything else takes its
+//                slug. Every MUST and MUST NOT in prose is <span class="must">. Mermaid blocks
+//                are <figure class="diagram diagram-<kind>"> holding a pre-rendered inline SVG
+//                that carries classes only — no <style>, no style= attribute, no paint or
+//                font attribute, no HTML inside the drawing, no font fetched — so the site's
+//                stylesheet owns every colour and font (the class contract is DIAGRAM_CLASSES).
+//   toc.json     the heading tree: [{ level, text, id, children: [...] }].
+//   musts.json   every normative sentence, [{ heading, section, id, hash, text }]: `heading` is
+//                the id of the heading it sits under, `id` is pact-identity's registry id for
+//                that sentence (musts.json, matched by the sentence hash its checker computes)
+//                or null when the registry has no entry for these exact words.
+//   meta.json    the version and date the whitepaper build parses from the header line, the
+//                ref, the commit, this generator's version, and the counts.
+//   vectors/     when the commit has vectors/pact-2.0-vectors.json: that file, byte for byte,
+//                as a download, and index.html, a fragment rendering it.
+//
+// The markdown pipeline is site/markdown.mjs and the mermaid pipeline site/mermaid.mjs, both
+// shared with the whitepaper; this file adds the id scheme, the MUST markup, the SVG class
+// mapping and the JSON sidecars. Same commit in, same bytes out: site/spec-html.test.mjs holds
+// that, and the site regenerates from its locked commit to prove its copy is this output.
+
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { esc, renderSpec, slugify, splitSpec } from './markdown.mjs'
+import { FONT, installMermaid, launch } from './mermaid.mjs'
+
+export const GENERATOR = 'spec-html 1'
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+/* ---------------------------------------------------------- the contract */
+
+// Every class an emitted SVG may carry. Each drawing primitive carries a part and a role —
+// `node shape`, `node label`, `edge`, `edge label`, `edge bg`, `actor shape`, `note label`,
+// `frame shape`, `arrow shape`, `number label` … — except an edge, which is its own part
+// (`edge`, or `edge dashed`), and the zero-length line that carries a sequence number's
+// marker (`number` alone; the marker's circle is the `number shape`). A group carries
+// nothing. Modifiers are additive: `dashed` on an edge or frame line, `terminal` on a state
+// diagram's start or end. The <svg> carries `diagram` and its kind. Text was laid out in
+// Inter at 16px (actor names at weight 500, sequence numbers at 12px), so a stylesheet that
+// sets those sizes on `.label` and `.number.label` gets the boxes the text was measured for.
+export const DIAGRAM_CLASSES = Object.freeze({
+  kinds: ['flowchart', 'state', 'sequence'],
+  parts: ['node', 'cluster', 'edge', 'actor', 'note', 'frame', 'number', 'lifeline', 'arrow'],
+  roles: ['shape', 'label', 'bg'],
+  modifiers: ['dashed', 'terminal'],
+})
+const CLASS_SET = new Set(['diagram', ...DIAGRAM_CLASSES.kinds, ...DIAGRAM_CLASSES.parts, ...DIAGRAM_CLASSES.roles, ...DIAGRAM_CLASSES.modifiers])
+const PRIMITIVES = ['rect', 'circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'text']
+const SVG_TAGS = new Set(['svg', 'g', 'defs', 'marker', 'tspan', ...PRIMITIVES])
+
+// A heading's id: the section number where there is one, a slug otherwise.
+export function sectionId(title) {
+  const t = title.trim()
+  let m
+  if ((m = /^(\d+)\.(\d+)\s/.exec(t))) return `s${m[1]}-${m[2]}`
+  if ((m = /^(\d+)\.\s/.exec(t))) return `s${m[1]}`
+  if ((m = /^Appendix ([A-Z])\b/.exec(t))) return `appendix-${m[1].toLowerCase()}`
+  return slugify(t)
+}
+
+/* ----------------------------------------------------------------- MUSTs */
+
+// A copy of `extract` in pact-identity/js/musts.mjs: the same units, the same sentence
+// splitter, the same hash, so a sentence here matches the registry's entry for it. The copy is
+// held to the original by site/spec-html.test.mjs whenever the sibling is checked out.
+export function extractMusts(markdown) {
+  const lines = markdown.split('\n')
+  const units = []
+  let fence = false, section = '(front matter)', buf = []
+  const flush = () => { if (buf.length) { units.push({ section, text: buf.join(' ') }); buf = [] } }
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) { fence = !fence; flush(); continue }
+    if (fence) continue
+    const h = /^(#{2,4})\s+(.*)$/.exec(line)
+    if (h) { flush(); section = h[2].trim(); continue }
+    if (!line.trim()) { flush(); continue }
+    if (/^\s*[-*|]/.test(line)) { flush(); units.push({ section, text: line.trim() }); continue }
+    buf.push(line.trim())
+  }
+  flush()
+
+  const splitter = /(?<=[.!?:])\s+(?=[A-Z`*(§"“—\d])/
+  const NORM = /\bMUST NOT\b|\bMUST\b|\bREQUIRED\b/
+  const out = []
+  const seen = new Map()
+  for (const u of units) {
+    const pieces = u.text.startsWith('|') ? u.text.split('|').map((x) => x.trim()).filter(Boolean) : u.text.split(splitter)
+    for (const p of pieces) {
+      if (!NORM.test(p)) continue
+      const n = (seen.get(u.section) ?? 0) + 1
+      seen.set(u.section, n)
+      const text = p.replace(/\s+/g, ' ').trim()
+      out.push({
+        id: `${u.section.split(/\s/)[0].replace(/^§/, '')}#${n}`,
+        section: u.section,
+        hash: createHash('sha256').update(text).digest('hex').slice(0, 12),
+        text,
+      })
+    }
+  }
+  return out
+}
+
+// The sentences of `body`, each under its heading id, with the registry's id where the
+// registry holds these exact words (the same hash under the same section prefix).
+export function mustsOf(body, registry) {
+  const byHash = new Map()
+  for (const [id, entry] of Object.entries(registry ?? {})) {
+    if (!byHash.has(entry.hash)) byHash.set(entry.hash, [])
+    byHash.get(entry.hash).push(id)
+  }
+  return extractMusts(body).map((m) => {
+    const ids = byHash.get(m.hash) ?? []
+    const prefix = m.id.split('#')[0]
+    const id = ids.find((x) => x.split('#')[0] === prefix) ?? (ids.length === 1 ? ids[0] : null)
+    return { heading: sectionId(m.section), section: m.section, id, hash: m.hash, text: m.text }
+  })
+}
+
+/* --------------------------------------------------------------- the SVG */
+
+// Runs inside the page, over one rendered <svg>: maps mermaid's markup onto the class
+// contract and strips everything else it styled with. Returns what it could not map;
+// the build fails on any. Closes over nothing: installed by string, like site/mermaid.mjs.
+export function cleanSvg(svg) {
+  const KINDS = { 'flowchart-v2': 'flowchart', stateDiagram: 'state', sequence: 'sequence' }
+  const kind = KINDS[svg.getAttribute('aria-roledescription')]
+  const unmapped = []
+  if (!kind) return [`diagram kind ${svg.getAttribute('aria-roledescription')}`]
+  for (const el of svg.querySelectorAll('style, symbol, filter, linearGradient')) el.remove()
+  for (const defs of svg.querySelectorAll('defs')) if (!defs.children.length) defs.remove()
+  // An edge with no label still gets an empty label group; nothing to draw, nothing to keep.
+  for (const g of svg.querySelectorAll('g.edgeLabel')) if (!g.textContent.trim()) g.remove()
+  // A node's or cluster's label sits on its own background rect, which the node's shape
+  // already provides, and an unlabelled edge leaves a dimensionless one in a bare group;
+  // only an edge label needs one, to knock the line out behind its text. A rect with no
+  // width draws nothing wherever it is.
+  for (const r of svg.querySelectorAll('rect')) {
+    if (r.hasAttribute('width') && (!r.classList.contains('background') || r.closest('g.edgeLabel'))) continue
+    const g = r.parentElement
+    r.remove()
+    if (g.tagName === 'g' && !g.children.length && !g.getAttribute('class')) g.remove()
+  }
+  // What mermaid's stylesheet and inline styles decide about LAYOUT survives as attributes:
+  // an actor's name is centred by an inline text-anchor; a flowchart node's label by a rule
+  // of the <style> element (`.node .label text { text-anchor: middle }`) that the state
+  // diagram's stylesheet does not have — its labels, like a cluster's, are placed by their
+  // translate and anchor at the start. Paint and fonts do not survive: they are the site's.
+  const LAYOUT = ['text-anchor', 'dominant-baseline', 'alignment-baseline']
+  for (const el of svg.querySelectorAll('[style]')) {
+    for (const p of el.getAttribute('style').split(';')) {
+      const [name, value] = p.split(':').map((s) => s?.trim())
+      if (LAYOUT.includes(name) && value && !el.hasAttribute(name)) el.setAttribute(name, value)
+    }
+  }
+  if (kind === 'flowchart') {
+    for (const t of svg.querySelectorAll('g.node text')) if (!t.hasAttribute('text-anchor')) t.setAttribute('text-anchor', 'middle')
+  }
+
+  const had = (el, name) => el.classList.contains(name)
+  const dashes = (el) => {
+    const dash = /stroke-dasharray:\s*([\d.]+)[,\s]+([\d.]+)/.exec(el.getAttribute('style') || '')
+      || /^([\d.]+)[,\s]+([\d.]+)/.exec(el.getAttribute('stroke-dasharray') || '')
+    return (dash && Number(dash[1]) > 0 && Number(dash[2]) > 0) || /edge-pattern-(dotted|dashed)/.test(el.getAttribute('class') || '')
+  }
+  const describe = (el) => {
+    const chain = []
+    for (let e = el; e && e !== svg; e = e.parentElement) chain.unshift(`${e.tagName}${e.getAttribute('class') ? '.' + e.getAttribute('class').trim().replace(/\s+/g, '.') : ''}`)
+    return chain.join(' > ')
+  }
+  const classify = (el) => {
+    const tag = el.tagName
+    const marker = el.closest('marker')
+    if (tag === 'g' || tag === 'defs' || tag === 'tspan' || tag === 'marker') return ''
+    if (marker) return /sequencenumber$/.test(marker.id) ? 'number shape' : 'arrow shape'
+    const isText = tag === 'text'
+    if (kind !== 'sequence') {
+      if (el.closest('g.cluster-label')) return isText ? 'cluster label' : null
+      if (el.closest('g.cluster')) return isText ? null : 'cluster shape'
+      const node = el.closest('g.node')
+      if (node) {
+        if (isText) return 'node label'
+        return had(node, 'state-start') || had(node, 'state-end') || had(el, 'state-start') || had(el, 'state-end')
+          ? 'node shape terminal' : 'node shape'
+      }
+      if (el.closest('g.edgeLabel')) return isText ? 'edge label' : tag === 'rect' ? 'edge bg' : null
+      if (el.closest('g.edgePaths') && tag === 'path') return dashes(el) ? 'edge dashed' : 'edge'
+      return null
+    }
+    if (el.closest('g.actor-man')) return isText ? 'actor label' : 'actor shape'
+    if (had(el, 'actor')) return isText ? 'actor label' : 'actor shape'
+    if (had(el, 'actor-line')) return 'lifeline'
+    if (had(el, 'note')) return 'note shape'
+    if (had(el, 'noteText')) return 'note label'
+    if (had(el, 'loopLine')) return dashes(el) ? 'frame dashed' : 'frame'
+    if (had(el, 'labelBox')) return 'frame shape'
+    if (had(el, 'labelText') || had(el, 'loopText') || had(el, 'sectionTitle')) return 'frame label'
+    if (had(el, 'messageText')) return 'edge label'
+    if (had(el, 'messageLine0') || had(el, 'messageLine1')) return dashes(el) ? 'edge dashed' : 'edge'
+    if (had(el, 'sequenceNumber')) return 'number label'
+    // A sequence number's circle is a marker on a zero-length line; the line carries `number`
+    // alone: it draws nothing itself, and the marker's circle is the `number shape`.
+    if (tag === 'line' && /sequencenumber\)$/.test(el.getAttribute('marker-start') || '')) return 'number'
+    return null
+  }
+
+  const PAINT = /^(style|fill|fill-rule|stroke|stroke-width|stroke-dasharray|stroke-dashoffset|stroke-linecap|stroke-linejoin|font|font-family|font-size|font-weight|font-style|color|opacity|filter|name|data-.*)$/
+  // Every decision is taken before any class is rewritten: a child is classified by the
+  // mermaid classes of its ancestors, which the rewrite removes.
+  const decisions = [...svg.querySelectorAll('*')].map((el) => [el, classify(el), describe(el)])
+  for (const [el, cls, where] of decisions) {
+    if (cls === null) { unmapped.push(where); continue }
+    if (cls) el.setAttribute('class', cls); else el.removeAttribute('class')
+    for (const a of [...el.getAttributeNames()]) {
+      if (PAINT.test(a) || (a === 'id' && el.tagName !== 'marker')) el.removeAttribute(a)
+    }
+  }
+  svg.setAttribute('class', `diagram ${kind}`)
+  for (const a of [...svg.getAttributeNames()]) if (PAINT.test(a)) svg.removeAttribute(a)
+  return unmapped
+}
+
+// What the audit refuses in a fragment. Exported so the tests can show it red on a planted
+// defect, and run by the build on its own output before anything is written.
+export function auditFragment(html) {
+  const problems = []
+  if (/\sstyle=/i.test(html)) problems.push('a style= attribute')
+  if (/<style\b/i.test(html)) problems.push('a <style> element')
+  if (/<script\b/i.test(html)) problems.push('a <script> element')
+  if (/\son[a-z]+=/i.test(html)) problems.push('an inline event handler')
+  const ids = [...html.matchAll(/\sid="([^"]*)"/g)].map((m) => m[1])
+  const dup = ids.filter((id, i) => ids.indexOf(id) !== i)
+  if (dup.length) problems.push(`duplicate ids: ${[...new Set(dup)].join(', ')}`)
+  const svgs = html.match(/<svg\b[\s\S]*?<\/svg>/g) ?? []
+  svgs.forEach((svg, i) => {
+    const where = `diagram ${i + 1}`
+    if (/<foreignObject/i.test(svg)) problems.push(`${where}: a foreignObject (HTML inside the drawing)`)
+    for (const m of svg.matchAll(/<([a-zA-Z][\w:-]*)\b([^>]*)>/g)) {
+      const [, tag, attrs] = m
+      if (!SVG_TAGS.has(tag)) { problems.push(`${where}: a <${tag}>`); continue }
+      const paint = /\s(fill|stroke|stroke-width|stroke-dasharray|font-family|font-size|font-weight|font-style|color|opacity|filter)=/.exec(attrs)
+      if (paint) problems.push(`${where}: <${tag}> carries ${paint[1]}=`)
+      const cls = /\sclass="([^"]*)"/.exec(attrs)
+      const tokens = cls ? cls[1].split(/\s+/).filter(Boolean) : []
+      for (const t of tokens) if (!CLASS_SET.has(t)) problems.push(`${where}: <${tag}> carries the class "${t}", which the contract does not have`)
+      if (PRIMITIVES.includes(tag) && !tokens.length) problems.push(`${where}: an unclassed <${tag}>`)
+      if (tag === 'svg' && !(tokens.includes('diagram') && DIAGRAM_CLASSES.kinds.some((k) => tokens.includes(k)))) problems.push(`${where}: the <svg> does not carry "diagram" and its kind`)
+    }
+  })
+  return problems
+}
+
+/* --------------------------------------------------------------- vectors */
+
+function renderVectors(json) {
+  const v = JSON.parse(json)
+  const block = (value) => `<div class="code-block" data-lang="json"><pre><code class="language-json">${esc(JSON.stringify(value, null, 2))}</code></pre></div>\n`
+  const rows = Object.entries(v).map(([k, x]) => {
+    const kind = Array.isArray(x) ? `${x.length} cases` : typeof x === 'object' ? `${Object.keys(x).length} entries` : 'text'
+    return `<tr><td><a href="#vectors-${esc(slugify(k))}"><code>${esc(k)}</code></a></td><td>${esc(kind)}</td></tr>`
+  }).join('\n')
+  let out = `<div class="table-wrap">\n<table>\n<thead>\n<tr><th>Member</th><th>Holds</th></tr>\n</thead>\n<tbody>\n${rows}\n</tbody>\n</table>\n</div>\n`
+  for (const [k, x] of Object.entries(v)) {
+    out += `<h2 id="vectors-${esc(slugify(k))}"><code>${esc(k)}</code></h2>\n`
+    if (Array.isArray(x) && x.every((c) => c && typeof c === 'object' && ('name' in c || 'label' in c) && 'expect' in c)) {
+      out += `<div class="table-wrap">\n<table>\n<thead>\n<tr><th>Case</th><th>Expect</th></tr>\n</thead>\n<tbody>\n`
+      out += x.map((c) => `<tr><td>${esc(String(c.name ?? c.label))}</td><td><code>${esc(String(c.expect))}</code></td></tr>`).join('\n')
+      out += `\n</tbody>\n</table>\n</div>\n`
+    }
+    out += block(x)
+  }
+  return out
+}
+
+/* ------------------------------------------------------------- the build */
+
+const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
+const sha256 = (s) => createHash('sha256').update(s).digest('hex')
+
+function parseArgs(argv) {
+  const opts = { ref: null, out: null, musts: undefined }
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    if (a === '--ref') opts.ref = argv[++i]
+    else if (a === '--out') opts.out = argv[++i]
+    else if (a === '--musts') opts.musts = argv[++i]
+    else throw new Error(`unknown argument ${a}`)
+  }
+  if (!opts.ref || !opts.out) throw new Error('usage: node site/spec-html.mjs --ref <git ref> --out <dir> [--musts <path>|none]')
+  return opts
+}
+
+// The output directory may not become tracked content of this repository.
+function refuseTrackedOut(out) {
+  const rel = relative(root, out)
+  if (rel.startsWith('..') || isAbsolute(rel)) return
+  try { execFileSync('git', ['-C', root, 'check-ignore', '-q', rel]); return } catch {}
+  throw new Error(`--out ${out} is inside this repository and not gitignored; the site vendors the output, this repository never holds it`)
+}
+
+function loadRegistry(musts) {
+  if (musts === 'none') return null
+  const path = musts ?? resolve(root, '..', 'pact-identity', 'js', 'musts.json')
+  if (!existsSync(path)) {
+    if (musts) throw new Error(`--musts ${musts}: no such file`)
+    return null
+  }
+  const text = readFileSync(path, 'utf8')
+  return { registry: JSON.parse(text), sha256: sha256(text) }
+}
+
+export async function build({ ref, out, musts }) {
+  const commit = git('rev-parse', '--verify', '--quiet', `${ref}^{commit}`).trim()
+  out = resolve(out)
+  refuseTrackedOut(out)
+  const spec = git('show', `${commit}:SPEC.md`)
+  const tree = new Set(git('ls-tree', '-r', '--name-only', commit).split('\n'))
+  const vectorsPath = 'vectors/pact-2.0-vectors.json'
+  const vectors = tree.has(vectorsPath) ? git('show', `${commit}:${vectorsPath}`) : null
+
+  const { version, date, revisionNote, body } = splitSpec(spec)
+  const { html, headings } = renderSpec(body, { slugify: sectionId, must: true })
+  const sources = [...body.matchAll(/^```mermaid\n([\s\S]*?)\n```/gm)].map((m) => m[1])
+  const figures = html.match(/<figure class="diagram"><pre class="mermaid">[\s\S]*?<\/pre><\/figure>/g) ?? []
+  if (figures.length !== sources.length) throw new Error(`${sources.length} mermaid blocks in the text, ${figures.length} figures in the HTML`)
+
+  // Render the figures alone in a page that loads the whitepaper's fonts, so text is measured
+  // exactly as the whitepaper measures it, then read each cleaned <svg> back.
+  const scratch = await mkdtemp(join(tmpdir(), 'spec-html-'))
+  const browser = await launch()
+  let drawings
+  try {
+    const page = join(scratch, 'figures.html')
+    writeFileSync(page, `<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<link rel="stylesheet" href="${pathToFileURL(resolve(root, 'site', 'whitepaper.css')).href}">\n</head><body>\n${figures.join('\n')}\n</body></html>\n`)
+    const tab = await browser.newPage()
+    const problems = []
+    tab.on('pageerror', (e) => problems.push(`page error: ${e.message}`))
+    tab.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`) })
+    await tab.goto(pathToFileURL(page).href, { waitUntil: 'load' })
+    // The page shows no prose, so nothing has asked for the fonts yet; mermaid measures
+    // text the instant it renders, and a face still loading measures as the fallback,
+    // which moved a sequence diagram's actors by 5 px between two runs. Load every face
+    // the drawings use first, and refuse to go on without them.
+    const fonts = await tab.evaluate(async () => {
+      await Promise.all(['400 16px Inter', '500 16px Inter', '400 12px Inter'].map((f) => document.fonts.load(f, 'Aa→‖≠≤≥')))
+      await document.fonts.ready
+      return ['400 16px Inter', '500 16px Inter'].filter((f) => !document.fonts.check(f))
+    })
+    if (fonts.length) throw new Error(`fonts not loaded: ${fonts.join(', ')}`)
+    await installMermaid(tab)
+    await tab.addScriptTag({ content: `window.pactCleanSvg = ${cleanSvg}` })
+    drawings = await tab.evaluate(async (font) => {
+      mermaid.initialize(pactMermaid.config(font, { htmlLabels: false, base: font }))
+      const out = []
+      let n = 0
+      for (const pre of document.querySelectorAll('figure.diagram pre.mermaid')) {
+        const figure = pre.parentElement
+        const { svg: markup } = await mermaid.render(`spec-diagram-${n++}`, pactMermaid.sideways(pre.textContent))
+        figure.innerHTML = markup
+        const svg = figure.querySelector('svg')
+        pactMermaid.widenNotes(svg)
+        const { x0, y0, x1, y1 } = pactMermaid.cover(svg)
+        const unmapped = pactCleanSvg(svg)
+        svg.setAttribute('width', Math.round(x1 - x0))
+        svg.setAttribute('height', Math.round(y1 - y0))
+        out.push({ kind: svg.getAttribute('class').split(' ')[1], svg: figure.innerHTML, unmapped })
+      }
+      return out
+    }, FONT)
+    if (problems.length) throw new Error(`browser reported:\n  ${problems.join('\n  ')}`)
+  } finally {
+    await browser.close()
+    await rm(scratch, { recursive: true, force: true })
+  }
+  const unmapped = drawings.flatMap((d, i) => d.unmapped.map((u) => `diagram ${i + 1}: ${u}`))
+  if (unmapped.length) throw new Error(`elements the class contract does not cover:\n  ${unmapped.join('\n  ')}`)
+
+  let fragment = html
+  figures.forEach((figure, i) => {
+    fragment = fragment.replace(figure, `<figure class="diagram diagram-${drawings[i].kind}">${drawings[i].svg}</figure>`)
+  })
+  const problems = auditFragment(fragment)
+  if (problems.length) throw new Error(`the fragment fails its own audit:\n  ${problems.join('\n  ')}`)
+
+  const toc = []
+  for (const h of headings) {
+    const node = { level: h.level, text: h.title, id: h.id, children: [] }
+    if (h.level === 2 || !toc.length) toc.push(node); else toc.at(-1).children.push(node)
+  }
+  const loaded = loadRegistry(musts)
+  const sentences = mustsOf(body, loaded?.registry)
+  const meta = {
+    generator: GENERATOR,
+    ref, commit, version, date, revision_note: revisionNote ?? null,
+    headings: headings.length,
+    diagrams: drawings.length,
+    musts: {
+      sentences: sentences.length,
+      keywords: (fragment.match(/<span class="must">/g) ?? []).length,
+      registered: sentences.filter((s) => s.id).length,
+      registry: loaded ? { sha256: loaded.sha256 } : null,
+    },
+    vectors: vectors ? { file: vectorsPath, bytes: Buffer.byteLength(vectors), sha256: sha256(vectors) } : null,
+  }
+
+  mkdirSync(out, { recursive: true })
+  const json = (x) => JSON.stringify(x, null, 2) + '\n'
+  writeFileSync(join(out, 'spec.html'), fragment)
+  writeFileSync(join(out, 'toc.json'), json(toc))
+  writeFileSync(join(out, 'musts.json'), json(sentences))
+  writeFileSync(join(out, 'meta.json'), json(meta))
+  if (vectors) {
+    mkdirSync(join(out, 'vectors'), { recursive: true })
+    writeFileSync(join(out, 'vectors', 'pact-2.0-vectors.json'), vectors)
+    writeFileSync(join(out, 'vectors', 'index.html'), renderVectors(vectors))
+  }
+  return meta
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    const meta = await build(parseArgs(process.argv.slice(2)))
+    console.log(`spec ${meta.version} (${meta.date}) at ${meta.commit.slice(0, 7)}: ${meta.headings} headings, ${meta.diagrams} diagrams, ${meta.musts.keywords} MUSTs in ${meta.musts.sentences} sentences (${meta.musts.registered} in the registry)${meta.vectors ? `, vectors ${meta.vectors.bytes} bytes` : ', no vectors file'}`)
+  } catch (e) {
+    console.error(`spec-html: ${e.message}`)
+    process.exit(1)
+  }
+}
