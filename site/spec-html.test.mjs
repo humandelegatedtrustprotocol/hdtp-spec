@@ -5,6 +5,10 @@
 // The MUST extractor here is a copy of pact-identity's; the copy is held to the original
 // whenever the sibling checkout is beside this repository (PACT_IDENTITY_DIR overrides the
 // place), and the run fails without it: a copy nothing compares drifts the day it is written.
+// The diagram contract is a copy of pact-web-kit's kit/diagram-classes.json; with the kit
+// beside this repository (PACT_WEB_KIT_DIR overrides the place) the copy is held to the
+// kit's file byte for byte and the drawings are audited against the kit's; without it the
+// audit holds to the committed copy, and the run says so on stderr and as a skipped test.
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -15,12 +19,19 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { slugify, splitSpec } from './markdown.mjs'
-import { auditFragment, build, DIAGRAM_CLASSES, extractMusts, sectionId } from './spec-html.mjs'
+import { auditFragment, auditText, build, CONTRACT, CONTRACT_PATH, extractMusts, sectionId } from './spec-html.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
 const PACT1 = 'd130444'
 const identity = process.env.PACT_IDENTITY_DIR ?? resolve(root, '..', 'pact-identity')
+const kit = process.env.PACT_WEB_KIT_DIR ?? resolve(root, '..', 'pact-web-kit')
+const kitContract = join(kit, 'kit', 'diagram-classes.json')
+const sibling = existsSync(kitContract)
+if (!sibling) console.error(`spec-html.test: pact-web-kit is not at ${kit} (set PACT_WEB_KIT_DIR): the drawings are audited against the committed copy site/diagram-classes.json, which this run cannot compare with the kit's`)
+// The contract the drawings are audited against: the kit's when it is here, the copy otherwise.
+const contract = sibling ? JSON.parse(readFileSync(kitContract, 'utf8')) : CONTRACT
+const PRIMITIVE = /<(rect|circle|ellipse|line|path|polygon|polyline|text)\b[^>]*class="([^"]*)"/g
 
 const files = (dir, prefix = '') => readdirSync(dir).sort().flatMap((name) => {
   const p = join(dir, name)
@@ -110,58 +121,88 @@ describe('headings', () => {
 })
 
 describe('diagrams', () => {
-  it('replace every mermaid block with an inline SVG that carries classes only', () => {
+  it("carry pact-web-kit's diagram contract: site/diagram-classes.json is the kit's kit/diagram-classes.json byte for byte", (t) => {
+    if (!sibling) return t.skip(`pact-web-kit is not at ${kit}: the copy was not compared with the kit's; the audits below hold to the copy`)
+    assert.ok(readFileSync(CONTRACT_PATH).equals(readFileSync(kitContract)), `site/diagram-classes.json differs from ${kitContract}: copy the kit's file over it`)
+    assert.deepEqual(CONTRACT, contract)
+  })
+
+  it('replace every mermaid block with an inline SVG, inside <figure class="diagram">, that carries the contract\'s classes only', () => {
+    const kinds = Object.keys(contract.svg).filter((k) => k !== 'dg')
     for (const [out, body] of [[out2, body2], [out1, body1]]) {
       const html = read(out, 'spec.html')
       const fences = count(body, /^```mermaid$/gm)
       assert.ok(fences >= 9, 'the text has diagrams to prove this on')
       assert.equal(count(html, /<svg\b/g), fences)
-      assert.equal(count(html, /<figure class="diagram diagram-(flowchart|state|sequence)"><svg\b/g), fences)
+      assert.equal(count(html, new RegExp(`<figure class="diagram"><svg\\b[^>]*class="dg (${kinds.join('|')})"`, 'g')), fences)
       assert.equal(count(html, /mermaid/g), 0, 'no mermaid source left in the fragment')
-      assert.deepEqual(auditFragment(html), [])
+      assert.deepEqual(auditFragment(html, contract), [])
       assert.equal(json(out, 'meta.json').diagrams, fences)
     }
-    const kinds = new Set([...read(out2, 'spec.html').matchAll(/<svg\b[^>]*class="diagram (\w+)"/g)].map((m) => m[1]))
-    assert.deepEqual([...kinds].sort(), [...DIAGRAM_CLASSES.kinds].sort(), 'the current text exercises every kind')
+    const drawn = new Set([...read(out2, 'spec.html').matchAll(/<svg\b[^>]*class="dg (dg-\w+)"/g)].map((m) => m[1]))
+    assert.deepEqual([...drawn].sort(), [...kinds].sort(), 'the current text exercises every kind')
   })
 
   it('carry no style attribute, no <style>, no HTML label, no paint attribute, and only the contract classes — shown red on each planted defect', () => {
     const html = read(out2, 'spec.html')
     const svg = html.match(/<svg\b[\s\S]*?<\/svg>/)[0]
-    const planted = (from, to) => auditFragment(html.replace(from, to))
-    assert.deepEqual(auditFragment(html), [])
+    const planted = (from, to) => auditFragment(html.replace(from, to), contract)
+    assert.deepEqual(auditFragment(html, contract), [])
     assert.match(planted('<svg ', '<svg style="fill:red" ').join('\n'), /a style= attribute/)
     assert.match(planted('<svg ', '<svg STYLE="fill:red" ').join('\n'), /a style= attribute/)
     assert.match(planted('</svg>', '<style>text{fill:red}</style></svg>').join('\n'), /a <style> element/)
     assert.match(planted('</svg>', '<foreignObject></foreignObject></svg>').join('\n'), /foreignObject/)
-    assert.match(planted('class="node shape"', 'class="node shape" fill="#fff"').join('\n'), /carries fill=/)
-    assert.match(planted('class="node shape"', 'class="node shape" font-size="12px"').join('\n'), /carries font-size=/)
-    assert.match(planted('class="node shape"', 'class="mermaid-node"').join('\n'), /class "mermaid-node", which the contract does not have/)
-    assert.match(planted('<rect ', '<rect data-x="1" ').concat(planted('class="node shape"', 'class=""')).join('\n'), /an unclassed <rect>/)
+    assert.match(planted('class="dg-node dg-shape"', 'class="dg-node dg-shape" fill="#fff"').join('\n'), /carries fill=/)
+    assert.match(planted('class="dg-node dg-shape"', 'class="dg-node dg-shape" font-size="12px"').join('\n'), /carries font-size=/)
+    assert.match(planted('class="dg-node dg-shape"', 'class="mermaid-node"').join('\n'), /"mermaid-node", which the contract does not have/)
+    assert.match(planted('class="dg-node dg-shape"', 'class="node shape"').join('\n'), /"node shape", which the contract does not have/)
+    assert.match(planted('class="dg-node dg-shape"', 'class="dg-shape dg-node"').join('\n'), /"dg-shape dg-node", which the contract does not have/)
+    assert.match(planted('<rect ', '<rect data-x="1" ').concat(planted('class="dg-node dg-shape"', 'class=""')).join('\n'), /an unclassed <rect>/)
+    assert.match(planted('<rect ', '<rect class="dg-number dg-shape" ').join('\n'), /<rect> carries "dg-number dg-shape", which the contract puts on circle/)
+    assert.match(planted('<g>', '<g class="dg-node">').join('\n'), /a <g> carries a class/)
     assert.match(planted('</svg>', '<span>x</span></svg>').join('\n'), /a <span>/)
     assert.match(planted(svg, svg + svg).join('\n'), /duplicate ids/)
-    assert.match(planted('class="diagram flowchart"', 'class="flowchart"').join('\n'), /does not carry "diagram" and its kind/)
+    assert.match(planted('class="dg dg-flowchart"', 'class="dg-flowchart"').join('\n'), /the <svg> carries "dg-flowchart", not "dg" and one of/)
+    assert.match(planted('class="dg dg-flowchart"', 'class="diagram flowchart"').join('\n'), /the <svg> carries "diagram flowchart", not "dg" and one of/)
+    assert.match(planted('<figure class="diagram"><svg', '<figure class="diagram diagram-flowchart"><svg').join('\n'), /9 drawings, 8 inside <figure class="diagram">/)
   })
 
-  it('give every primitive a part and a role; a line — an edge, a lifeline, the sequence-number carrier — its part alone', () => {
-    const html = read(out2, 'spec.html')
-    const parts = new Set(DIAGRAM_CLASSES.parts), roles = new Set(DIAGRAM_CLASSES.roles), mods = new Set(DIAGRAM_CLASSES.modifiers)
-    for (const m of html.matchAll(/<(rect|circle|ellipse|line|path|polygon|polyline|text)\b[^>]*class="([^"]*)"/g)) {
-      const t = m[2].split(' ')
-      assert.ok(parts.has(t[0]), `${m[0]}: the first class is a part`)
-      const rest = t.slice(1)
-      if (!roles.has(rest[0])) {
-        // A line carries its part alone: an edge, a lifeline, a frame's line, the carrier.
-        assert.ok(['line', 'path'].includes(m[1]) && ['edge', 'lifeline', 'frame', 'number'].includes(t[0]), `${m[0]}: a role-less part is a line`)
-        for (const x of rest) assert.ok(mods.has(x), `${m[0]}: ${x} is a modifier`)
-        continue
+  it('draw every class of the contract, on exactly the tags it lists, across the two texts; nothing else', () => {
+    const drawn = new Map()
+    for (const out of [out2, out1]) {
+      for (const m of read(out, 'spec.html').matchAll(PRIMITIVE)) {
+        if (!drawn.has(m[2])) drawn.set(m[2], new Set())
+        drawn.get(m[2]).add(m[1])
       }
-      assert.ok(roles.has(rest[0]), `${m[0]}: the second class is a role`)
-      for (const x of rest.slice(1)) assert.ok(mods.has(x), `${m[0]}: ${x} is a modifier`)
     }
-    assert.ok(/<line [^>]*class="number"/.test(html))
-    assert.ok(/<marker [^>]*>\s*<circle [^>]*class="number shape"/.test(html))
-    assert.ok(/<marker [^>]*>\s*<path [^>]*class="arrow shape"/.test(html))
+    assert.deepEqual([...drawn.keys()].sort(), Object.keys(contract.classes).sort(), 'the classes drawn are the contract, no more, no fewer')
+    for (const [cls, { on }] of Object.entries(contract.classes)) assert.deepEqual([...drawn.get(cls)].sort(), [...on].sort(), `${cls}: the tags it lands on`)
+    // A class is a part, then a role or nothing (a line), then modifiers — the grammar the kit's own test holds the file to.
+    for (const cls of drawn.keys()) {
+      const t = cls.split(' ')
+      assert.ok(t[0] in contract.parts, `${cls}: begins with a part`)
+      const hasRole = t[1] in contract.roles
+      for (const x of t.slice(hasRole ? 2 : 1)) assert.ok(x in contract.modifiers, `${cls}: ${x} is a modifier`)
+      if (!hasRole) for (const tag of drawn.get(cls)) assert.ok(['line', 'path'].includes(tag), `${cls}: a role-less class is a line`)
+    }
+    const html = read(out2, 'spec.html')
+    assert.ok(/<line [^>]*class="dg-number"/.test(html), 'the carrier of a sequence number')
+    assert.ok(/<marker [^>]*>\s*<circle [^>]*class="dg-number dg-shape"/.test(html), "the number's disc is the marker's circle")
+    assert.ok(/<marker [^>]*>\s*<path [^>]*class="dg-arrow dg-shape"/.test(html), "an arrowhead is the marker's path")
+  })
+
+  it("were laid out at the size and weight the contract's \"text\" records, and a build against a contract that says otherwise is refused", async () => {
+    // What cleanSvg reports for a sequence diagram, held to the contract: green as measured, red on a planted size.
+    const seen = { 'dg-label': { 'font-size': ['16px'] }, 'dg-actor dg-label': { 'font-size': ['16px'], 'font-weight': ['500'] }, 'dg-number dg-label': { 'font-size': ['12px'] } }
+    assert.deepEqual(auditText(seen, contract), [])
+    assert.match(auditText({ ...seen, 'dg-number dg-label': { 'font-size': ['13px'] } }, contract).join('\n'), /dg-number dg-label was laid out at font-size 13px; the contract says 12px/)
+    assert.match(auditText({ 'dg-label': { 'font-size': ['(none)'] } }, contract).join('\n'), /dg-label was laid out at font-size \(none\); the contract says 16px/)
+    assert.match(auditText({ 'dg-edge dg-label': { 'font-style': ['italic'] } }, contract).join('\n'), /dg-edge dg-label was laid out at font-style italic, which the contract does not record/)
+    // The build calls it on what mermaid wrote: a contract recording 13px for the number is refused, and one lacking a class the text draws.
+    const thirteen = { ...contract, text: { ...contract.text, 'dg-number dg-label': { 'font-size': '13px' } } }
+    await assert.rejects(build({ ref: 'HEAD', out: join(scratch, 'thirteen'), contract: thirteen }), /not laid out as the contract says:\n\s+dg-number dg-label was laid out at font-size 12px; the contract says 13px/)
+    const { 'dg-frame dg-shape': _, ...fewer } = contract.classes
+    await assert.rejects(build({ ref: 'HEAD', out: join(scratch, 'fewer'), contract: { ...contract, classes: fewer } }), /fails its own audit:\n\s+diagram \d+: <polygon> carries "dg-frame dg-shape", which the contract does not have/)
   })
 
   it('keep what places text and drop what paints it', () => {
@@ -170,9 +211,9 @@ describe('diagrams', () => {
     // a state's label is placed by its translate, as mermaid's own stylesheet has it.
     let seen = 0
     for (const svg of html.match(/<svg\b[\s\S]*?<\/svg>/g)) {
-      const kind = /class="diagram (\w+)"/.exec(svg)[1]
+      const kind = /class="dg dg-(\w+)"/.exec(svg)[1]
       for (const m of svg.matchAll(/<text\b([^>]*)>/g)) {
-        if (!/class="(node|actor) label"/.test(m[1])) continue
+        if (!/class="dg-(node|actor) dg-label"/.test(m[1])) continue
         seen++
         if (kind === 'state') assert.doesNotMatch(m[1], /text-anchor/, m[0])
         else assert.match(m[1], /text-anchor="middle"/, m[0])
