@@ -1,7 +1,7 @@
 // The §14.1 profile as bytes, the exact-profile check and §14.2 chain validation, and the §14.3 comparison.
 import { createPublicKey } from 'node:crypto';
 import { seq, set, explicit, implicit, octet, utf8, bool, int, bitstr, oid, time, tlv, read, children, readOid, readOidStrict, readTime, boolTrue, intMinimal, oidMinimal, namedBitsOk, ecdsaIsLowS, ecdsaTwin } from './der.mjs';
-import { spkiOf, keyId, sha256, b64url, algorithmOf } from './keys.mjs';
+import { spkiOf, keyId, sha256, b64url, algorithmOf, p256Uncompressed } from './keys.mjs';
 import { signDetached, verifyDetached } from './hpke.mjs';
 
 export const OID = {
@@ -64,11 +64,23 @@ export function buildRoot({ cn, key, notBefore, label, basicConstraints }) {
 //   basicConstraints  the basicConstraints value, as DER bytes (DER: nothing, [TRUE] or [TRUE, n])
 //   sigTwin        write the ECDSA signature's OTHER twin, `(r, n − s)` — it verifies, under the same
 //                  key over the same bytes, and §14.1 admits only the low-S one
+//   validityTimes  how many times the validity SEQUENCE holds, notAfter written again past the
+//                  second (DER: exactly two, notBefore and notAfter)
+//   extensionParts `{ oid, der }` — that extension carries these bytes as more parts, between its
+//                  criticality and its OCTET STRING (DER: an extension is its OID, a criticality if
+//                  TRUE, and its OCTET STRING: two or three parts)
+//   wrapperTag     `{ oid, tag }` — that extension's OCTET STRING written under another tag, its
+//                  contents unchanged (DER: extnValue is an OCTET STRING)
+//   valueTail      `{ oid, der }` — that extension's OCTET STRING holds its value and then these
+//                  bytes (DER: the OCTET STRING is the value, one TLV)
+//   compressedPoint  a P-256 host key written as its compressed point, `02`/`03` and x (§14.1: the
+//                  uncompressed point); the subjectKeyIdentifier follows the bytes written
 export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, notBefore, notAfter, label, cA = false, usage, aki, extra = [], algOid, outerAlgOid, misencode = {} }) {
   const plainSpki = spkiOf(hostKey.pub);
+  const point = () => { const u = p256Uncompressed(hostKey.pub); return Buffer.concat([Buffer.from([2 + (u[64] & 1)]), u.subarray(1, 33)]); };
   const spki = misencode.spkiAlgOid
     ? seq(seq(Buffer.from(misencode.spkiAlgOid, 'hex')), children(read(plainSpki))[1].raw)
-    : plainSpki;
+    : misencode.compressedPoint ? seq(children(read(plainSpki))[0].raw, bitstr(point())) : plainSpki;
   const id = sha256(spki), issuerId = aki ?? keyId(root.pub);
   const bits = usage ?? (algorithmOf(hostKey.pub) === 'p256' ? [0, 4] : [0]);
   const sanNames = (uris ?? [endpoint]).map((u) => implicit(6, Buffer.from(u, 'utf8')));
@@ -81,10 +93,12 @@ export function buildLeaf({ cn, rootCn, root, hostKey, endpoint, uris, dnsName, 
     return misencode.explicitFalse === o ? [bool(false)] : [];
   };
   const retagged = (o, value) => (misencode.retag?.oid === o ? Buffer.concat([Buffer.from([misencode.retag.tag]), value.subarray(1)]) : value);
-  const xt = (o, critical, value) => seq(extOid(o), ...flag(o, critical), octet(retagged(o, value)));
+  const more = (field, o) => (misencode[field]?.oid === o ? [Buffer.from(misencode[field].der, 'hex')] : []);
+  const wrapper = (o, content) => tlv(misencode.wrapperTag?.oid === o ? misencode.wrapperTag.tag : 0x04, content);
+  const xt = (o, critical, value) => seq(extOid(o), ...flag(o, critical), ...more('extensionParts', o), wrapper(o, Buffer.concat([retagged(o, value), ...more('valueTail', o)])));
   const tbs = seq(
     explicit(0, int(2)), misencode.serial ? tlv(0x02, Buffer.from(misencode.serial)) : int(serialOf(label)),
-    alg, name(rootCn, cnOid), seq(misencode.notBefore ? tlv(0x17, Buffer.from(misencode.notBefore, 'ascii')) : time(notBefore), time(notAfter)), name(cn, cnOid), spki,
+    alg, name(rootCn, cnOid), seq(misencode.notBefore ? tlv(0x17, Buffer.from(misencode.notBefore, 'ascii')) : time(notBefore), ...Array.from({ length: (misencode.validityTimes ?? 2) - 1 }, () => time(notAfter))), name(cn, cnOid), spki,
     explicit(3, seq(
       xt(OID.basicConstraints, true, misencode.basicConstraints ? Buffer.from(misencode.basicConstraints, 'hex') : cA ? seq(bool(true)) : seq()),
       xt(OID.keyUsage, true, misencode.keyUsage ? tlv(0x03, Buffer.from(misencode.keyUsage)) : keyUsage(bits)),
@@ -145,14 +159,26 @@ export function parse(der) {
     if (key.length !== 32) throw new Error('Ed25519 key is not 32 bytes');
     if (!ed25519IsPoint(key)) throw new Error('Ed25519 key is not a point');
   }
+  // A P-256 key is its uncompressed point (§14.1), so one key has one SubjectPublicKeyInfo and one
+  // fingerprint. RFC 5480 §2.2 also allows the compressed one, which OpenSSL reads, so a certificate
+  // whose key was written `02`/`03` and x was a certificate here — a second fingerprint for the key —
+  // while both ports refuse it.
+  if (algOid === OID.ecPublicKey) {
+    const key = children(read(out.spki))[1].content.subarray(1);
+    if (key.length !== 65 || key[0] !== 0x04) throw new Error('P-256 key is not the uncompressed point');
+  }
   out.publicKey = createPublicKey({ key: out.spki, format: 'der', type: 'spki' });
   out.keyId = sha256(out.spki);
   // An [3] with nothing in it holds no extensions, in the ports' words: this threw a TypeError (R33).
   const [extensionList] = children(f[7]);
   if (!extensionList) throw new Error('not a v3 certificate with extensions');
   for (const e of children(extensionList)) {
+    // Extension ::= SEQUENCE { extnID OBJECT IDENTIFIER, critical BOOLEAN DEFAULT FALSE, extnValue OCTET
+    // STRING }: two or three parts, an OID first and an OCTET STRING last, in the ports' words. This
+    // counted the parts and read the last one's contents under any tag, so an extnValue written as a
+    // BIT STRING was an extension here while both ports refuse it.
     const parts = children(e);
-    if (parts.length < 2 || parts.length > 3) throw new Error('extension shape');
+    if (parts.length < 2 || parts.length > 3 || parts[0].tag !== 0x06 || parts.at(-1).tag !== 0x04) throw new Error('certificate shape');
     // Criticality is a DEFAULT FALSE: present means critical, and the only encoding of that is one
     // 0xFF byte. An explicit FALSE and a TRUE spelled 0x01 are both second ways to say what DER
     // already says one way.
