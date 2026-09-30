@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use or refer to the PACT specification, please cite it as below."
+title: "PACT — Personal Agent Communication & Trust Protocol"
+authors:
+  - family-names: Agrawal
+    given-names: Sumit
+version: "2.2.5"
+date-released: "2026-09-30"
+url: "https://pact-protocol.com/spec/"
+license: CC-BY-4.0
+preferred-citation:
+  type: standard
+  title: "PACT — Personal Agent Communication & Trust Protocol"
+  authors:
+    - family-names: Agrawal
+      given-names: Sumit
+  version: "2.2.5"
+  date-released: "2026-09-30"
+  url: "https://pact-protocol.com/spec/"
+  license: CC-BY-4.0

@@ -61,5 +61,16 @@ gates locally before opening a pull request; the workflow runs them again on it.
   regenerated vectors when it touched the wire.
 - No tests, linters or runtime code beyond `vectors/` without saying why: the repository is
   deliberately small.
-- By contributing you license your contribution under the terms that cover the file it lands in
-  (see "Licensing" in the README).
+- Inbound is outbound. A contribution is accepted only under the terms the repository gives out:
+  - prose, the specification text included, under CC BY 4.0 (`LICENSE-docs`);
+  - code and data under the Apache License 2.0 (`LICENSE`);
+  - and, for `SPEC.md`, the patent commitment of `PATENTS.md`: you make the Open Web Foundation
+    Final Specification Agreement (OWFa 1.0, Patent Only) for the specification that includes your
+    contribution, on the terms and with the scope the declaration there states.
+
+  The README's "Licensing" section says which file falls under which licence.
+- Every commit carries a sign-off: a `Signed-off-by: Your Name <you@example.com>` line, which
+  `git commit -s` adds. It certifies the Developer Certificate of Origin 1.1
+  (<https://developercertificate.org/>): that you wrote the contribution or otherwise have the
+  right to submit it under the terms above. A pull request with a commit that has no sign-off is
+  not merged.

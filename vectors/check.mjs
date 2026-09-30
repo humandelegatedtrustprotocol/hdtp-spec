@@ -8,6 +8,7 @@ import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519F
 import { canonical } from './lib/canonical.mjs';
 import { makeNode, pin, receive } from './lib/envelope.mjs';
 import { appendixB } from './lib/appendix.mjs';
+import { splitSpec } from '../site/markdown.mjs';
 
 const specPath = new URL('../SPEC.md', import.meta.url);
 const spec = readFileSync(specPath, 'utf8');
@@ -402,6 +403,23 @@ console.log('Appendix B, as vectors/appendix-b-reader.json reads it');
     const want = c.refused ? { refused: c.refused } : { blocks: c.blocks };
     ok(JSON.stringify(got) === JSON.stringify(want), `${c.name}: ${JSON.stringify(want)}, not ${JSON.stringify(got)}`);
   }
+}
+
+// The citation carries the version and date a second and a third time: CITATION.cff (twice, the
+// work and its preferred citation) and the attribution line in the README. All are held to the
+// header line of SPEC.md, the one place a version is written, so a release cannot leave them behind.
+console.log('the citation, as the header line of SPEC.md reads');
+{
+  const { version, date } = splitSpec(spec);
+  const cff = readFileSync(new URL('../CITATION.cff', import.meta.url), 'utf8');
+  const field = (k) => [...cff.matchAll(new RegExp(`^\\s*${k}:\\s*"?([^"\\n]*?)"?\\s*$`, 'gm'))].map((m) => m[1]);
+  const versions = field('version'), dates = field('date-released');
+  ok(versions.length === 2 && versions.every((v) => v === version), `CITATION.cff: version ${JSON.stringify(versions)}, not twice ${version}`);
+  ok(dates.length === 2 && dates.every((d) => d === date), `CITATION.cff: date-released ${JSON.stringify(dates)}, not twice ${date}`);
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const line = readme.split('\n').filter((l) => l.startsWith('> *PACT — Personal Agent Communication & Trust Protocol*, by Sumit Agrawal, version '));
+  ok(line.length === 1 && line[0].includes(`version ${version} (${date})`), `README.md: the attribution line says ${JSON.stringify(line)}, not version ${version} (${date})`);
+  console.log(`  ${version} (${date}): CITATION.cff and the README's attribution line`);
 }
 
 console.log(`${checks - failures}/${checks} checks passed`);
