@@ -185,13 +185,24 @@ for (const [what, misencode] of [
   ['an explicit `critical FALSE`, which DER never encodes', { explicitFalse: OID.eku }],
   ['keyUsage carrying a bit in a second byte', { keyUsage: [0x07, 0x80, 0x80] }],
   ['keyUsage whose trailing zero bits are not removed', { keyUsage: [0x00, 0x80] }],
+  ['keyUsage with an unused bit set', { keyUsage: [0x07, 0x81] }],
   ['an extension OID with a padded subidentifier', { oidFor: { oid: OID.keyUsage, der: '060455801d0f' } }],
   ['a signature-algorithm OID with a padded subidentifier', { sigAlgOid: '06042b806570' }],
   ['a commonName attribute type with a padded subidentifier', { cnOid: '060455800403' }],
   ['an extendedKeyUsage OID with a padded subidentifier', { ekuOid: '06092b0601050507800301' }],
   ['a SubjectPublicKeyInfo algorithm OID with a padded subidentifier', { spkiAlgOid: '06042b806570' }],
   ['a serial with a needless leading zero', { serial: [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77] }],
+  // Four more shapes pact-identity's contract names among what parsing refuses (parse_certificate's
+  // notes), each written into the TBS before it is signed, so the signature is good and the one fault
+  // is the only reason to refuse. The seed read the second and third of them until 2026-09-30.
+  ['a validity with three times', { validityTimes: 3 }],
+  ['an extension of four parts', { extensionParts: { oid: OID.ski, der: '05000500' } }],
+  ['an extnValue that is not an OCTET STRING', { wrapperTag: { oid: OID.ski, tag: 0x03 } }],
+  ['an extnValue OCTET STRING holding two TLVs', { valueTail: { oid: OID.ski, der: '0500' } }],
 ]) scenario('certificate', 'DER: ' + what, 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode }), ROOT_A]));
+// §14.1: a P-256 key is its uncompressed point. The compressed one is the same key under a second
+// SubjectPublicKeyInfo, so a second fingerprint; OpenSSL reads it, and the seed did until 2026-09-30.
+scenario('certificate', 'DER: a P-256 key written as its compressed point', 'rule 1', () => rule([leafOf(rootB, 'Bharat Mehta', hostB, E_B, { misencode: { compressedPoint: true } }), ROOT_B]));
 
 // A root's dates carry no trust — its fingerprint is the identity, and rule 4 checks the leaf's
 // validity alone (§14.2). Recorded as accepted on purpose: an implementation that reaches for RFC 5280
