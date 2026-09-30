@@ -1,4 +1,4 @@
-> **ARCHIVED — superseded.** This is the earlier *hardened* draft (message-layer E2E envelopes, key hierarchies, SAS ceremonies). The current protocol is `SPEC.md` at the repo root, which deliberately replaced this design with plain mTLS + vCard + MCP tools. Kept for reference: its sealed envelope can return as an optional layer if gateway-proof privacy is ever needed.
+> **ARCHIVED — historical, never released.** This is the earlier *hardened* draft (message-layer E2E envelopes, key hierarchies, SAS ceremonies, key transparency). It is not a PACT version: the version, status and licence lines below are the draft's own and were never issued. The current protocol is `SPEC.md` at the repository root; its sealed envelope (§13) and certificate profile (§14) are a different, smaller design, not this one.
 
 # PACT 1.0 — Personal Agent Communication & Trust Protocol
 

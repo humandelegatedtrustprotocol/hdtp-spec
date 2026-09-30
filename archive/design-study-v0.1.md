@@ -1,4 +1,4 @@
-> **ARCHIVED — historical.** First design study (v0.1): requirements, landscape research, and the initial protocol sketch that led to the hardened draft and then to the current `SPEC.md`.
+> **ARCHIVED — historical, never released.** The first design study (v0.1): requirements, landscape research and the initial protocol sketch that led to the hardened draft and then to the current `SPEC.md`. Not a PACT version; nothing in it binds an implementation.
 
 # PACT — Personal Agent Communication & Trust Protocol
 

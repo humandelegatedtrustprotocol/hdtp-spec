@@ -1,6 +1,6 @@
 # PACT — Personal Agent Communication & Trust
 
-Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your friends' and colleagues' assistants across the open internet: contacts live in your phone book as vCards, identity is one TLS keypair, and sending a message is calling a `send_message` tool on the other person's publicly exposed MCP server. Think *WhatsApp, but the participants are AI agents* — with humans manually approving every contact and controlling per-contact permissions.
+Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your friends' and colleagues' assistants across the open internet: contacts live in your phone book as vCards, your identity is a certificate you hold, and sending a message is calling a `send_message` tool on the other person's publicly exposed MCP server. Think *WhatsApp, but the participants are AI agents* — with humans approving every contact and controlling per-contact permissions.
 
 **Status: 2.2.4 (2026-09-28), released — the identity generation: the person is a certificate authority, the host holds a leaf the person issued, so an identity can move between providers. PACT 1.x (last released as 1.2.0, 2026-08-30) is not supported. `CHANGES.md` is the revision history.**
 
@@ -10,31 +10,48 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 |---|---|
 | `SPEC.md` | **The protocol.** Architecture; identity, certificates and mTLS; vCard contact cards; invites; contact flows; the MCP tool surface; messaging and threads; permissions; hosting; deployment; security notes; errors, limits and conformance; sealed envelopes; certificates; worked examples and the test vectors. Mermaid diagrams throughout. |
 | `CHANGES.md` | The revision history: one entry per version string `SPEC.md` has carried, dated by its header line, with the commits that carried it. `SPEC.md` itself names no version of its own history. |
-| `explainer/pact-explainer.html` | Self-contained visual explainer (open in any browser). Also published privately at claude.ai/artifact/7txRRL4VBVXyMhsNUcuLJX. |
-| `docs/landscape-and-roadmap.md` | Informative companion: survey of existing protocols/products (A2A, ANP, DIDComm, AGNTCY, Iroh, OpenClaw ecosystem, schedulers…), requirements-vs-systems comparison matrix, build-vs-reuse guidance, roadmap, and the full review-disposition history. |
-| `archive/hardened-draft-spec.md` | Superseded hardened draft (E2E sealed envelopes, key hierarchies, SAS, key transparency). Kept because its envelope can return as an optional layer if gateway-proof privacy is ever required. |
-| `archive/design-study-v0.1.md` | The original design study that started the project. |
-| `archive/test-vectors/` | Crypto test-vector generator + output for the *hardened draft* (HPKE/SAS) — not applicable to current `SPEC.md`. |
-| `vectors/` | The 2.0 vectors of Appendix B: `gen.mjs` derives every secret from a label and writes the certificates, chain cases and `v: 2` envelopes; `check.mjs` reads them back *from `SPEC.md`*, opens the Go-generated `v: 1` vectors with the same code, cross-checks each certificate with OpenSSL, and asserts every case's outcome. `npm run vectors:check`. `intrude.mjs` replays the §14.5 compromise cases against an in-memory node: `npm run vectors:intrude`. |
-| *the library* | Not here: `pact-identity/` in the umbrella repository is the 2.0 library the vectors specify — a Rust core compiled to WebAssembly, an independent Go port, and the `pact` CLI (`pact vectors check --spec SPEC.md` proves Appendix B natively); both ports answer every vector and every intrusion scenario exactly as `vectors/lib` does. |
+| `explainer/pact-explainer.html` | A visual explainer of the protocol with hand-drawn inline SVG diagrams. It is an HTML fragment written to be embedded in a page — it starts at `<title>`, with no doctype or `<html>` wrapper — and it loads its typefaces from Google Fonts. |
+| `docs/landscape-and-roadmap.md` | Informative companion, written against 2.1.3: a survey of existing protocols and products (A2A, ANP, DIDComm, AGNTCY, Iroh, OpenClaw ecosystem, schedulers…), a requirements-vs-systems comparison matrix, build-vs-reuse guidance, a roadmap, and the review-disposition history. It binds nothing. |
+| `archive/hardened-draft-spec.md` | A historical draft that was never released (message-layer envelopes with key hierarchies, SAS ceremonies, key transparency). Not a PACT version; the current sealed envelope, `SPEC.md` §13, is a different design. |
+| `archive/design-study-v0.1.md` | The design study that started the project. Historical. |
+| `archive/test-vectors/` | The historical draft's test-vector generator and output (HPKE/SAS). Not applicable to `SPEC.md`. |
+| `vectors/` | The test vectors of Appendix B. `gen.mjs` derives every secret from a label and writes the certificates, chain cases and sealed envelopes to `pact-2.0-vectors.json`; `check.mjs` reads them back *from `SPEC.md`*, cross-checks each certificate with OpenSSL (Node's `X509Certificate`) and asserts every case's outcome; `check-no-1x.mjs` holds that no name PACT 1.x had and 2.x does not has come back into the tree. `npm run vectors:check` runs `check.mjs`, then the guard's self-test, then the guard. `intrude.mjs` replays the §14.5 compromise cases and the corner cases around them against an in-memory node and reports each as blocked, residual by decision, or reproduced: `npm run vectors:intrude`. `lib/` is the smallest implementation of §3, §13 and §14 that makes that possible. |
 
 ## The protocol in five lines
 
-1. **Identity** — in 2.0, a self-signed root certificate you hold, pinned by its fingerprint; the host you choose serves you under a leaf your root issued for its address, valid for at most a year, and contacts learn each renewed leaf from the chain, carried once and named by fingerprint after. In 1.x, one keypair whose SPKI fingerprint is you. Every call is mTLS with the leaf key.
+1. **Identity** — a self-signed root certificate you hold, pinned by its fingerprint. The host you choose serves you under a leaf your root issued for its address, valid for as long as you choose up to 398 days; contacts learn each renewed leaf from the chain, carried once and named by fingerprint after. Every call is mTLS with the leaf key.
 2. **Contacts** — standard vCards with `X-PACT-CERT`; shared over channels people already use; always mutual, always human-approved.
 3. **Invites** — short URLs/QRs whose settings (expiry, max uses, auto-accept, preset) live server-side, so they're revocable at the protocol level.
 4. **Capabilities** — everything a contact may do is an MCP tool, filtered per caller via `tools/list`; new integrations are just new tools.
-5. **Delivery** — direct HTTPS, always. A person who must be reachable while their own machine is off is hosted by a provider under a leaf they issued and can leave (2.0 §9); 1.x's recipient-chosen gateway is gone from 2.0.
+5. **Delivery** — direct HTTPS, always; there is no relay. A person who must be reachable while their own machine is off is hosted by a provider under a leaf they issued and can leave (§9).
+
+## Implementations
+
+Two exist, both by this project and neither public yet: a self-hosted node ([pact-gateway.com](https://pact-gateway.com)) and a hosted platform ([pact-cloud.com](https://pact-cloud.com)). Both are built on one identity library, `pact-identity` (a Rust core compiled to WebAssembly, an independent Go port and a `pact` CLI), which runs the vectors of Appendix B and the scenarios of `vectors/intrude.mjs` through both of its ports. There is no independent implementation yet.
 
 ## Building the whitepaper
 
-`npm ci && npm run build` renders `SPEC.md` into `dist/pact-whitepaper.pdf` — an A4 whitepaper with a cover, a table of contents with page numbers, running headers, PDF bookmarks, and every mermaid diagram as vector art. The build is also the verification gate: it fails on a heading over 120 characters (the sign of an accidental setext heading) and on a diagram that does not render. It needs Node 22 and a Chrome that `puppeteer` downloads on install; set `PUPPETEER_EXECUTABLE_PATH` to use one already on the machine. `.github/workflows/whitepaper.yml` builds the PDF on every push to `main` and keeps it as a workflow artifact; it holds no Cloudflare credential. Publishing is local: `make publish` (the credentials from the umbrella's `.env`) runs the gates and the build and puts the PDF and its meta into the private R2 bucket that [pact-protocol.com](https://pact-protocol.com) serves, refusing a pair from different builds.
+`npm ci && npm run build` renders `SPEC.md` into `dist/pact-whitepaper.pdf` — an A4 whitepaper with a cover, a table of contents with page numbers, running headers, PDF bookmarks, and every mermaid diagram as vector art. The build is also a verification gate: it fails on a heading over 120 characters (the sign of an accidental setext heading) and on a diagram that does not render. It needs Node 22 (what the workflow uses) and a Chrome that `puppeteer` downloads on install; set `PUPPETEER_EXECUTABLE_PATH` to use one already on the machine. `.github/workflows/whitepaper.yml` runs `npm run vectors:check` and the build on every push to `main` and on every pull request; it holds no credential, publishes nothing and keeps no artifact.
 
-## Suggested next steps
+Publishing is the maintainer's and local: `make publish` runs the gates and the build, refuses a PDF and meta from different builds, and puts both into the private bucket that [pact-protocol.com](https://pact-protocol.com) serves to registered readers. It needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the file `ENV_FILE` names (`../.env` by default).
 
-- Reference implementation: a single-binary/container **agent server** (MCP over Streamable HTTP, TLS client-cert auth, contact store, invite issuance, the §6.2 core tools) + a thin client for calling peers.
-- vCard import/export against a real phone contact book.
-- Two-node demo: pair via QR, negotiate, `book_slot`, exchange ICS.
-- Conformance checks from `SPEC.md` §12 as a test suite.
+## Open work
 
-License for the spec text: CC BY 4.0 (recommended; not yet stamped). "PACT" is a working name — note the collision with pact.io (contract testing) before publishing publicly.
+- Conformance checks from `SPEC.md` §12 as a runnable suite.
+- An independent implementation.
+- An external review of the sealed envelope (§13) and the certificate profile (§14).
+
+## Licensing
+
+| Files | Licence |
+|---|---|
+| The specification text, `SPEC.md` | [CC BY 4.0](LICENSE-docs) |
+| The other prose: `README.md`, `CHANGES.md`, `docs/`, `archive/*.md`, `explainer/pact-explainer.html` (its text and inline SVG) | [CC BY 4.0](LICENSE-docs) |
+| Code: `vectors/**/*.mjs`, `site/*.mjs`, `site/whitepaper.css`, `archive/test-vectors/gen_vectors.py`, `Makefile`, `package.json`, `.github/workflows/whitepaper.yml` | licence to be chosen by the owner (the sibling repositories use Apache-2.0) |
+| Data: `vectors/pact-2.0-vectors.json`, `vectors/pact1x-markers.txt`, `archive/test-vectors/vectors.json` | with the code, under the licence chosen for it |
+| The mark, `site/brand/mark.svg` | the project's mark; not covered by either licence above |
+| Fonts: `site/brand/inter-*.woff2`, `site/brand/jbmono-*.woff2` | SIL Open Font License 1.1: `site/brand/OFL-inter.txt`, `site/brand/OFL-jetbrains-mono.txt`. The `latin` files are byte-identical to the ones fontsource 5.3.0 packages from the Google Fonts builds; the two `*-symbols-wght.woff2` are subsets cut for this build (‖ → ≠ ≤ ≥). Neither family reserves a font name, so the subsets keep the family names. |
+
+`archive/hardened-draft-spec.md` carries a licence line of its own ("CC BY 4.0 … additionally licensed under MIT"). It is the draft's own text, part of the dated record; the draft was never issued.
+
+"PACT" is unrelated to Pact ([pact.io](https://pact.io)), the contract-testing framework.
