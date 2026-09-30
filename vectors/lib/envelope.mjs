@@ -11,14 +11,19 @@ export const HEADER_MEMBERS = 'cty,exp,kid,msg_id,suite,ts,v';
 // implementations cannot disagree about what was signed; latitude in the types reopens the same gap,
 // since `"1757000000"` and `1757000000` are different bytes under one signature and compare alike.
 const INTEGER_MEMBERS = ['v', 'ts', 'exp'], STRING_MEMBERS = ['suite', 'kid', 'msg_id', 'cty'];
-// JSON as every port reads it (pact-identity CONTRACT §0): a number that is infinite as a double
-// (`1e400`) and containers nested more than 127 deep are text that is not JSON. One port's parser
-// refuses both and another's reads them, so both ports refuse them; JSON.parse read `1e400` as
-// Infinity, and this node decided `ok` on a call whose body held one.
+// JSON as every port reads it (pact-identity CONTRACT §0): bytes that are not UTF-8, a \u escape of
+// half a surrogate pair, a number that is infinite as a double (`1e400`) and containers nested more
+// than 127 deep are text that is not JSON. The core's parser (serde_json) refuses all four and
+// another reads them, so both ports refuse them. Here Buffer's toString read a stray byte as U+FFFD,
+// JSON.parse kept a lone surrogate in a string and read `1e400` as Infinity, and this node decided
+// `ok` on a call whose body held any of them. `ignoreBOM` keeps a byte order mark in the text, where
+// JSON.parse refuses it as serde_json does, rather than dropping it.
 const JSON_MAX_DEPTH = 127;
+const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 const nestedPast = (v, depth) => depth > JSON_MAX_DEPTH || Object.values(v).some((x) => x !== null && typeof x === 'object' && nestedPast(x, depth + 1));
 function readJSON(bytes) {
-  const v = JSON.parse(bytes.toString(), (_, x) => {
+  const v = JSON.parse(UTF8.decode(bytes), (k, x) => {
+    if (!k.isWellFormed() || (typeof x === 'string' && !x.isWellFormed())) throw new Error('a string holds half of a UTF-16 surrogate pair');
     if (typeof x === 'number' && !Number.isFinite(x)) throw new Error('a number is outside the range of a double');
     return x;
   });
