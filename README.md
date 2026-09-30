@@ -51,9 +51,9 @@ Publishing is the maintainer's and local: `make publish` runs the gates and the 
 | Files | Licence |
 |---|---|
 | The specification text, `SPEC.md` | [CC BY 4.0](LICENSE-docs) |
-| The other prose: `README.md`, `CHANGES.md`, `docs/`, `archive/*.md`, `explainer/pact-explainer.html` (its text and inline SVG) | [CC BY 4.0](LICENSE-docs) |
-| Code: `vectors/**/*.mjs`, `site/*.mjs`, `site/whitepaper.css`, `archive/test-vectors/gen_vectors.py`, `Makefile`, `package.json`, `.github/workflows/whitepaper.yml` | licence to be chosen by the owner (the sibling repositories use Apache-2.0) |
-| Data: `vectors/pact-2.0-vectors.json`, `vectors/pact1x-markers.txt`, `archive/test-vectors/vectors.json` | with the code, under the licence chosen for it |
+| The other prose: `README.md`, `CHANGES.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/`, `archive/*.md`, `explainer/pact-explainer.html` (its text and inline SVG) | [CC BY 4.0](LICENSE-docs) |
+| Code: `vectors/**/*.mjs`, `site/*.mjs`, `site/whitepaper.css`, `archive/test-vectors/gen_vectors.py`, `Makefile`, `package.json`, `.github/workflows/whitepaper.yml` | [Apache-2.0](LICENSE) |
+| Data: `vectors/pact-2.0-vectors.json`, `vectors/appendix-b-reader.json`, `vectors/pact1x-markers.txt`, `site/diagram-classes.json`, `archive/test-vectors/vectors.json` | [Apache-2.0](LICENSE), with the code |
 | The mark, `site/brand/mark.svg` | the project's mark; not covered by either licence above |
 | Fonts: `site/brand/inter-*.woff2`, `site/brand/jbmono-*.woff2` | SIL Open Font License 1.1: `site/brand/OFL-inter.txt`, `site/brand/OFL-jetbrains-mono.txt`. The `latin` files are byte-identical to the ones fontsource 5.3.0 packages from the Google Fonts builds; the two `*-symbols-wght.woff2` are subsets cut for this build (‖ → ≠ ≤ ≥). Neither family reserves a font name, so the subsets keep the family names. |
 
