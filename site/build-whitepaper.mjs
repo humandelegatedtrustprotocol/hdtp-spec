@@ -1,13 +1,14 @@
 // Builds dist/pact-whitepaper.pdf from SPEC.md. Source of truth stays SPEC.md — this only
-// renders it: markdown → HTML (site/markdown.mjs) → mermaid diagrams as inline SVG → paged.js
-// for page numbers, running headers and the table of contents → headless Chrome for the PDF.
-// Everything is local: fonts from site/brand/, mermaid and paged.js from node_modules.
+// renders it: markdown → HTML (site/markdown.mjs) → mermaid diagrams as inline SVG
+// (site/mermaid.mjs) → paged.js for page numbers, running headers and the table of contents →
+// headless Chrome for the PDF. Everything is local: fonts from site/brand/, mermaid and
+// paged.js from node_modules.
 
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import puppeteer from 'puppeteer'
-import { esc, renderSpec } from './markdown.mjs'
+import { esc, renderSpec, splitSpec } from './markdown.mjs'
+import { launch, installMermaid } from './mermaid.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const out = resolve(root, 'dist')
@@ -18,24 +19,11 @@ const htmlPath = resolve(out, 'pact-whitepaper.html')
 
 const spec = await readFile(resolve(root, 'SPEC.md'), 'utf8')
 
-// "**Version 1.1.0-draft · 2026-08-24 · adds …**" — the version and date come from here,
-// nowhere else, so a spec bump moves the cover without touching this file.
-const header = spec.match(/^\*\*Version\s+(\S+)\s+·\s+(\d{4}-\d{2}-\d{2})(?:\s+·\s+(.+?))?\*\*\s*$/m)
-if (!header) throw new Error('SPEC.md: could not parse the "**Version … · date …**" header line')
-const [headerLine, version, date, revisionNote] = header
-
-// The body starts after the spec's own "## Table of contents" section — a list of markdown
-// links that is redundant on paper, where the generated contents carry real page numbers.
-// The h1 and the version line live on the cover; the preamble between them and the table of
-// contents is rendered under a synthesized "Introduction" heading so it has a running title.
-const tocStart = spec.indexOf('\n## Table of contents')
-if (tocStart < 0) throw new Error('SPEC.md: "## Table of contents" section not found')
-const tocEnd = spec.indexOf('\n## ', tocStart + 1)
-const preamble = spec.slice(0, tocStart)
-  .replace(/^# .*\n/, '')
-  .replace(headerLine, '')
-  .trim()
-const body = `## Introduction\n\n${preamble}\n${spec.slice(tocEnd)}`
+// The version and date come from the spec's header line, nowhere else, so a spec bump moves
+// the cover without touching this file. The h1 and the version line live on the cover; the
+// body drops the spec's own table of contents, redundant on paper, where the generated
+// contents carry real page numbers.
+const { version, date, revisionNote, body } = splitSpec(spec)
 
 let specHtml, headings
 try {
@@ -100,18 +88,7 @@ await writeFile(htmlPath, page)
 
 /* ----------------------------------------------------------------- PDF */
 
-const browser = await puppeteer.launch({
-  headless: true,
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-  // The page is a file:// URL loading file:// fonts and stylesheets.
-  args: [
-    '--allow-file-access-from-files', '--font-render-hinting=none',
-    // GitHub's Ubuntu 24.04 runners restrict unprivileged user namespaces (AppArmor), so
-    // Chrome aborts with "No usable sandbox!". The page rendered here is our own build
-    // output, never remote content, so running unsandboxed in CI gives up nothing.
-    ...(process.env.CI ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : []),
-  ],
-})
+const browser = await launch()
 
 try {
   const tab = await browser.newPage()
@@ -131,9 +108,9 @@ try {
   // the band does the figure bleed 10 mm into each margin (figure.wide). Only flowcharts
   // take a larger font: a sequence diagram's stick figures and sequence numbers are
   // fixed-size and would shrink instead, and a state diagram's free-floating edge labels
-  // collide. State diagrams are always laid out LR, because dagre's top-down placement
-  // piles their edge labels on top of each other.
-  await tab.addScriptTag({ path: resolve(root, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js') })
+  // collide. The configuration, the sideways state diagrams, the widened notes and the
+  // covering viewBox are site/mermaid.mjs's, shared with the web rendering.
+  await installMermaid(tab)
   const diagrams = await tab.evaluate(async () => {
     const COLUMN = 642, BLEED = 718, HEIGHT = 820   // px at 96 dpi: 170 mm, 190 mm, a page less its heading
     const FONT = 16                                  // px mermaid renders at; text prints at FONT × scale
@@ -141,111 +118,21 @@ try {
     const fit = (w, h, width) => Math.min(1, width / w, HEIGHT / h)
     const flipped = (src) => src.replace(/^(\s*(?:flowchart|graph))\s+(LR|TB|TD)\b/,
       (m, k, d) => `${k} ${d === 'LR' ? 'TB' : 'LR'}`)
-    const sideways = (src) => /^\s*stateDiagram(-v2)?\s*\n/.test(src) && !/^\s*direction\s/m.test(src)
-      ? src.replace(/^(\s*stateDiagram(?:-v2)?\s*\n)/, '$1    direction LR\n') : src
-
-    // The root fontSize sizes every diagram's text: the sequence renderer copies it over its
-    // actor/message/note sizes. The sequence wrap width follows it so a larger font wraps
-    // the same lines; the subgraph title margin grows faster than the font, because mermaid
-    // offsets a cluster's nodes by only half of it while the title itself grows in full.
-    const config = (font) => {
-      const k = font / FONT
-      return {
-        startOnLoad: false,
-        securityLevel: 'loose',
-        theme: 'base',
-        fontFamily: 'Inter, sans-serif',
-        fontSize: font,
-        themeVariables: {
-          fontFamily: 'Inter, sans-serif',
-          fontSize: `${font}px`,
-          background: '#FFFFFF',
-          primaryColor: '#E6F7F1',
-          primaryTextColor: '#0B100E',
-          primaryBorderColor: '#0F9B7A',
-          secondaryColor: '#F4F6F5',
-          secondaryBorderColor: '#E3E8E5',
-          secondaryTextColor: '#1F2724',
-          tertiaryColor: '#FFFFFF',
-          tertiaryBorderColor: '#E3E8E5',
-          tertiaryTextColor: '#1F2724',
-          lineColor: '#1F2724',
-          textColor: '#1F2724',
-          mainBkg: '#E6F7F1',
-          nodeBorder: '#0F9B7A',
-          nodeTextColor: '#0B100E',
-          clusterBkg: '#F4F6F5',
-          clusterBorder: '#E3E8E5',
-          titleColor: '#0B100E',
-          edgeLabelBackground: '#FFFFFF',
-          actorBkg: '#E6F7F1',
-          actorBorder: '#0F9B7A',
-          actorTextColor: '#0B100E',
-          actorLineColor: '#6B7671',
-          signalColor: '#1F2724',
-          signalTextColor: '#1F2724',
-          labelBoxBkgColor: '#F4F6F5',
-          labelBoxBorderColor: '#E3E8E5',
-          labelTextColor: '#0B100E',
-          loopTextColor: '#0B100E',
-          noteBkgColor: '#E6F7F1',
-          noteBorderColor: '#2BD4A4',
-          noteTextColor: '#0B100E',
-          activationBkgColor: '#F4F6F5',
-          activationBorderColor: '#0F9B7A',
-          sequenceNumberColor: '#FFFFFF',
-        },
-        flowchart: {
-          htmlLabels: true, useMaxWidth: true, curve: 'basis', padding: 6, nodeSpacing: 34, rankSpacing: 30,
-          subGraphTitleMargin: { top: 0.6 * font, bottom: 0.8 * font },
-        },
-        // Sequence text is measured with these families; they default to Trebuchet, and a
-        // mismatch between measured and rendered font spills note text past its box. The
-        // actor width is also the wrap width, and mermaid never budgets height for a
-        // stick figure's wrapped name: 130 keeps "Bharat (human)" on one line. boxMargin
-        // is the gap between a label and its arrow; below 8 the sequence number of a
-        // self-message sits on the label's descenders.
-        sequence: {
-          useMaxWidth: true, wrap: true, width: 130 * k, actorMargin: 16, messageMargin: 20, boxMargin: 8, noteMargin: 6, wrapPadding: 6,
-          actorFontFamily: 'Inter, sans-serif', actorFontWeight: 500,
-          noteFontFamily: 'Inter, sans-serif',
-          messageFontFamily: 'Inter, sans-serif',
-        },
-        state: { useMaxWidth: true, nodeSpacing: 150, rankSpacing: 70 },
-      }
-    }
+    const config = (font) => pactMermaid.config(font, { htmlLabels: true, base: FONT })
 
     const report = []
     let n = 0
     for (const pre of document.querySelectorAll('figure.diagram pre.mermaid')) {
       const figure = pre.parentElement
-      const source = sideways(pre.textContent)
+      const source = pactMermaid.sideways(pre.textContent)
       // Renders into the figure and reports how the drawing would print.
       const render = async (src, font) => {
         mermaid.initialize(config(font))
         const { svg: markup } = await mermaid.render(`diagram-${n++}`, src)
         figure.innerHTML = markup
         const svg = figure.querySelector('svg')
-        // mermaid never wraps a note that carries explicit line breaks, yet still draws it at
-        // the configured actor width, so the text spills past its box. Widen such boxes to
-        // the text.
-        for (const rect of svg.querySelectorAll('rect.note')) {
-          const text = rect.parentElement.querySelector('text.noteText')
-          if (!text) continue
-          const need = text.getBBox().width + 16
-          const width = Number(rect.getAttribute('width'))
-          if (need <= width) continue
-          const cx = Number(rect.getAttribute('x')) + width / 2
-          rect.setAttribute('x', cx - need / 2)
-          rect.setAttribute('width', need)
-        }
-        // mermaid's viewBox stops short of its own drawing — the mirrored actors' names, a
-        // widened note — and Chrome clips at the viewBox, so cover whatever was drawn.
-        const bb = svg.getBBox()
-        const [x, y, w, h] = svg.getAttribute('viewBox').split(/\s+/).map(Number)
-        const x0 = Math.min(x, bb.x - 10), y0 = Math.min(y, bb.y - 10)
-        const x1 = Math.max(x + w, bb.x + bb.width + 10), y1 = Math.max(y + h, bb.y + bb.height + 10)
-        svg.setAttribute('viewBox', `${x0} ${y0} ${x1 - x0} ${y1 - y0}`)
+        pactMermaid.widenNotes(svg)
+        const { x0, y0, x1, y1 } = pactMermaid.cover(svg)
         // Arrowheads are fixed-size markers; grow them with the font so they scale down with it.
         for (const marker of svg.querySelectorAll('marker')) {
           for (const a of ['markerWidth', 'markerHeight']) marker.setAttribute(a, Number(marker.getAttribute(a)) * font / FONT)
