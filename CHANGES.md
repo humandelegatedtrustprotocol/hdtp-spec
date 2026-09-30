@@ -2,7 +2,11 @@
 
 The internal record of what each version string of `SPEC.md` said about itself. `SPEC.md` carries no history: its header line is the version and the date, and its body reads as the specification as it stands. What changed from one version to the next is here — one entry per version string, newest first, dated by that version's own header line (the date the whitepaper cover reads) and naming the commits that carried it, so the full text of any version is `git show <commit>:SPEC.md`. Where a commit date differs from the header date, both are given.
 
-The wire carries the major alone: `X-PACT-VERSION`, an envelope's `v`, `pact_export`. A revision within a major can still change what an implementation writes or accepts (2.1.3 left an envelope's members one spelling; 2.2.4 renamed `get_card`'s `limits` members). The one tag is `v1.2.0`; no 2.x version has been tagged. Two texts have carried the label 2.1.3.
+The wire carries the major alone: `X-PACT-VERSION`, an envelope's `v`, `pact_export`. A revision within a major can still change what an implementation writes or accepts (2.1.3 left an envelope's members one spelling; 2.2.4 renamed `get_card`'s `limits` members). The tags are `v1.2.0` and `v2.2.5`; 2.2.5 is the first 2.x version tagged. Two texts have carried the label 2.1.3.
+
+## 2.2.5 · 2026-09-30 · `e00b290`, `f8a56f2`, tag `v2.2.5`
+
+Nothing on the wire: the text reads as the specification as it stands. The header's revision narrative moved out to this file, and 30 references to the document's own history, in 26 places, became timeless prose (`f8a56f2`); one MUST sentence of the 88, 13.3#1, is reworded without change of requirement ("since every 2.0 envelope is delivered directly" → "since every envelope is delivered directly"), and the other 87 are byte-identical. §14.1 says that a P-256 key is written as its uncompressed point, which every reader of a certificate already required (`e00b290`). The release commit changed nothing in `SPEC.md` but the header line.
 
 ## 2.2.4 · 2026-09-28 · `5662841`
 
