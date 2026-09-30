@@ -132,8 +132,8 @@ if (!v2) {
 }
 
 // The receiving node reads a header and a body as JSON exactly when every port does
-// (pact-identity CONTRACT §0): a number that is infinite as a double (`1e400`) or containers nested
-// more than 127 deep is not JSON. JSON.parse read 1e400 as Infinity, and the node decided `ok` on a
+// (pact-identity CONTRACT §0): bytes that are not UTF-8, a \u escape of half a surrogate pair, a
+// number that is infinite as a double (`1e400`) or containers nested more than 127 deep is not JSON. JSON.parse read 1e400 as Infinity, and the node decided `ok` on a
 // validly signed call whose body held one, where both ports refuse it. The body and header are
 // written as text, because JSON.stringify writes 1e400 as null; the controls hold the largest double
 // and 127 deep, and are decided. A header's integers likewise: the ports read `-0`, `1757764800.0`
@@ -155,16 +155,33 @@ console.log('JSON as the ports read it (§13.1, §13.3)');
     return n;
   };
   let msg = 0;
-  const call = (argsText, header = (t) => t) => {
+  // `header` and `bytes` edit the header's and the body's text; either may hand back bytes, which is
+  // how a byte that is not UTF-8 gets in.
+  const call = (argsText, header = (t) => t, bytes = (b) => b) => {
     const to = parse(LEAF_B).publicKey, suite = suiteForKey(to);
     const aad = Buffer.from(header(canonical({ v: 2, suite, kid: fingerprint(to), msg_id: 'json-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/pact-call+json' })));
     const body = `{"method":"tools/call","params":{"name":"send_message","arguments":${argsText}},"chain":${JSON.stringify([b64url(LEAF_A), b64url(ROOT_A)])}}`;
-    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('PACT-SEAL-v2'), aad, Buffer.from(body), Buffer.alloc(32, 9));
+    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('PACT-SEAL-v2'), aad, Buffer.from(bytes(Buffer.from(body))), Buffer.alloc(32, 9));
     return { protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(signDetached(hostA.priv, Buffer.concat([aad, enc, ct]))) };
   };
   // The body is the first container and params the second; `arguments` is the rest.
   const nested = (n) => '['.repeat(n) + '1' + ']'.repeat(n);
+  // `@` in a text, as the bytes given: the one way to write bytes that are not UTF-8 into JSON text.
+  const bytesAt = (text, ...b) => { const t = Buffer.from(text), i = t.indexOf('@'); return Buffer.concat([t.subarray(0, i), Buffer.from(b), t.subarray(i + 1)]); };
+  const msgIdOf = (text) => (t) => t.replace(/"msg_id":"[^"]*"/, `"msg_id":${text}`);
   for (const [what, envelope, want] of [
+    // Text that is not UTF-8, and a \u escape of half a surrogate pair, are not JSON to serde_json,
+    // which the core reads with, and are to JSON.parse, which read the first as U+FFFD and kept the
+    // second as a lone surrogate: this node decided `ok` on both, as the Go port did, where the core
+    // refused them. A pair, and an escaped backslash before a `u`, are the controls.
+    ['a header whose msg_id is half a surrogate pair', call('{}', msgIdOf('"\\ud800"')), 'envelope_invalid: protected is not JSON'],
+    ['a header holding a byte that is not UTF-8', call('{}', (t) => bytesAt(msgIdOf('"@"')(t), 0xff)), 'envelope_invalid: protected is not JSON'],
+    ['a body whose value is half a surrogate pair', call('{"text":"\\ud800"}'), 'envelope_invalid: does not open'],
+    ['a body whose value is the low half of a surrogate pair', call('{"text":"\\udc00"}'), 'envelope_invalid: does not open'],
+    ['a body whose member name is half a surrogate pair', call('{"\\ud800":1}'), 'envelope_invalid: does not open'],
+    ['a body holding bytes that are not UTF-8', call('{"text":"@"}', undefined, (b) => bytesAt(b.toString('latin1'), 0xff, 0xfe)), 'envelope_invalid: does not open'],
+    ['a body holding a surrogate pair (the control)', call('{"text":"\\ud83d\\ude00"}'), 'ok'],
+    ['a body holding an escaped backslash before a u (the control)', call('{"text":"\\\\ud800"}'), 'ok'],
     ['a body holding a number past the largest double', call('{"n":1e400}'), 'envelope_invalid: does not open'],
     ['a body nested 128 deep', call(nested(126)), 'envelope_invalid: does not open'],
     ['a header holding a ts past the largest double', call('{}', (t) => t.replace(`"ts":${nowS}`, '"ts":1e400')), 'envelope_invalid: protected is not JSON'],
