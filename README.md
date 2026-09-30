@@ -63,7 +63,7 @@ requires.
 
 | Files | Licence |
 |---|---|
-| The specification text, `SPEC.md` | [CC BY 4.0](LICENSE-docs); patents: the OWFa 1.0 (Patent Only) declaration in [`PATENTS.md`](PATENTS.md) |
+| The specification text, `SPEC.md` | [CC BY 4.0](LICENSE-docs); patents: the OWFa 1.0 (Patent Only) declaration in [`PATENTS.md`](PATENTS.md), made by Sumit Agrawal as an individual and for Shailka Systems Private Limited as a Bound Entity |
 | The other prose: `README.md`, `CHANGES.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CLAUDE.md`, `docs/`, `archive/*.md`, `explainer/pact-explainer.html` (its text and inline SVG), and the project's own prose in `PATENTS.md` (the text outside its fenced agreement) | [CC BY 4.0](LICENSE-docs) |
 | Code: `vectors/**/*.mjs`, `site/*.mjs`, `site/whitepaper.css`, `archive/test-vectors/gen_vectors.py`, `Makefile`, `package.json`, `package-lock.json`, `.gitignore`, `.github/workflows/whitepaper.yml` | [Apache-2.0](LICENSE), with [`NOTICE`](NOTICE) |
 | Data: `vectors/pact-2.0-vectors.json`, `vectors/appendix-b-reader.json`, `vectors/pact1x-markers.txt`, `site/diagram-classes.json`, `archive/test-vectors/vectors.json`, `CITATION.cff`, `NOTICE` | [Apache-2.0](LICENSE) |
@@ -72,7 +72,8 @@ requires.
 | Fonts: `site/brand/inter-*.woff2`, `site/brand/jbmono-*.woff2` | SIL Open Font License 1.1: `site/brand/OFL-inter.txt`, `site/brand/OFL-jetbrains-mono.txt`. The `latin` files are byte-identical to the ones fontsource 5.3.0 packages from the Google Fonts builds; the two `*-symbols-wght.woff2` are subsets cut for this build (‖ → ≠ ≤ ≥). Neither family reserves a font name, so the subsets keep the family names. |
 
 No licence stops a third party from filing a patent application. What this project does about
-patents is in `PATENTS.md`: the author's OWFa pledge not to assert his own claims, and the dated
+patents is in `PATENTS.md`: the OWFa pledge, by Sumit Agrawal and binding Shailka Systems Private
+Limited, not to assert their own claims, and the dated
 public publication of the specification: what was measured as published, where, and when.
 
 `archive/hardened-draft-spec.md` carries a licence line of its own ("CC BY 4.0 … additionally licensed under MIT"). It is the draft's own text, part of the dated record; the draft was never issued.
