@@ -1,0 +1,13 @@
+PACT — Personal Agent Communication & Trust Protocol
+Copyright 2026 Sumit Agrawal
+
+This repository's code and data are licensed under the Apache License,
+Version 2.0 (the file LICENSE). Section 4(d) of that licence requires
+anyone who redistributes them, or a work derived from them, to carry the
+attribution notices in this NOTICE file.
+
+The specification text and the other prose are licensed separately, under
+Creative Commons Attribution 4.0 International (the file LICENSE-docs),
+which requires attribution to the author when they are shared, as they are
+or adapted.
+The README's "Licensing" section says which licence covers which file.
