@@ -3,8 +3,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
 import { open, verifyDetached, suiteForLeaf, suiteForKey, sealDeterministic, signDetached } from './lib/hpke.mjs';
-import { validateChain, compareLeaves, parse, profileError, buildRoot, buildLeaf, fingerprintOf } from './lib/x509.mjs';
-import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, spkiOf, seed } from './lib/keys.mjs';
+import { validateChain, compareLeaves, parse, profileError, buildRoot, buildLeaf, fingerprintOf, OID } from './lib/x509.mjs';
+import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, p256FromSeed, spkiOf, seed } from './lib/keys.mjs';
 import { canonical } from './lib/canonical.mjs';
 import { makeNode, pin, receive } from './lib/envelope.mjs';
 import { appendixB } from './lib/appendix.mjs';
@@ -311,6 +311,8 @@ console.log('certificates the readers answered three ways (§14.1)');
   const at = (iso) => new Date(iso);
   const leafWith = (misencode) => buildLeaf({ cn: 'A', rootCn: 'A', root, hostKey: host, endpoint: 'https://a.example/mcp', notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), label: 'check/r33/leaf', misencode });
   const leaf = leafWith({});
+  const p256Root = p256FromSeed(seed('check/r33/p256/root')), p256Host = p256FromSeed(seed('check/r33/p256/host'));
+  const p256LeafWith = (misencode) => buildLeaf({ cn: 'B', rootCn: 'B', root: p256Root, hostKey: p256Host, endpoint: 'https://b.example/mcp', notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), label: 'check/r33/p256/leaf', misencode });
   const [tbs, alg, sig] = children(read(leaf));
   const fields = children(tbs).map((x) => x.raw);
   const [nb, na] = children(children(tbs)[4]).map((x) => x.raw);
@@ -320,8 +322,15 @@ console.log('certificates the readers answered three ways (§14.1)');
     ['a keyUsage BIT STRING with no initial octet', leafWith({ keyUsage: [] }), 'BIT STRING not in the DER form'],
     ['an extensions wrapper with nothing in it', rebuilt({ 7: tlv(0xa3, Buffer.alloc(0)) }), 'not a v3 certificate with extensions'],
     ['three validity times', rebuilt({ 4: seq(nb, na, na) }), 'time not in the DER form'],
+    // Three more the seed read and both ports refused (2026-09-30), each written before signing: an
+    // extension of four parts, an extnValue that is not an OCTET STRING, a P-256 key as its compressed
+    // point. The first was refused here in other words (`extension shape`); the other two were read.
+    ['an extension of four parts', leafWith({ extensionParts: { oid: OID.ski, der: '05000500' } }), 'certificate shape'],
+    ['an extnValue that is not an OCTET STRING', leafWith({ wrapperTag: { oid: OID.ski, tag: 0x03 } }), 'certificate shape'],
+    ['a P-256 key written as its compressed point', p256LeafWith({ compressedPoint: true }), 'P-256 key is not the uncompressed point'],
     ['a keyUsage of no bits, with its initial octet (the control)', leafWith({ keyUsage: [0] }), 'read, keyUsage []'],
     ['nothing changed (the control)', rebuilt({}), `read, keyUsage [${parse(leaf).keyUsage}]`],
+    ['a P-256 key, uncompressed (the control)', p256LeafWith({}), `read, keyUsage [${parse(p256LeafWith({})).keyUsage}]`],
   ]) {
     const got = said(der);
     ok(got === want, `a leaf with ${what}: ${want}, not ${got}`);
