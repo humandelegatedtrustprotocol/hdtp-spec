@@ -1,17 +1,19 @@
 // The one mermaid pipeline: the whitepaper (site/build-whitepaper.mjs) and the web fragments
 // (site/spec-html.mjs) both render SPEC.md's diagrams through this — the bundled mermaid from
-// node_modules inside headless Chrome, one configuration, and the same three fixes applied to
-// every drawing. Nothing is fetched at render time.
+// node_modules inside headless Chrome, with the ELK layout engine (@mermaid-js/layout-elk, also
+// from node_modules) for flowcharts and state diagrams, one configuration, and the same two fixes
+// applied to every drawing. Nothing is fetched at render time.
 //
 // The functions under "browser side" run inside the page, so they take no imports and close over
 // nothing: installMermaid() copies their source into the page as `window.pactMermaid`.
 
 import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import puppeteer from 'puppeteer'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const mermaidScript = resolve(root, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js')
+export const elkScript = resolve(root, 'node_modules', '@mermaid-js', 'layout-elk', 'dist', 'mermaid-layout-elk.esm.min.mjs')
 
 // The font size mermaid lays a diagram out at; text is measured at this size.
 export const FONT = 16
@@ -44,6 +46,14 @@ function mermaidConfig(font, { htmlLabels = true, base = 16 } = {}) {
   return {
     startOnLoad: false,
     securityLevel: 'loose',
+    // Flowcharts and state diagrams are laid out by ELK, not dagre: dagre routed edges as free
+    // curves through other nodes and on top of each other's labels (the architecture drawing of
+    // §1, the contact states of §5); ELK's layered layout routes them orthogonally around the
+    // boxes. Depth-first cycle breaking keeps a state diagram's start at the top (the default
+    // put `none` at the bottom with every transition climbing back over the others), and
+    // network-simplex placement straightens the long edges. Sequence diagrams ignore `layout`.
+    layout: 'elk',
+    elk: { mergeEdges: false, nodePlacementStrategy: 'NETWORK_SIMPLEX', cycleBreakingStrategy: 'DEPTH_FIRST', considerModelOrder: 'NODES_AND_EDGES' },
     theme: 'base',
     htmlLabels,
     fontFamily: 'Inter, sans-serif',
@@ -87,8 +97,10 @@ function mermaidConfig(font, { htmlLabels = true, base = 16 } = {}) {
       activationBorderColor: '#0F9B7A',
       sequenceNumberColor: '#FFFFFF',
     },
+    // A label wraps at 260 px rather than mermaid's 200: §8's `text+media+availability+book`
+    // has no space to break at, and at 200 it was split inside a word.
     flowchart: {
-      htmlLabels, useMaxWidth: true, curve: 'basis', padding: 6, nodeSpacing: 34, rankSpacing: 30,
+      htmlLabels, useMaxWidth: true, wrappingWidth: 260, curve: 'basis', padding: 6, nodeSpacing: 34, rankSpacing: 30,
       subGraphTitleMargin: { top: 0.6 * font, bottom: 0.8 * font },
     },
     // Sequence text is measured with these families; they default to Trebuchet, and a
@@ -105,13 +117,6 @@ function mermaidConfig(font, { htmlLabels = true, base = 16 } = {}) {
     },
     state: { useMaxWidth: true, nodeSpacing: 150, rankSpacing: 70 },
   }
-}
-
-// State diagrams are always laid out LR, because dagre's top-down placement piles their
-// edge labels on top of each other.
-function sideways(src) {
-  return /^\s*stateDiagram(-v2)?\s*\n/.test(src) && !/^\s*direction\s/m.test(src)
-    ? src.replace(/^(\s*stateDiagram(?:-v2)?\s*\n)/, '$1    direction LR\n') : src
 }
 
 // mermaid never wraps a note that carries explicit line breaks, yet still draws it at the
@@ -142,8 +147,13 @@ function cover(svg) {
 
 /* ------------------------------------------------------------ node side */
 
-// Loads mermaid into the page and the helpers above as window.pactMermaid.
+// Loads mermaid into the page, registers the ELK layouts with it, and the helpers above as
+// window.pactMermaid. The ELK bundle is an ES module (it loads its chunks by relative import),
+// so it goes in as a module script; the page is a file:// URL and the browser is launched with
+// file access, so the import resolves inside node_modules.
 export async function installMermaid(tab) {
   await tab.addScriptTag({ path: mermaidScript })
-  await tab.addScriptTag({ content: `window.pactMermaid = { config: ${mermaidConfig}, sideways: ${sideways}, widenNotes: ${widenNotes}, cover: ${cover} }` })
+  await tab.addScriptTag({ type: 'module', content: `import elk from ${JSON.stringify(pathToFileURL(elkScript).href)}; mermaid.registerLayoutLoaders(elk); window.pactElk = true` })
+  await tab.waitForFunction(() => window.pactElk === true, { timeout: 30000 })
+  await tab.addScriptTag({ content: `window.pactMermaid = { config: ${mermaidConfig}, widenNotes: ${widenNotes}, cover: ${cover} }` })
 }
