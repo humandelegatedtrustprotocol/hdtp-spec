@@ -11,16 +11,24 @@ ROOT     := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ENV_FILE ?= $(abspath $(ROOT)/../.env)
 WITH_ENV  = set -a && . "$(ENV_FILE)" && set +a &&
 
-.PHONY: help check build publish
+.PHONY: help check build spec-html publish
 
 help:
-	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  \033[1m%-8s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  \033[1m%-9s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-check: ## the vectors and the 1.x clearance
+check: ## the vectors, the 1.x clearance, and the web renderer on both published texts
 	npm run vectors:check
+	npm run spec:check
 
 build: ## render SPEC.md into dist/pact-whitepaper.pdf and its meta (the build is also a gate)
 	npm run build
+
+# The web fragments the protocol site vendors: one committed SPEC.md (REF, never the working
+# tree) rendered into OUT, which must be gitignored here or outside this repository.
+REF ?= HEAD
+OUT ?= dist/spec
+spec-html: ## render SPEC.md at REF (default HEAD) into OUT (default dist/spec): spec.html, toc, musts, meta, vectors
+	npm run spec:html -- --ref $(REF) --out $(OUT)
 
 publish: check build ## build, then put the PDF and its meta into the private bucket, together
 	@test -f "$(ENV_FILE)" || { echo "no .env at $(ENV_FILE)"; exit 1; }
