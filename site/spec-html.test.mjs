@@ -9,6 +9,11 @@
 // beside this repository (PACT_WEB_KIT_DIR overrides the place) the copy is held to the
 // kit's file byte for byte and the drawings are audited against the kit's; without it the
 // audit holds to the committed copy, and the run says so on stderr and as a skipped test.
+//
+// The licence: the fragment of the current text ends in the attribution line for its version,
+// the PACT 1 fragment carries none, and the whitepaper is built once (site/build-whitepaper.mjs
+// --out, into a scratch directory) and read back from its bytes. The wording is
+// site/licence.mjs's; each claim it makes is held here to the file it is true of.
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -18,7 +23,9 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
+import { FONTS, licence, pdfProblems } from './licence.mjs'
 import { slugify, splitSpec } from './markdown.mjs'
+import { info, text as pdfText, withInfo } from './pdf.mjs'
 import { auditFragment, auditText, build, CONTRACT, CONTRACT_PATH, extractMusts, sectionId } from './spec-html.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -45,7 +52,7 @@ const flat = (toc) => toc.flatMap((n) => [n, ...flat(n.children)])
 const prose = (body) => body.replace(/^```[\s\S]*?^```/gm, '').replace(/`[^`\n]*`/g, '')
 const count = (s, re) => (s.match(re) ?? []).length
 
-let scratch, out2, out2again, out1, spec2, body2, spec1, body1
+let scratch, out2, out2again, out1, spec2, body2, spec1, body1, paper
 
 before(async () => {
   scratch = await mkdtemp(join(tmpdir(), 'spec-html-test-'))
@@ -56,6 +63,8 @@ before(async () => {
   execFileSync(process.execPath, [resolve(root, 'site', 'spec-html.mjs'), '--ref', 'HEAD', '--out', out2], { stdio: 'pipe' })
   await build({ ref: 'HEAD', out: out2again })
   await build({ ref: PACT1, out: out1 })
+  paper = join(scratch, 'whitepaper')
+  execFileSync(process.execPath, [resolve(root, 'site', 'build-whitepaper.mjs'), '--out', paper], { stdio: 'pipe' })
   spec2 = git('show', 'HEAD:SPEC.md'); body2 = splitSpec(spec2).body
   spec1 = git('show', `${PACT1}:SPEC.md`); body1 = splitSpec(spec1).body
 })
@@ -75,7 +84,7 @@ describe('the output', () => {
     assert.equal(meta.version, version)
     assert.equal(meta.date, date)
     assert.match(meta.date, /^\d{4}-\d{2}-\d{2}$/)
-    assert.equal(meta.generator, 'spec-html 2')
+    assert.equal(meta.generator, 'spec-html 3')
   })
 
   it('is a fragment, not a page', () => {
@@ -326,5 +335,87 @@ describe('vectors', () => {
     const html = read(out2, 'vectors/index.html')
     for (const key of Object.keys(JSON.parse(bytes))) assert.ok(html.includes(`<h2 id="vectors-${slugify(key)}">`), `${key} is indexed`)
     assert.deepEqual(auditFragment(html), [])
+  })
+})
+
+describe('the licence', () => {
+  const squash = (x) => x.replace(/\s+/g, '')
+  const file = (p) => readFileSync(join(root, p), 'utf8')
+  // The README's attribution line, as a reader would copy it: no quote marker, no emphasis.
+  const readmeLine = () => {
+    const lines = file('README.md').split('\n').filter((l) => /^> \*PACT\b.*licensed under/.test(l))
+    assert.equal(lines.length, 1, "the README has one attribution line")
+    return lines[0].replace(/^> /, '').replace(/\*/g, '')
+  }
+  const headRights = () => licence((p) => git('ls-tree', '--name-only', 'HEAD', p).trim() ? git('show', `HEAD:${p}`) : null, splitSpec(spec2))
+
+  it("ends the current text's fragment in the attribution line for its version, and gives the PACT 1 text none", () => {
+    const { version, date } = splitSpec(spec2)
+    const html = read(out2, 'spec.html')
+    const footer = /<footer class="licence">[\s\S]*?<\/footer>\n$/.exec(html)?.[0]
+    assert.ok(footer, 'the fragment ends in <footer class="licence">')
+    assert.equal(count(html, /<footer\b/g), 1)
+    const words = footer.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&')
+    assert.ok(words.includes(readmeLine()), `the footer carries the README's attribution line: ${words}`)
+    assert.ok(words.includes(`version ${version} (${date})`), 'with the version and date of the header line')
+    assert.ok(footer.includes('href="https://creativecommons.org/licenses/by/4.0/"'))
+    assert.ok(words.startsWith(`${headRights().copyright}.`))
+    assert.doesNotMatch(read(out1, 'spec.html'), /<footer\b|creativecommons|CC BY/, 'the PACT 1.2.0 text predates the licences')
+  })
+
+  it('is printed in the whitepaper and written into its document information, with the version of the header line', () => {
+    const { version, date } = splitSpec(readFileSync(join(root, 'SPEC.md'), 'utf8'))
+    const pdf = readFileSync(join(paper, 'pact-whitepaper.pdf'))
+    const pages = pdfText(pdf)
+    assert.equal(pages.length, JSON.parse(readFileSync(join(paper, 'pact-whitepaper.meta.json'), 'utf8')).pages)
+    const last = squash(pages.at(-1))
+    assert.ok(last.includes(squash(readmeLine())), "the last page carries the README's attribution line")
+    assert.ok(last.includes(squash(`version ${version} (${date})`)))
+    assert.ok(last.includes('https://creativecommons.org/licenses/by/4.0/'))
+    assert.ok(last.includes(squash('© 2026 Sumit Agrawal')))
+    assert.ok(squash(pages[0]).includes(squash('© 2026 Sumit Agrawal · CC BY 4.0')), 'the cover carries the short line')
+    const { values } = info(pdf)
+    assert.equal(values.Author, 'Sumit Agrawal')
+    assert.match(values.Subject, /CC BY 4\.0/)
+    assert.match(values.Keywords, /CC BY 4\.0/)
+    assert.match(values.Subject, new RegExp(`specification ${version.replace(/\./g, '\\.')} \\(${date}\\)`))
+  })
+
+  it('is refused by the check when a line, the version or the metadata is wrong — shown red on each planted defect', () => {
+    const pdf = readFileSync(join(paper, 'pact-whitepaper.pdf'))
+    const rights = headRights()
+    assert.deepEqual(pdfProblems(pdf, rights), [])
+    const { version } = splitSpec(spec2)
+    const wrong = { ...rights, attribution: { ...rights.attribution, text: rights.attribution.text.replace(version, '9.9.9') } }
+    assert.match(pdfProblems(pdf, wrong).join('\n'), /lacks the attribution line/)
+    assert.match(pdfProblems(pdf, { ...rights, copyright: '© 1999 Somebody' }).join('\n'), /lacks the copyright line/)
+    assert.match(pdfProblems(withInfo(pdf, { Author: 'Somebody' }), rights).join('\n'), /Author is "Somebody"/)
+    assert.match(pdfProblems(withInfo(pdf, { Subject: 'x', Keywords: 'y' }), rights).join('\n'), /neither the PDF's Subject nor its Keywords names CC BY 4\.0/)
+  })
+
+  it('says only what the licence files say', () => {
+    const readme = file('README.md')
+    const row = (start) => readme.split('\n').find((l) => l.startsWith(start)) ?? ''
+    // The text: SPEC.md, CC BY 4.0, the legal code in LICENSE-docs, the id in CITATION.cff.
+    assert.match(row('| The specification text, `SPEC.md`'), /CC BY 4\.0/)
+    assert.match(file('LICENSE-docs'), /^Attribution 4\.0 International/)
+    assert.match(file('CITATION.cff'), /^license: CC-BY-4\.0$/m)
+    // Code and the vectors file: Apache-2.0, with NOTICE.
+    assert.match(row('| Data: `vectors/pact-2.0-vectors.json`'), /Apache-2\.0/)
+    assert.match(row('| Code: '), /Apache-2\.0.*NOTICE/)
+    assert.match(file('LICENSE'), /Apache License\s+Version 2\.0/)
+    assert.match(file('NOTICE'), /^Copyright 2026 Sumit Agrawal$/m)
+    // Patents: the declaration, by whom, binding whom, in which file.
+    const patents = file('PATENTS.md')
+    for (const words of ['OWFa 1.0', 'Patent', 'Only', 'Sumit Agrawal', 'as its director', 'Shailka Systems Private Limited', 'Bound Entity']) {
+      assert.ok(patents.replace(/\s+/g, ' ').includes(words), `PATENTS.md says "${words}"`)
+    }
+    assert.match(file('NOTICE'), /PATENTS\.md holds the Open Web Foundation Final Specification\s+Agreement \(OWFa 1\.0, Patent Only\)/)
+    // Typefaces: the families the stylesheet loads, each with its OFL 1.1 text.
+    const families = new Set([...file('site/whitepaper.css').matchAll(/@font-face\s*{[^}]*font-family:\s*'([^']+)'/g)].map((m) => m[1]))
+    assert.deepEqual([...families].sort(), FONTS.map((f) => f.family).sort())
+    for (const f of FONTS) assert.match(file(f.file), /SIL Open Font License, Version 1\.1/)
+    // The mark: no licence covers it.
+    assert.match(row('| The mark, `site/brand/mark.svg`'), /not covered by any licence/)
   })
 })

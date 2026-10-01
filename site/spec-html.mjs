@@ -22,7 +22,11 @@
 //                Flowcharts and state diagrams are laid out by ELK (site/mermaid.mjs); a
 //                flowchart wider than the text column is also laid out the other way round
 //                (LR <-> TB, the rule the whitepaper follows) and drawn whichever way reads
-//                larger in the column.
+//                larger in the column. When the commit carries LICENSE-docs, the fragment ends in
+//                <footer class="licence">: the copyright line and the attribution line for that
+//                commit's version, worded by site/licence.mjs from that commit's NOTICE and
+//                CITATION.cff, as the whitepaper's licence page is. The PACT 1.2.0 text predates the
+//                licences and has no footer.
 //   diagrams.json  what each drawing was drawn from, in document order: [{ kind, source,
 //                turned }] — `source` is the mermaid the SVG was rendered from (SPEC.md's
 //                block, with a flowchart's direction swapped where `turned` is true), so the
@@ -49,10 +53,11 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { licence } from './licence.mjs'
 import { esc, renderSpec, slugify, splitSpec } from './markdown.mjs'
 import { FONT, installMermaid, launch } from './mermaid.mjs'
 
-export const GENERATOR = 'spec-html 2'
+export const GENERATOR = 'spec-html 3'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -410,6 +415,7 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
   const vectors = tree.has(vectorsPath) ? git('show', `${commit}:${vectorsPath}`) : null
 
   const { version, date, revisionNote, body } = splitSpec(spec)
+  const rights = licence((p) => tree.has(p) ? git('show', `${commit}:${p}`) : null, { version, date })
   const { html, headings } = renderSpec(body, { slugify: sectionId, must: true })
   const sources = [...body.matchAll(/^```mermaid\n([\s\S]*?)\n```/gm)].map((m) => m[1])
   const figures = html.match(/<figure class="diagram"><pre class="mermaid">[\s\S]*?<\/pre><\/figure>/g) ?? []
@@ -496,6 +502,7 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
   figures.forEach((figure, i) => {
     fragment = fragment.replace(figure, `<figure class="diagram">${drawings[i].svg}</figure>`)
   })
+  if (rights) fragment += rights.footer
   const problems = auditFragment(fragment, contract)
   if (problems.length) throw new Error(`the fragment fails its own audit:\n  ${problems.join('\n  ')}`)
 
