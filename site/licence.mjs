@@ -16,6 +16,7 @@
 // reads the working tree, the web renderer reads the commit it renders. A tree without LICENSE-docs
 // (the PACT 1.2.0 text, d130444, predates the licences) gets no licence at all: null.
 
+import { scan } from './fonts.mjs'
 import { esc } from './markdown.mjs'
 import { info, text as pdfText } from './pdf.mjs'
 
@@ -25,14 +26,14 @@ export const LICENCES = Object.freeze({
   'Apache-2.0': { name: 'Apache-2.0', title: 'Apache License, Version 2.0', url: 'https://www.apache.org/licenses/LICENSE-2.0' },
 })
 
-// The typefaces the whitepaper embeds: every family site/whitepaper.css loads with @font-face, with
-// the licence site/fonts.json records for it. Null when either file is absent (a commit before the
+// The typefaces the whitepaper embeds: every family site/whitepaper.css loads with @font-face, as
+// site/fonts.mjs's scanner reads it, with the licence site/fonts.json records for it. Null when either file is absent (a commit before the
 // open-fonts list); only the whitepaper's licence page names typefaces.
 export function typefaces(read) {
   const css = read('site/whitepaper.css'), list = read('site/fonts.json')
   if (css === null || list === null) return null
   const licences = JSON.parse(list).families
-  const families = [...new Set([...css.matchAll(/@font-face\s*{[^}]*font-family:\s*'([^']+)'/g)].map((m) => m[1]))]
+  const families = [...new Set(scan(css, 'site/whitepaper.css').faces)]
   return families.map((family) => {
     if (!licences[family]) throw new Error(`site/whitepaper.css loads ${family}, which site/fonts.json does not list`)
     return { family, licence: licences[family] }
