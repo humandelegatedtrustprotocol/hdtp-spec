@@ -23,7 +23,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { FONTS, licence, pdfProblems } from './licence.mjs'
+import { licence, pdfProblems, typefaces } from './licence.mjs'
 import { slugify, splitSpec } from './markdown.mjs'
 import { info, text as pdfText, withInfo } from './pdf.mjs'
 import { auditFragment, auditText, build, CONTRACT, CONTRACT_PATH, extractMusts, sectionId } from './spec-html.mjs'
@@ -412,10 +412,15 @@ describe('the licence', () => {
       assert.ok(patents.replace(/\s+/g, ' ').includes(words), `PATENTS.md says "${words}"`)
     }
     assert.match(file('NOTICE'), /PATENTS\.md holds the Open Web Foundation Final Specification\s+Agreement \(OWFa 1\.0, Patent Only\)/)
-    // Typefaces: the families the stylesheet loads, each with its OFL 1.1 text.
-    const families = new Set([...file('site/whitepaper.css').matchAll(/@font-face\s*{[^}]*font-family:\s*'([^']+)'/g)].map((m) => m[1]))
-    assert.deepEqual([...families].sort(), FONTS.map((f) => f.family).sort())
-    for (const f of FONTS) assert.match(file(f.file), /SIL Open Font License, Version 1\.1/)
+    // Typefaces: the families the stylesheet loads, each under the licence site/fonts.json gives
+    // it, and that licence's text, naming the family, among site/brand/OFL-*.txt.
+    const faces = typefaces((p) => file(p))
+    assert.deepEqual(faces.map((f) => f.family).sort(), ['Inter', 'JetBrains Mono'])
+    const ofl = readdirSync(join(root, 'site', 'brand')).filter((n) => /^OFL-.*\.txt$/.test(n)).map((n) => file(`site/brand/${n}`))
+    for (const f of faces) {
+      assert.equal(f.licence, 'SIL Open Font License 1.1')
+      assert.ok(ofl.some((t) => t.includes(`${f.family} Project Authors`) && /SIL Open Font License, Version 1\.1/.test(t)), `an OFL 1.1 text for ${f.family} is in site/brand/`)
+    }
     // The mark: no licence covers it.
     assert.match(row('| The mark, `site/brand/mark.svg`'), /not covered by any licence/)
   })
