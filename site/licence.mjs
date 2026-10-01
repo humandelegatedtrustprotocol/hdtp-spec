@@ -74,6 +74,8 @@ export function licence(read, { version, date }) {
   ]
 
   return {
+    version,
+    date,
     copyright,
     licence: text,
     attribution,
@@ -92,14 +94,16 @@ export function licence(read, { version, date }) {
 }
 
 // What a printed whitepaper must carry, read back from the PDF's own bytes: the copyright line,
-// the attribution line (its version and date are the ones `rights` was built from) and the
-// licence's address in the text a reader copies out, and the author and the licence in the
-// document information. Whitespace is ignored, as the text extractor cannot see a line break.
+// the attribution line, the version and date `rights` was built from (the header line's) written
+// into it, and the licence's address in the text a reader copies out; and the author and the
+// licence in the document information. Whitespace is ignored, as the text extractor cannot see a
+// line break.
 export function pdfProblems(bytes, rights) {
   const problems = []
   const squash = (s) => s.replace(/\s+/g, '')
   const all = squash(pdfText(bytes).join(''))
-  for (const [what, want] of [['the copyright line', rights.copyright], ['the attribution line', rights.attribution.text], ["the licence's address", rights.licence.url]]) {
+  const versioned = `${rights.info.Author}, version ${rights.version} (${rights.date})`
+  for (const [what, want] of [['the copyright line', rights.copyright], ['the attribution line', rights.attribution.text], ['the attribution with the version of the header line', versioned], ["the licence's address", rights.licence.url]]) {
     if (!all.includes(squash(want))) problems.push(`the PDF's text lacks ${what}: ${want}`)
   }
   const { values } = info(bytes)
