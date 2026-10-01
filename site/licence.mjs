@@ -5,6 +5,8 @@
 //   the copyright line   NOTICE's "Copyright <year> <holder>"
 //   title, author, URL   CITATION.cff (its first title:, given-names:/family-names:, url:, license:)
 //   version and date     the header line of SPEC.md, through splitSpec
+//   typefaces            the families site/whitepaper.css loads with @font-face, each with the
+//                        licence site/fonts.json gives it (the open-fonts list spec:check holds)
 //
 // What the sentences say about which licence covers what is the README's "Licensing" table, PATENTS.md
 // and NOTICE, as they read when this was written; site/spec-html.test.mjs holds the names and
@@ -21,14 +23,21 @@ import { info, text as pdfText } from './pdf.mjs'
 export const LICENCES = Object.freeze({
   'CC-BY-4.0': { name: 'CC BY 4.0', title: 'Creative Commons Attribution 4.0 International', url: 'https://creativecommons.org/licenses/by/4.0/' },
   'Apache-2.0': { name: 'Apache-2.0', title: 'Apache License, Version 2.0', url: 'https://www.apache.org/licenses/LICENSE-2.0' },
-  'OFL-1.1': { name: 'OFL-1.1', title: 'SIL Open Font License, Version 1.1' },
 })
 
-// The typefaces the whitepaper is set in (site/whitepaper.css), each with its licence file.
-export const FONTS = Object.freeze([
-  { family: 'Inter', file: 'site/brand/OFL-inter.txt' },
-  { family: 'JetBrains Mono', file: 'site/brand/OFL-jetbrains-mono.txt' },
-])
+// The typefaces the whitepaper embeds: every family site/whitepaper.css loads with @font-face, with
+// the licence site/fonts.json records for it. Null when either file is absent (a commit before the
+// open-fonts list); only the whitepaper's licence page names typefaces.
+export function typefaces(read) {
+  const css = read('site/whitepaper.css'), list = read('site/fonts.json')
+  if (css === null || list === null) return null
+  const licences = JSON.parse(list).families
+  const families = [...new Set([...css.matchAll(/@font-face\s*{[^}]*font-family:\s*'([^']+)'/g)].map((m) => m[1]))]
+  return families.map((family) => {
+    if (!licences[family]) throw new Error(`site/whitepaper.css loads ${family}, which site/fonts.json does not list`)
+    return { family, licence: licences[family] }
+  })
+}
 
 const field = (cff, key) => {
   const m = new RegExp(`^[\\s-]*${key}:\\s*"?([^"\\n]*?)"?\\s*$`, 'm').exec(cff)
@@ -58,7 +67,7 @@ export function licence(read, { version, date }) {
     html: `<em>${esc(title)}</em>${esc(tail)}`,
   }
   const copyright = `© ${year} ${holder}`
-  const code = LICENCES['Apache-2.0'], fonts = LICENCES['OFL-1.1']
+  const code = LICENCES['Apache-2.0'], fonts = typefaces(read)
   const link = (u) => `<a href="${esc(u)}">${esc(u)}</a>`
 
   // The licence page of the whitepaper: [label, html] paragraphs, in reading order; the one
@@ -69,7 +78,10 @@ export function licence(read, { version, date }) {
     ['', attribution.html],
     ['Code and test vectors', `The test vectors, as the file <code>vectors/pact-2.0-vectors.json</code>, and the code of the specification's repository are licensed under the ${esc(code.title)} (${esc(code.name)}): ${link(code.url)}. Redistributions carry its <code>NOTICE</code> file. The copy of the vectors printed in Appendix B is part of this document's text.`],
     ['Patents', `${esc(holder)} has made the Open Web Foundation Final Specification Agreement (OWFa 1.0), Patent Only, for this specification, as an individual and, as its director, for Shailka Systems Private Limited as a Bound Entity; the declaration is the file <code>PATENTS.md</code>, beside <code>SPEC.md</code> in the specification's source repository.`],
-    ['Typefaces', `Set in ${FONTS.map((f) => esc(f.family)).join(' and ')}, each under the ${esc(fonts.title)} (${esc(fonts.name)}).`],
+    ...(fonts ? [['Typefaces', `Set in ${[...new Set(fonts.map((f) => f.licence))].map((l) => {
+      const named = fonts.filter((f) => f.licence === l).map((f) => esc(f.family))
+      return `${named.join(' and ')}, ${named.length > 1 ? 'each ' : ''}under the ${esc(l)}`
+    }).join('; ')}.`]] : []),
     ['The mark', 'The PACT mark on the cover is not covered by any of these licences.'],
   ]
 
