@@ -2,16 +2,27 @@
 // renders it: markdown → HTML (site/markdown.mjs) → mermaid diagrams as inline SVG
 // (site/mermaid.mjs) → paged.js for page numbers, running headers and the table of contents →
 // headless Chrome for the PDF. Everything is local: fonts from site/brand/, mermaid and
-// paged.js from node_modules.
+// paged.js from node_modules. The licence page, the cover's licence line and the document
+// information are site/licence.mjs's, read back from the printed PDF before the build succeeds.
+//
+//   node site/build-whitepaper.mjs [--out <dir>]     (default dist/)
 
-import { readFile, writeFile, mkdir, stat } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { licence, pdfProblems } from './licence.mjs'
 import { esc, renderSpec, splitSpec } from './markdown.mjs'
 import { launch, installMermaid } from './mermaid.mjs'
+import { withInfo } from './pdf.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const out = resolve(root, 'dist')
+const args = process.argv.slice(2)
+if (args.length && !(args.length === 2 && args[0] === '--out')) {
+  console.error('usage: node site/build-whitepaper.mjs [--out <dir>]')
+  process.exit(1)
+}
+const out = resolve(args[1] ?? resolve(root, 'dist'))
 const pdfPath = resolve(out, 'pact-whitepaper.pdf')
 const htmlPath = resolve(out, 'pact-whitepaper.html')
 
@@ -34,12 +45,24 @@ try {
 }
 const diagramCount = (body.match(/^```mermaid/gm) || []).length
 
+// The licence wording, read from the working tree as SPEC.md is.
+const rights = licence((p) => existsSync(resolve(root, p)) ? readFileSync(resolve(root, p), 'utf8') : null, { version, date })
+if (!rights) {
+  console.error('LICENSE-docs is missing: the whitepaper has no licence to print')
+  process.exit(1)
+}
+
 /* ---------------------------------------------------------------- HTML */
 
 const mark = await readFile(resolve(root, 'site', 'brand', 'mark.svg'), 'utf8')
 
-const toc = headings.map(h =>
+const LICENCE_TITLE = 'Licence and attribution'
+const toc = [...headings, { level: 2, id: 'licence', title: LICENCE_TITLE }].map(h =>
   `<li class="lvl${h.level}"><a href="#${esc(h.id)}">${esc(h.title)}</a><span class="leader"></span><a class="pg" href="#${esc(h.id)}"></a></li>`
+).join('\n')
+
+const licencePage = rights.page.map(([label, html]) =>
+  label ? `<p><span class="label">${esc(label)}</span>${html}</p>` : `<p class="attribution">${html}</p>`
 ).join('\n')
 
 const page = `<!doctype html>
@@ -61,7 +84,10 @@ const page = `<!doctype html>
     <p class="kind">Protocol Specification · Whitepaper</p>
     <p class="version">Version ${esc(version)} · ${esc(date)}</p>
   </div>
-  <p class="site">pact-protocol.com</p>
+  <div class="foot">
+    <p class="site">pact-protocol.com</p>
+    <p class="rights">${esc(rights.short)} · ${esc(LICENCE_TITLE.toLowerCase())}, page <a class="pg" href="#licence"></a></p>
+  </div>
 </section>
 <section class="front">
   <div class="about">
@@ -79,6 +105,10 @@ ${toc}
 <article class="doc">
 ${specHtml}
 </article>
+<section class="colophon">
+  <h2 id="licence">${esc(LICENCE_TITLE)}</h2>
+${licencePage}
+</section>
 </body>
 </html>
 `
@@ -268,7 +298,7 @@ try {
     // heading when nothing precedes it on the page, else the last heading before the page.
     class Sections extends Handler {
       afterPageLayout(page) {
-        const heads = [...page.querySelectorAll('.doc h2, .front .contents-title')]
+        const heads = [...page.querySelectorAll('.doc h2, .front .contents-title, .colophon h2')]
         let top = this.last
         if (heads.length && (!top || !contentBefore(heads[0], page))) top = heads[0].textContent
         page.style.setProperty('--pagedjs-string-start-section', `"${(top || '').replace(/["\\]/g, '\\$&')}"`)
@@ -378,8 +408,7 @@ try {
 
   if (problems.length) throw new Error(`browser reported:\n  ${problems.join('\n  ')}`)
 
-  await tab.pdf({
-    path: pdfPath,
+  const printed = await tab.pdf({
     preferCSSPageSize: true,
     printBackground: true,
     displayHeaderFooter: false,
@@ -388,7 +417,13 @@ try {
     timeout: 120_000,
   })
 
-  const { size: bytes } = await stat(pdfPath)
+  // Chrome writes no author, subject or keywords; they are added after it, then the whole
+  // licence is read back from the PDF's bytes, and a PDF without it is never written.
+  const pdf = withInfo(printed, rights.info)
+  const unlicensed = pdfProblems(pdf, rights)
+  if (unlicensed.length) throw new Error(`the printed whitepaper does not carry its licence:\n  ${unlicensed.join('\n  ')}`)
+  await writeFile(pdfPath, pdf)
+  const bytes = pdf.length
   const metaPath = pdfPath.replace(/\.pdf$/, '.meta.json')
   await writeFile(metaPath, JSON.stringify({
     version, date, pages, headings: headings.length, diagrams: rendered, bytes,
