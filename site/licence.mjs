@@ -1,5 +1,5 @@
 // The one source of the licence and attribution wording every rendering of SPEC.md carries: the
-// whitepaper's cover line and licence page, its PDF metadata, the web fragment's footer, and the
+// whitepaper's cover line and licence page, its PDF metadata, the web fragment's last block, and the
 // README's attribution line (held to this by vectors/check.mjs). Nothing here is typed twice:
 //
 //   the copyright line   NOTICE's "Copyright <year> <holder>"
@@ -79,11 +79,12 @@ export function licence(read, { version, date }) {
     copyright,
     licence: text,
     attribution,
-    // The short line on the cover and in the web fragment's footer.
+    // The short line on the whitepaper's cover.
     short: `${copyright} · ${text.name}`,
     page,
-    // The fragment's footer: one paragraph, no heading, so the site's contents are unchanged.
-    footer: `<footer class="licence"><p>${esc(copyright)}. The text is licensed under <a href="${esc(text.url)}">${esc(text.name)}</a>; attribute it as: ${attribution.html}</p></footer>\n`,
+    // The fragment's last block: one paragraph, no heading, so the site's contents are unchanged;
+    // a <div>, not a <footer>, as the site's kit styles every <footer> as the page's own.
+    web: `<div class="licence"><p>${esc(copyright)}. The text is licensed under <a href="${esc(text.url)}">${esc(text.name)}</a>; attribute it as: ${attribution.html}</p></div>\n`,
     // The whitepaper's document information. ASCII only: written as PDF literal strings.
     info: {
       Author: author,

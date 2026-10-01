@@ -352,15 +352,16 @@ describe('the licence', () => {
   it("ends the current text's fragment in the attribution line for its version, and gives the PACT 1 text none", () => {
     const { version, date } = splitSpec(spec2)
     const html = read(out2, 'spec.html')
-    const footer = /<footer class="licence">[\s\S]*?<\/footer>\n$/.exec(html)?.[0]
-    assert.ok(footer, 'the fragment ends in <footer class="licence">')
-    assert.equal(count(html, /<footer\b/g), 1)
+    const footer = /<div class="licence">[\s\S]*?<\/div>\n$/.exec(html)?.[0]
+    assert.ok(footer, 'the fragment ends in <div class="licence">')
+    assert.equal(count(html, /<div class="licence">/g), 1)
+    assert.equal(count(html, /<footer\b/g), 0, "no <footer>: the site's kit styles every <footer> as the page's own")
     const words = footer.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&')
-    assert.ok(words.includes(readmeLine()), `the footer carries the README's attribution line: ${words}`)
+    assert.ok(words.includes(readmeLine()), `the licence block carries the README's attribution line: ${words}`)
     assert.ok(words.includes(`version ${version} (${date})`), 'with the version and date of the header line')
     assert.ok(footer.includes('href="https://creativecommons.org/licenses/by/4.0/"'))
     assert.ok(words.startsWith(`${headRights().copyright}.`))
-    assert.doesNotMatch(read(out1, 'spec.html'), /<footer\b|creativecommons|CC BY/, 'the PACT 1.2.0 text predates the licences')
+    assert.doesNotMatch(read(out1, 'spec.html'), /class="licence"|creativecommons|CC BY/, 'the PACT 1.2.0 text predates the licences')
   })
 
   it('is printed in the whitepaper and written into its document information, with the version of the header line', () => {

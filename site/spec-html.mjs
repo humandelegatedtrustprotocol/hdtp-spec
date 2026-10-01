@@ -23,10 +23,10 @@
 //                flowchart wider than the text column is also laid out the other way round
 //                (LR <-> TB, the rule the whitepaper follows) and drawn whichever way reads
 //                larger in the column. When the commit carries LICENSE-docs, the fragment ends in
-//                <footer class="licence">: the copyright line and the attribution line for that
+//                <div class="licence">: the copyright line and the attribution line for that
 //                commit's version, worded by site/licence.mjs from that commit's NOTICE and
 //                CITATION.cff, as the whitepaper's licence page is. The PACT 1.2.0 text predates the
-//                licences and has no footer.
+//                licences and has no such block.
 //   diagrams.json  what each drawing was drawn from, in document order: [{ kind, source,
 //                turned }] — `source` is the mermaid the SVG was rendered from (SPEC.md's
 //                block, with a flowchart's direction swapped where `turned` is true), so the
@@ -502,7 +502,7 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
   figures.forEach((figure, i) => {
     fragment = fragment.replace(figure, `<figure class="diagram">${drawings[i].svg}</figure>`)
   })
-  if (rights) fragment += rights.footer
+  if (rights) fragment += rights.web
   const problems = auditFragment(fragment, contract)
   if (problems.length) throw new Error(`the fragment fails its own audit:\n  ${problems.join('\n  ')}`)
 
