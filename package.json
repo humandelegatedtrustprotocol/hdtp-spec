@@ -9,7 +9,7 @@
     "vectors:check": "node vectors/check.mjs && node vectors/check-no-1x.mjs --selftest && node vectors/check-no-1x.mjs",
     "vectors:intrude": "node vectors/intrude.mjs",
     "spec:html": "node site/spec-html.mjs",
-    "spec:check": "node --test site/spec-html.test.mjs",
+    "spec:check": "node --test site/spec-html.test.mjs site/fonts.test.mjs",
     "publish": "wrangler r2 object put pact-cloud-private/pact-whitepaper.pdf --file dist/pact-whitepaper.pdf --remote && wrangler r2 object put pact-cloud-private/pact-whitepaper.meta.json --file dist/pact-whitepaper.meta.json --content-type application/json --remote"
   },
   "engines": {
