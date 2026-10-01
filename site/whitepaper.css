@@ -141,7 +141,7 @@ li::marker { color: var(--accent); }
    keeps one selector per string name, so the running header's source is declared once,
    below, for every heading that should feed it; the header shows the section in force at
    the top of the page (string(…, start), computed by the build). */
-.doc h2, .front .contents-title { string-set: section content(text); }
+.doc h2, .front .contents-title, .colophon h2 { string-set: section content(text); }
 h2 {
   break-before: auto;
   font-size: 20pt;
@@ -328,12 +328,26 @@ figure.diagram svg :is(path, line, rect, circle, ellipse, polygon, polyline) { v
   color: var(--muted);
   margin: 0;
 }
+.cover .foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8mm;
+}
+.cover .foot p { margin: 0; }
 .cover .site {
   font-size: 9pt;
   font-weight: 500;
   letter-spacing: 0.03em;
   color: var(--muted);
 }
+.cover .rights {
+  font-size: 8pt;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cover .rights a { color: inherit; }
+.cover .rights .pg::after { content: target-counter(attr(href), page); }
 
 /* ----------------------------------------------------------- front matter */
 
@@ -392,6 +406,28 @@ figure.diagram svg :is(path, line, rect, circle, ellipse, polygon, polyline) { v
 }
 .toc li .pg { font-variant-numeric: tabular-nums; font-weight: 400; color: var(--muted); min-width: 14pt; text-align: right; }
 .toc li .pg::after { content: target-counter(attr(href), page); }
+
+/* --------------------------------------------------- licence and attribution */
+
+.colophon { break-before: page; }
+.colophon p { margin: 0 0 9pt; font-size: 9.5pt; }
+.colophon .label {
+  display: block;
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2pt;
+}
+.colophon .attribution {
+  padding: 8pt 12pt;
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  margin: -3pt 0 12pt;
+}
+.colophon a { overflow-wrap: anywhere; }
 
 /* ------------------------------------------------------- pagedjs plumbing */
 
