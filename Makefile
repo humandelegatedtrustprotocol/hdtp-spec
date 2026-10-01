@@ -16,7 +16,7 @@ WITH_ENV  = set -a && . "$(ENV_FILE)" && set +a &&
 help:
 	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  \033[1m%-9s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-check: ## the vectors, the 1.x clearance, and the web renderer on both published texts
+check: ## the vectors, the 1.x clearance, the web renderer on both published texts, and open fonts only
 	npm run vectors:check
 	npm run spec:check
 
