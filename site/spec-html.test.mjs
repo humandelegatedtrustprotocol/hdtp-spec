@@ -16,8 +16,9 @@
 // site/licence.mjs's; each claim it makes is held here to the file it is true of.
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -26,12 +27,13 @@ import { after, before, describe, it } from 'node:test'
 import { licence, pdfProblems, typefaces } from './licence.mjs'
 import { slugify, splitSpec } from './markdown.mjs'
 import { info, text as pdfText, withInfo } from './pdf.mjs'
-import { auditFragment, auditText, build, CONTRACT, CONTRACT_PATH, extractMusts, sectionId } from './spec-html.mjs'
+import { auditFragment, auditText, build, CONTRACT, CONTRACT_PATH, extractMusts, loadRegistry, sectionId } from './spec-html.mjs'
+import { identityDir } from './siblings.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
 const PACT1 = 'd130444'
-const identity = process.env.PACT_IDENTITY_DIR ?? resolve(root, '..', 'pact-identity')
+const identity = identityDir()
 const kit = process.env.PACT_WEB_KIT_DIR ?? resolve(root, '..', 'pact-web-kit')
 const kitContract = join(kit, 'kit', 'diagram-classes.json')
 const sibling = existsSync(kitContract)
@@ -303,6 +305,29 @@ describe('MUSTs', () => {
     // The current text is what the registry was written against: every sentence is in it.
     const current = json(out2, 'musts.json')
     assert.ok(current.every((s) => s.id), 'every MUST of the current text has a registry id')
+  })
+
+  it('come from the registry PACT_IDENTITY_DIR names, wherever it is, and from the sibling without it', () => {
+    // A registry no real checkout holds, in a directory that is not beside this repository: only
+    // a renderer that reads the variable can return these bytes.
+    const elsewhere = join(scratch, `identity-${randomUUID()}`)
+    mkdirSync(join(elsewhere, 'js'), { recursive: true })
+    const text = JSON.stringify({ 'TEST-ELSEWHERE': { hash: randomUUID(), text: 'not a sentence of the specification' } })
+    writeFileSync(join(elsewhere, 'js', 'musts.json'), text)
+    const was = process.env.PACT_IDENTITY_DIR
+    process.env.PACT_IDENTITY_DIR = elsewhere
+    try {
+      assert.equal(identityDir(), elsewhere)
+      const loaded = loadRegistry(undefined)
+      assert.ok(loaded, `the renderer found no registry at ${elsewhere}`)
+      assert.equal(loaded.sha256, createHash('sha256').update(text).digest('hex'), 'the renderer read another registry than PACT_IDENTITY_DIR\'s')
+      assert.deepEqual(Object.keys(loaded.registry), ['TEST-ELSEWHERE'])
+    } finally {
+      if (was === undefined) delete process.env.PACT_IDENTITY_DIR; else process.env.PACT_IDENTITY_DIR = was
+    }
+    assert.equal(identityDir({}), resolve(root, '..', 'pact-identity'), 'without the variable, the sibling checkout')
+    // And the build this file made through the command line recorded the registry this run names.
+    assert.equal(json(out2, 'meta.json').musts.registry.sha256, createHash('sha256').update(readFileSync(join(identity, 'js', 'musts.json'), 'utf8')).digest('hex'))
   })
 })
 

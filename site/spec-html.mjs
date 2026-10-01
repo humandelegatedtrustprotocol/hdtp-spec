@@ -35,7 +35,10 @@
 //   musts.json   every normative sentence, [{ heading, section, id, hash, text }]: `heading` is
 //                the id of the heading it sits under, `id` is pact-identity's registry id for
 //                that sentence (musts.json, matched by the sentence hash its checker computes)
-//                or null when the registry has no entry for these exact words.
+//                or null when the registry has no entry for these exact words. The registry is
+//                --musts <path>, else js/musts.json in PACT_IDENTITY_DIR, else in the sibling
+//                ../pact-identity (site/siblings.mjs); --musts none, or no file there, renders
+//                every id as null.
 //   meta.json    the version and date the whitepaper build parses from the header line, the
 //                ref, the commit, this generator's version, and the counts.
 //   vectors/     when the commit has vectors/pact-2.0-vectors.json: that file, byte for byte,
@@ -56,6 +59,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { licence } from './licence.mjs'
 import { esc, renderSpec, slugify, splitSpec } from './markdown.mjs'
 import { FONT, installMermaid, launch } from './mermaid.mjs'
+import { identityDir } from './siblings.mjs'
 
 export const GENERATOR = 'spec-html 3'
 
@@ -393,9 +397,9 @@ function refuseTrackedOut(out) {
   throw new Error(`--out ${out} is inside this repository and not gitignored; the site vendors the output, this repository never holds it`)
 }
 
-function loadRegistry(musts) {
+export function loadRegistry(musts) {
   if (musts === 'none') return null
-  const path = musts ?? resolve(root, '..', 'pact-identity', 'js', 'musts.json')
+  const path = musts ?? join(identityDir(), 'js', 'musts.json')
   if (!existsSync(path)) {
     if (musts) throw new Error(`--musts ${musts}: no such file`)
     return null
