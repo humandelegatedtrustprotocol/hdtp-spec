@@ -3,7 +3,7 @@
   "cases": [
     {
       "name": "two blocks",
-      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n\n```json\n[2]\n```\n*End of HDTP 2.1*\n",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n\n```json\n[2]\n```\n*End of HDTP*\n",
       "blocks": [
         {
           "a": 1
@@ -15,12 +15,12 @@
     },
     {
       "name": "no blocks",
-      "doc": "# Spec\n\n## Appendix B\n\nNothing fenced here.\n*End of HDTP 2.1*\n",
+      "doc": "# Spec\n\n## Appendix B\n\nNothing fenced here.\n*End of HDTP*\n",
       "blocks": []
     },
     {
       "name": "a fence that is not json is not a block",
-      "doc": "# Spec\n\n## Appendix B\n\n```text\n{\"b\":2}\n```\n\n```json\n{\"a\":1}\n```\n*End of HDTP 2.1*\n",
+      "doc": "# Spec\n\n## Appendix B\n\n```text\n{\"b\":2}\n```\n\n```json\n{\"a\":1}\n```\n*End of HDTP*\n",
       "blocks": [
         {
           "a": 1
@@ -29,7 +29,7 @@
     },
     {
       "name": "an end marker quoted before the heading",
-      "doc": "*End of HDTP 2.0* is quoted here\n# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n*End of HDTP 2.1*\n",
+      "doc": "*End of HDTP* is quoted here\n# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n*End of HDTP*\n",
       "blocks": [
         {
           "a": 1
@@ -38,7 +38,7 @@
     },
     {
       "name": "a block after the end marker is not read",
-      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n*End of HDTP 2.1*\n\n```json\n[3]\n```\n",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n*End of HDTP*\n\n```json\n[3]\n```\n",
       "blocks": [
         {
           "a": 1
@@ -57,17 +57,17 @@
     },
     {
       "name": "an end marker only before the heading",
-      "doc": "*End of HDTP 2.0*\n# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n",
+      "doc": "*End of HDTP*\n# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n",
       "refused": "Appendix B has no end marker (*End of HDTP)"
     },
     {
       "name": "an open fence",
-      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n\n*End of HDTP 2.1*\n",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n\n*End of HDTP*\n",
       "refused": "an unterminated json fence in Appendix B"
     },
     {
       "name": "a block that is not JSON",
-      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n\n```json\n{\"a\":\n```\n*End of HDTP 2.1*\n",
+      "doc": "# Spec\n\n## Appendix B\n\n```json\n{\"a\":1}\n```\n\n```json\n{\"a\":\n```\n*End of HDTP*\n",
       "refused": "Appendix B block 2 is not JSON"
     }
   ]

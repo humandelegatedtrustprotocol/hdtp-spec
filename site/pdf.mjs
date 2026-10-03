@@ -4,7 +4,7 @@
 // streams), Flate streams with a direct /Length, text shown with hex strings through fonts that
 // carry a ToUnicode map — and anything else is refused rather than guessed at.
 //
-// Measured on the 62-page whitepaper of 2.2.5 (2026-10-01), page by page against poppler's
+// Measured on a 62-page build of this whitepaper (2026-10-01), page by page against poppler's
 // pdftotext, whitespace removed: the same characters, in a different order (pdftotext orders by
 // position), except two kinds pdftotext rewrites: a hyphen ending a line, which it drops, and
 // JetBrains Mono's contextual alternates in "://", whose ToUnicode entry Chrome writes as ":".
