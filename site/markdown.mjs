@@ -1,6 +1,5 @@
-// The markdown pipeline shared by whatever renders SPEC.md. Source of truth stays SPEC.md —
-// this only renders it. docs/ and archive/ are deliberately NOT rendered: they document the
-// rejected pre-pivot design, and publishing them would present them as current. See CLAUDE.md.
+// The markdown pipeline shared by whatever renders the specification. The source of truth is the
+// text under docs/specification/ (read whole by site/spec-source.mjs); this only renders it.
 
 import MarkdownIt from 'markdown-it'
 import anchor from 'markdown-it-anchor'
@@ -19,17 +18,17 @@ export const slugify = (s) =>
 // nowhere else, so a spec bump moves the cover without touching the renderers.
 const HEADER = /^\*\*Version\s+(\S+)\s+·\s+(\d{4}-\d{2}-\d{2})(?:\s+·\s+(.+?))?\*\*\s*$/m
 
-// Splits SPEC.md into what its header says and the body every renderer draws. The body
+// Splits the specification (site/spec-source.mjs reads it whole) into what its header says and the body every renderer draws. The body
 // starts after the spec's own "## Table of contents" section — a list of markdown links
 // that is redundant wherever a table of contents is generated. The h1 and the version line
 // belong to the cover or the page header; the preamble between them and the table of
 // contents is rendered under a synthesized "Introduction" heading so it has a title.
 export function splitSpec(markdown) {
   const header = markdown.match(HEADER)
-  if (!header) throw new Error('SPEC.md: could not parse the "**Version … · date …**" header line')
+  if (!header) throw new Error('the specification: could not parse the "**Version … · date …**" header line')
   const [headerLine, version, date, revisionNote] = header
   const tocStart = markdown.indexOf('\n## Table of contents')
-  if (tocStart < 0) throw new Error('SPEC.md: "## Table of contents" section not found')
+  if (tocStart < 0) throw new Error('the specification: "## Table of contents" section not found')
   const tocEnd = markdown.indexOf('\n## ', tocStart + 1)
   const preamble = markdown.slice(0, tocStart)
     .replace(/^# .*\n/, '')

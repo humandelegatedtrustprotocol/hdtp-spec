@@ -212,7 +212,7 @@ export function parse(der) {
     // — and none of the three looked at the value's own tag, so a `keyUsage` that is an OCTET STRING
     // whose body happens to look like a BIT STRING's was read as one, a `subjectKeyIdentifier` took
     // its 32 bytes from anything, and a `subjectAltName` could be a SET. §14.1's profile is exact:
-    // "a name of another shape" is not a PACT certificate, and neither is a value of another type.
+    // "a name of another shape" is not an HDTP certificate, and neither is a value of another type.
     if (value.end !== octets.length) throw new Error('extension value has trailing bytes');
     if (VALUE_TAG[id] !== undefined && value.tag !== VALUE_TAG[id]) throw new Error('extension value of another type');
     out.extensions.push({ id, critical });
@@ -284,7 +284,7 @@ export function profileError(c, kind) {
   if (c.der.length > MAX_CERT_BYTES) return 'over 4 KiB';
   if (c.serial.length < 8 || c.serial.length > 20 || c.serial[0] & 0x80) return 'serial not 64–160 bits positive';
   if (![OID.ed25519, OID.ecdsaSha256].includes(c.sigAlg)) return 'signature algorithm not in the profile';
-  // §14.1: of an ECDSA signature's two twins, only the low-S one is a PACT certificate (der.mjs).
+  // §14.1: of an ECDSA signature's two twins, only the low-S one is an HDTP certificate (der.mjs).
   // Judged only where the bits ARE an ECDSA value. A certificate that declares ECDSA over bytes that
   // are not one — an Ed25519 root's signature under the wrong label — is not a profile matter: it
   // cannot verify under any key, so rule 3 refuses it as "a certificate the key did not sign", which
@@ -362,7 +362,7 @@ export function isNormalHttps(s) {
   if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash || s.includes('#') || s.includes('?')) return false;
   if (u.pathname === '/' || u.pathname.endsWith('/')) return false;
   if (u.href !== s || u.host !== u.host.toLowerCase() || u.port === '0') return false; // the default port is omitted, so an explicit :443 fails href === s; port 0 is no port
-  // The host as both pact-identity ports read it (their `normalHost`): a name of letters, digits, `-`
+  // The host as both hdtp-identity ports read it (their `normalHost`): a name of letters, digits, `-`
   // and `.` with no empty label, or an IPv6 literal that holds no IPv4-mapped address. WHATWG's URL
   // keeps `a_b.example`, `a.example.`, `a..example` and `[::ffff:102:304]` as written, so each passed
   // the test above and was the normal form here while both ports refused it (chain rule 5). WHATWG

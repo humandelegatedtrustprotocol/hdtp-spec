@@ -1,5 +1,6 @@
 // Proves Appendix B: checks every vector does what the spec says.
-// Reads the vectors from SPEC.md itself, so the bytes in the document are the bytes proven.
+// Reads the vectors from the specification itself (site/spec-source.mjs: the newest released
+// version), so the bytes in the document are the bytes proven.
 import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
 import { open, verifyDetached, suiteForLeaf, suiteForKey, sealDeterministic, signDetached } from './lib/hpke.mjs';
@@ -9,23 +10,31 @@ import { canonical } from './lib/canonical.mjs';
 import { makeNode, pin, receive } from './lib/envelope.mjs';
 import { appendixB } from './lib/appendix.mjs';
 import { splitSpec } from '../site/markdown.mjs';
+import { readSpec, root, current } from '../site/spec-source.mjs';
 import { licence } from '../site/licence.mjs';
 
-const specPath = new URL('../SPEC.md', import.meta.url);
-const spec = readFileSync(specPath, 'utf8');
+const spec = readSpec();
 const blocks = appendixB(spec).blocks.map((b) => b.value);
 if (blocks.length < 1) throw new Error('Appendix B has no vector blocks');
-const [v2] = blocks;
+const [vec] = blocks;
 
 let failures = 0, checks = 0;
 const ok = (cond, what) => { checks++; if (!cond) { failures++; console.log('  FAIL ' + what); } };
 
-if (!v2) {
-  console.log('no 2.0 block in Appendix B yet');
+if (!vec) {
+  console.log('no vector block in Appendix B');
 } else {
-  const file = new URL('./pact-2.0-vectors.json', import.meta.url);
-  if (existsSync(file)) ok(JSON.stringify(JSON.parse(readFileSync(file, 'utf8'))) === JSON.stringify(v2), 'SPEC.md carries the generated vectors unchanged');
-  const der = Object.fromEntries(Object.entries(v2.certificates).map(([k, c]) => [k, Buffer.from(c.der_hex, 'hex')]));
+  const file = new URL('./hdtp-1.0-vectors.json', import.meta.url);
+  if (existsSync(file)) {
+    const generated = JSON.stringify(JSON.parse(readFileSync(file, 'utf8')));
+    ok(generated === JSON.stringify(vec), `${current()} carries the generated vectors unchanged`);
+    // The draft is written from the release and carries the same Appendix B until a change to the
+    // wire regenerates it (vectors/gen.mjs splices into both).
+    if (existsSync(new URL('../docs/specification/draft/index.md', import.meta.url))) {
+      ok(JSON.stringify(appendixB(readSpec(root, 'draft')).blocks[0]?.value) === generated, 'the draft carries the generated vectors unchanged');
+    }
+  }
+  const der = Object.fromEntries(Object.entries(vec.certificates).map(([k, c]) => [k, Buffer.from(c.der_hex, 'hex')]));
   const chainOf = (names) => names.map((n) => der[n]);
 
   console.log('certificates parse under OpenSSL as well');
@@ -33,7 +42,7 @@ if (!v2) {
     // A certificate marked `refused` exists to be refused (§14.1): it must NOT come out of parse and
     // the profile check clean. `leaf_b_twin` is the instructive one — OpenSSL verifies it under
     // root_b, because the twin of an ECDSA signature is a valid signature; the profile is what refuses.
-    if (v2.certificates[name].refused) {
+    if (vec.certificates[name].refused) {
       let why = null;
       try { why = profileError(parse(bytes), 'leaf'); } catch (e) { why = e.message; }
       ok(why !== null, `${name}: marked refused, and parse + profile let it through`);
@@ -51,7 +60,7 @@ if (!v2) {
   }
 
   console.log('chain cases (§14.2)');
-  for (const c of v2.chain_cases) {
+  for (const c of vec.chain_cases) {
     const r = validateChain(chainOf(c.chain), { now: new Date(c.now), expectedRoot: c.expected_root, expectedEndpoint: c.expected_endpoint });
     if (c.expect === 'accept') ok(r.ok, `${c.name}: expected accept, got rule ${r.rule} (${r.reason})`);
     else ok(!r.ok && r.rule === c.rule, `${c.name}: expected refusal by rule ${c.rule}, got ${r.ok ? 'accept' : 'rule ' + r.rule + ' (' + r.reason + ')'}`);
@@ -59,14 +68,14 @@ if (!v2) {
   }
 
   console.log('newest leaf (§14.3)');
-  for (const c of v2.newest_leaf_cases) {
+  for (const c of vec.newest_leaf_cases) {
     const got = compareLeaves(der[c.pinned], der[c.presented]);
     ok(got === c.expect, `${c.pinned} vs ${c.presented}: expected ${c.expect}, got ${got}`);
     console.log(`  ${c.pinned} then ${c.presented}: ${got}`);
   }
 
   console.log('certificate_renewed (§14.4)');
-  for (const c of v2.certificate_renewed_cases) {
+  for (const c of vec.certificate_renewed_cases) {
     const chain = c.answer.data.chain.map(fromB64url);
     const pinned = parse(der[c.pinned_leaf]);
     const r = validateChain(chain, { now: new Date(c.now), expectedRoot: 'sha256:' + Buffer.from(pinned.aki).toString('base64url'), expectedEndpoint: c.dialed });
@@ -75,18 +84,18 @@ if (!v2) {
     console.log(`  ${c.name}: ${follow ? 'followed' : 'discarded'}${r.ok ? '' : ' (rule ' + r.rule + ')'}`);
   }
 
-  console.log('v2 envelopes (§13)');
-  for (const v of v2.envelopes) {
+  console.log('v: 1 envelopes (§13)');
+  for (const v of vec.envelopes) {
     const recipientLeaf = parse(der[v.recipient_chain[0]]);
-    const recipientPriv = createPrivateKey({ key: Buffer.from(v2.leaf_keys_pkcs8_hex[v.recipient_chain[0]], 'hex'), format: 'der', type: 'pkcs8' });
+    const recipientPriv = createPrivateKey({ key: Buffer.from(vec.leaf_keys_pkcs8_hex[v.recipient_chain[0]], 'hex'), format: 'der', type: 'pkcs8' });
     const aad = fromB64url(v.protected), enc = fromB64url(v.enc), ct = fromB64url(v.ct);
     const header = JSON.parse(aad.toString());
     ok(Object.keys(header).sort().join(',') === 'cty,exp,kid,msg_id,suite,ts,v', `${v.name}: header members`);
-    ok(header.v === 2 && header.suite === v.suite && header.suite === suiteForLeaf(recipientLeaf), `${v.name}: version and suite`);
+    ok(header.v === 1 && header.suite === v.suite && header.suite === suiteForLeaf(recipientLeaf), `${v.name}: version and suite`);
     ok(header.kid === fingerprint(recipientLeaf.publicKey), `${v.name}: kid is the recipient leaf key`);
     ok(createPublicKey(recipientPriv).export({ format: 'der', type: 'spki' }).equals(recipientLeaf.spki), `${v.name}: the recipient key is the leaf's`);
     let plaintext = null;
-    try { plaintext = open(v.suite, recipientPriv, recipientLeaf.publicKey, Buffer.from('PACT-SEAL-v2'), aad, enc, ct); } catch (e) { ok(false, `${v.name}: open threw ${e.message}`); }
+    try { plaintext = open(v.suite, recipientPriv, recipientLeaf.publicKey, Buffer.from('HDTP-SEAL-v1'), aad, enc, ct); } catch (e) { ok(false, `${v.name}: open threw ${e.message}`); }
     ok(plaintext && plaintext.toString('hex') === v.plaintext_hex, `${v.name}: plaintext`);
     if (plaintext) {
       const body = JSON.parse(plaintext.toString());
@@ -99,7 +108,7 @@ if (!v2) {
       } else {
         ok(Object.keys(body).sort().join(',') === 'chain,method,params', `${v.name}: full form carries chain, method, params`);
         const chain = body.chain.map(fromB64url);
-        const r = validateChain(chain, { now: new Date(v2.now) });
+        const r = validateChain(chain, { now: new Date(vec.now) });
         ok(r.ok, `${v.name}: chain inside validates`);
         ok(r.ok && chain[0].equals(der[v.sender_chain[0]]), `${v.name}: chain inside is the sender's`);
         ok(r.ok && verifyDetached(r.leafKey, Buffer.concat([aad, enc, ct]), fromB64url(v.sig)), `${v.name}: signature under the chain's leaf key`);
@@ -113,8 +122,8 @@ if (!v2) {
   // to write.
   console.log('derivation (§2.1)');
   const seeds = new Map();
-  for (const d of v2.derivation ?? []) {
-    ok(d.salt === b64url(PRF_SALT), `${d.label}: salt is SHA-256("pact/vault/1")`);
+  for (const d of vec.derivation ?? []) {
+    ok(d.salt === b64url(PRF_SALT), `${d.label}: salt is SHA-256("hdtp/vault/1")`);
     const s = deriveSeed(fromB64url(d.prf), d.info);
     ok(b64url(s) === d.seed, `${d.label}: HKDF-SHA256(prf, empty salt, "${d.info}", 32)`);
     ok(s.length === 32, `${d.label}: 32 bytes`);
@@ -130,11 +139,11 @@ if (!v2) {
     seeds.set(d.seed, d.info);
     console.log(`  ${d.label} (${d.info}): ${d.fingerprint ?? 'seed only'}`);
   }
-  ok((v2.derivation ?? []).length >= 3, 'all three info strings are covered');
+  ok((vec.derivation ?? []).length >= 3, 'all three info strings are covered');
 }
 
 // The receiving node reads a header and a body as JSON exactly when every port does
-// (pact-identity CONTRACT §0): bytes that are not UTF-8, a \u escape of half a surrogate pair, a
+// (hdtp-identity CONTRACT §0): bytes that are not UTF-8, a \u escape of half a surrogate pair, a
 // number that is infinite as a double (`1e400`) or containers nested more than 127 deep is not JSON. JSON.parse read 1e400 as Infinity, and the node decided `ok` on a
 // validly signed call whose body held one, where both ports refuse it. The body and header are
 // written as text, because JSON.stringify writes 1e400 as null; the controls hold the largest double
@@ -161,9 +170,9 @@ console.log('JSON as the ports read it (§13.1, §13.3)');
   // how a byte that is not UTF-8 gets in.
   const call = (argsText, header = (t) => t, bytes = (b) => b) => {
     const to = parse(LEAF_B).publicKey, suite = suiteForKey(to);
-    const aad = Buffer.from(header(canonical({ v: 2, suite, kid: fingerprint(to), msg_id: 'json-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/pact-call+json' })));
+    const aad = Buffer.from(header(canonical({ v: 1, suite, kid: fingerprint(to), msg_id: 'json-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/hdtp-call+json' })));
     const body = `{"method":"tools/call","params":{"name":"send_message","arguments":${argsText}},"chain":${JSON.stringify([b64url(LEAF_A), b64url(ROOT_A)])}}`;
-    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('PACT-SEAL-v2'), aad, Buffer.from(bytes(Buffer.from(body))), Buffer.alloc(32, 9));
+    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('HDTP-SEAL-v1'), aad, Buffer.from(bytes(Buffer.from(body))), Buffer.alloc(32, 9));
     return { protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(signDetached(hostA.priv, Buffer.concat([aad, enc, ct]))) };
   };
   // The body is the first container and params the second; `arguments` is the rest.
@@ -207,7 +216,7 @@ console.log('JSON as the ports read it (§13.1, §13.3)');
 }
 
 // A key outside the profile is refused where a certificate is read (§14.1), named by its OID, as both
-// pact-identity ports refuse it: RSA, P-384, a bare X25519 key and an Ed25519 key with a NULL after
+// hdtp-identity ports refuse it: RSA, P-384, a bare X25519 key and an Ed25519 key with a NULL after
 // its OID. parse() read the first three and left them to profileError, so compareLeaves compared a
 // certificate carrying one and decodeCard took it on a card. The control, the same leaf under the
 // same root with Ed25519 as RFC 8410 writes it, parses.
@@ -250,7 +259,7 @@ console.log('keys outside the profile (§14.1)');
   }
 }
 
-// A SubjectPublicKeyInfo is read as both pact-identity ports read it (their `from_spki` / `ParseSPKI`),
+// A SubjectPublicKeyInfo is read as both hdtp-identity ports read it (their `from_spki` / `ParseSPKI`),
 // in their words: exactly SEQUENCE { AlgorithmIdentifier, BIT STRING } with no unused bits, an
 // algorithm OID in its one DER form, a curve OID the profile names, and a key that is a point. This
 // read the key past the unused-bits octet whatever it said, so a key with 1 or 7 unused bits was a
@@ -284,11 +293,11 @@ console.log('a SubjectPublicKeyInfo as the ports read it (§2, §14.1)');
   }
 }
 
-// Bytes this library did not write are read as both pact-identity ports read them (its CONTRACT §0):
+// Bytes this library did not write are read as both hdtp-identity ports read them (its CONTRACT §0):
 // base64url, forgiving the padding and the standard alphabet, and nothing else — a card's certificate,
 // and the chain in a peer's plaintext. Buffer.from skipped a stray character, so a card carrying one was
 // taken here and by the Go port and a chain carrying one validated, where the Rust core refused each
-// (the port-parity audit of 2026-09-29: R24, T11, C7, T10). An empty X-PACT-VERSION names no version.
+// (the port-parity audit of 2026-09-29: R24, T11, C7, T10). An empty X-HDTP-VERSION names no version.
 // The controls — padded, and in the standard alphabet — read.
 console.log('bytes this library did not write (§3, §13.3)');
 {
@@ -312,7 +321,7 @@ console.log('bytes this library did not write (§3, §13.3)');
   const LEAF_B = buildLeaf({ cn: 'B', rootCn: 'B', root: rootB, hostKey: hostB, endpoint: 'https://b.example/mcp', ...whole, label: 'check/strict/leaf/b' });
   const leafText = b64url(LEAF_A), pad = '='.repeat((4 - (leafText.length % 4)) % 4);
   const stray = leafText.slice(0, 8) + '!' + leafText.slice(8);
-  const withCert = (value) => `BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nX-PACT-VERSION:2\r\nX-PACT-CERT:${value}\r\nEND:VCARD\r\n`;
+  const withCert = (value) => `BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nX-HDTP-VERSION:1\r\nX-HDTP-CERT:${value}\r\nEND:VCARD\r\n`;
   for (const [what, value, want] of [
     ['a stray character', stray, 'certificate does not parse: not base64url'],
     ['a no-break space', leafText.slice(0, 8) + ' ' + leafText.slice(8), 'certificate does not parse: not base64url'],
@@ -325,8 +334,8 @@ console.log('bytes this library did not write (§3, §13.3)');
     const card = decodeCard(withCert(value)), got = card.error ? card.why : card.cert.equals(LEAF_A) ? 'read' : 'another certificate';
     ok(got === want, `a card whose certificate has ${what}: ${want}, not ${got}`);
   }
-  const empty = decodeCard(encodeCard({ fn: 'A', cert: LEAF_A }).replace('X-PACT-VERSION:2', 'X-PACT-VERSION:'));
-  ok(empty.why === 'no X-PACT-VERSION', `a card with an empty X-PACT-VERSION: no X-PACT-VERSION, not ${empty.why}`);
+  const empty = decodeCard(encodeCard({ fn: 'A', cert: LEAF_A }).replace('X-HDTP-VERSION:1', 'X-HDTP-VERSION:'));
+  ok(empty.why === 'no X-HDTP-VERSION', `a card with an empty X-HDTP-VERSION: no X-HDTP-VERSION, not ${empty.why}`);
   const node = () => {
     const n = makeNode({ path: '/b', leafKey: hostB, chain: [LEAF_B, ROOT_B], now });
     pin(n, fingerprintOf(parse(ROOT_A)), { endpoint: 'https://a.example/mcp', leafDer: LEAF_A });
@@ -335,9 +344,9 @@ console.log('bytes this library did not write (§3, §13.3)');
   let msg = 0;
   const call = (chain) => {
     const to = parse(LEAF_B).publicKey, suite = suiteForKey(to);
-    const aad = Buffer.from(canonical({ v: 2, suite, kid: fingerprint(to), msg_id: 'strict-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/pact-call+json' }));
+    const aad = Buffer.from(canonical({ v: 1, suite, kid: fingerprint(to), msg_id: 'strict-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/hdtp-call+json' }));
     const body = JSON.stringify({ method: 'tools/call', params: { name: 'send_message', arguments: {} }, chain });
-    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('PACT-SEAL-v2'), aad, Buffer.from(body), Buffer.alloc(32, 9));
+    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('HDTP-SEAL-v1'), aad, Buffer.from(body), Buffer.alloc(32, 9));
     return { protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(signDetached(hostA.priv, Buffer.concat([aad, enc, ct]))) };
   };
   for (const [what, member, want] of [
@@ -408,10 +417,10 @@ console.log('Appendix B, as vectors/appendix-b-reader.json reads it');
 
 // The citation carries the version and date a second and a third time: CITATION.cff (twice, the
 // work and its preferred citation) and the attribution line in the README. All are held to the
-// header line of SPEC.md, the one place a version is written, so a release cannot leave them behind.
+// header line of the specification's index page, the one place a version is written, so a release cannot leave them behind.
 // The README's line is the one site/licence.mjs words for the whitepaper and the web fragment,
 // whole, so the three cannot drift apart.
-console.log('the citation, as the header line of SPEC.md reads');
+console.log('the citation, as the version line of the specification reads');
 {
   const { version, date } = splitSpec(spec);
   const cff = readFileSync(new URL('../CITATION.cff', import.meta.url), 'utf8');
@@ -420,7 +429,7 @@ console.log('the citation, as the header line of SPEC.md reads');
   ok(versions.length === 2 && versions.every((v) => v === version), `CITATION.cff: version ${JSON.stringify(versions)}, not twice ${version}`);
   ok(dates.length === 2 && dates.every((d) => d === date), `CITATION.cff: date-released ${JSON.stringify(dates)}, not twice ${date}`);
   const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
-  const line = readme.split('\n').filter((l) => /^> \*PACT\b.*licensed under/.test(l));
+  const line = readme.split('\n').filter((l) => /^> \*HDTP\b.*licensed under/.test(l));
   const read = (p) => existsSync(new URL(`../${p}`, import.meta.url)) ? readFileSync(new URL(`../${p}`, import.meta.url), 'utf8') : null;
   const want = `> ${licence(read, { version, date }).attribution.markdown}`;
   ok(line.length === 1 && line[0] === want, `README.md: the attribution line says ${JSON.stringify(line)}, not ${JSON.stringify(want)}`);
