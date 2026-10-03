@@ -100,9 +100,15 @@ for (const rel of tracked) {
   if (buf.includes(0)) continue
   scanned++
   const text = buf.toString('utf8')
+  // Every occurrence of an allowed text is a span a forbidden name may sit in. It counts as a USE of
+  // its entry unless it lies inside a longer entry's occurrence: `www.old.example` is not a use of
+  // the entry for `old.example`, so that entry goes stale when the bare host is gone.
   const spans = []
   for (const a of mine.filter((a) => a.path === rel)) {
-    for (let i = text.indexOf(a.text); i >= 0; i = text.indexOf(a.text, i + 1)) { spans.push([i, i + a.text.length]); used.get(a).push(rel) }
+    for (let i = text.indexOf(a.text); i >= 0; i = text.indexOf(a.text, i + 1)) spans.push([i, i + a.text.length, a])
+  }
+  for (const [s, e, a] of spans) {
+    if (!spans.some(([s2, e2, b]) => b !== a && s2 <= s && e2 >= e && e2 - s2 > e - s)) used.get(a).push(rel)
   }
   for (const a of mine.filter((a) => a.once && a.path !== rel)) if (text.includes(a.text)) used.get(a).push(rel)
   for (const h of hits(list, text)) {
