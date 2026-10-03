@@ -6,7 +6,7 @@ An invite is a short URL whose entire state lives server-side with the issuer:
 https://agent.alina.example/i/inv_8Qq1xZk3
 ```
 
-(The token is a path segment on the issuer's host — `/i/<token>` — because the landing below is served by the issuer, and a URL *fragment* never reaches a server. A QR of this URL is the shareable form. A `hdtp://` deep-link wrapper MAY carry the same two values for app routing.)
+(The token is a path segment on the issuer's host — `/i/<token>` — because the landing below is served by the issuer, and a URL *fragment* never reaches a server. A QR of this URL is the shareable form. An `hdtp://` deep-link wrapper MAY carry the same two values for app routing.)
 
 Issuer-side settings per invite — because state is server-side, all of this is enforceable and changeable *after* the link is shared:
 

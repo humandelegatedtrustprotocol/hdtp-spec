@@ -11,6 +11,8 @@
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
   'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty']
 const number = (word) => { const n = WORDS.indexOf(word.toLowerCase()); return n < 0 ? NaN : n }
+// The article "a" before the name, in either case, bare or as `hdtp://`, `X-HDTP-…`, **HDTP**.
+export const ARTICLE = /\b[Aa] [`*_"(]*(?:X-)?(?:HDTP|hdtp)/g
 const all = (text, re) => [...text.matchAll(re)].map((m) => m[1])
 const lineOf = (text, at) => text.slice(0, at).split('\n').length
 
@@ -35,6 +37,8 @@ export function stated(text) {
     generations: [...prose.matchAll(/(?<![\w-])v(\d+)\b/g)]
       .filter((m) => !/(proof|X\.509) $/.test(prose.slice(Math.max(0, m.index - 6), m.index)))
       .map((m) => `v${m[1]} (line ${lineOf(prose, m.index)})`),
+    // The wrong article before the name: it begins with a vowel sound and takes "an".
+    articles: [...text.matchAll(ARTICLE)].map((m) => `${JSON.stringify(m[0])} (line ${lineOf(text, m.index)})`),
     // What the appendix says its vectors are, in words.
     counts: {
       certificates: count(/(\w+) certificates to the §14\.1 profile/),
