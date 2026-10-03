@@ -1,6 +1,7 @@
 // What site/spec-html.mjs promises, shown on two texts: the newest released version of the
 // specification at HEAD, and a fixture committed into a scratch repository, which carries what the
-// specification does not — a MUST inside a fence and one inside a diagram — and no LICENSE-docs.
+// specification does not — a MUST inside a fence and one inside a diagram, and a dotted flowchart
+// link — and no LICENSE-docs.
 // Run by `npm run spec:check`, part of `make check`.
 //
 // The MUST extractor here is a copy of hdtp-identity's; the copy is held to the original
@@ -62,7 +63,7 @@ let scratch, out2, out2again, out1, spec2, body2, spec1, body1, paper, fixture
 // point these commands at this repository instead.
 const FIXTURE = {
   'index.md': '# Fixture\n\n**Version 0.1.0 · 2026-01-01**\n\nA text that is not the specification.\n\n## Table of contents\n\n1. [Fixture](fixture.md)\n\n---\n\n',
-  'fixture.md': '## 1. Fixture\n\nA sender MUST seal.\n\n```text\na receiver MUST refuse\n```\n\n```mermaid\nsequenceDiagram\n    participant A as Alina\n    participant B as Bharat\n    A->>B: sealed_call\n    Note over B: B MUST open it\n```\n',
+  'fixture.md': '## 1. Fixture\n\nA sender MUST seal.\n\n```text\na receiver MUST refuse\n```\n\n```mermaid\nsequenceDiagram\n    participant A as Alina\n    participant B as Bharat\n    A->>B: sealed_call\n    Note over B: B MUST open it\n```\n\nA dotted link in a flowchart, the one dashed edge the specification does not draw:\n\n```mermaid\nflowchart LR\n    A[Alina] -.->|later| B[Bharat]\n```\n',
 }
 function makeFixture(dir) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')))
@@ -198,9 +199,9 @@ describe('diagrams', () => {
     assert.match(planted('<figure class="diagram"><svg', '<figure class="diagram diagram-flowchart"><svg').join('\n'), /9 drawings, 8 inside <figure class="diagram">/)
   })
 
-  it('draw every class of the contract, on exactly the tags it lists, in the current text; nothing else', () => {
+  it('draw every class of the contract, on exactly the tags it lists, across the two texts; nothing else', () => {
     const drawn = new Map()
-    for (const out of [out2]) {
+    for (const out of [out2, out1]) {
       for (const m of read(out, 'spec.html').matchAll(PRIMITIVE)) {
         if (!drawn.has(m[2])) drawn.set(m[2], new Set())
         drawn.get(m[2]).add(m[1])
@@ -357,7 +358,7 @@ describe('the version and the place', () => {
     assert.equal(meta.dir, '0.1')
     assert.equal(meta.version, '0.1.0')
     assert.equal(meta.date, '2026-01-01')
-    assert.equal(meta.diagrams, 1)
+    assert.equal(meta.diagrams, 2)
     assert.equal(meta.vectors, null)
     assert.ok(!existsSync(join(out1, 'vectors')))
     assert.equal(json(out2, 'meta.json').dir, current(), 'without --version, the newest released version')
