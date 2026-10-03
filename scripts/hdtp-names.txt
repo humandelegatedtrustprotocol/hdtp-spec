@@ -16,7 +16,9 @@
 #                                     have. Written to run unchanged in JavaScript and in Go (RE2)
 #   allow <repo> <path> <text>        in repository <repo> (its origin remote's name), file <path>,
 #                                     a forbidden name inside the exact <text> is allowed. An entry
-#                                     whose text is not in its file fails as stale
+#                                     whose text is not in its file fails as stale, in that
+#                                     repository's gate and in no other; an occurrence inside a
+#                                     longer entry's text is the longer entry's
 #   once <repo> <path> <text>         as allow, and <text> must occur exactly once in that file and
 #                                     in no other file of the repository
 #
@@ -50,3 +52,21 @@ retired StripKeys|StripLeafKeys|StripAccountKeys|backup identity|restore-identit
 
 # The one sentence that says what HDTP was called, in the specification's first page.
 once hdtp-spec docs/specification/1.0/index.md HDTP was formerly named PACT.
+
+# The redirect configs for the old domains: the hosts and the paths each site forwards from.
+allow hdtp-gateway-site redirects.json pact-gateway.com
+allow hdtp-gateway-site redirects.json www.pact-gateway.com
+allow batondeck-site redirects.json pact-cloud.com
+allow batondeck-site redirects.json www.pact-cloud.com
+allow hdtp-spec-site redirects.json pact-protocol.com
+allow hdtp-spec-site redirects.json www.pact-protocol.com
+allow hdtp-spec-site redirects.json /learn/what-is-pact/
+allow hdtp-spec-site redirects.json /learn/pact-mcp-and-a2a/
+allow hdtp-spec-site redirects.json /spec/pact-1/
+allow hdtp-spec-site redirects.json /llms/spec-pact-2.md
+allow hdtp-spec-site redirects.json /llms/spec-pact-1.md
+allow hdtp-spec-site redirects.json /spec/vectors/pact-2.0-vectors.json
+allow hdtp-docs redirects.json docs.pact-protocol.com
+allow hdtp-docs redirects.json /pact-cloud-openapi.json
+allow hdtp-docs redirects.json /reference/pact-cloud-mcp.json
+allow hdtp-docs redirects.json /reference/pact-gateway-owner-mcp.json
