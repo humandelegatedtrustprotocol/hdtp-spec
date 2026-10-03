@@ -26,7 +26,7 @@ export function readList(text) {
     if (!line || line.startsWith('#')) continue
     const [kind] = line.split(' ', 1)
     const rest = line.slice(kind.length + 1)
-    if (kind === 'name') list.names.push(rest.toLowerCase())
+    if (kind === 'name') list.names.push(rest)
     else if (kind === 'except-after') list.except.push(rest.toLowerCase())
     else if (kind === 'retired') list.retired.push(new RegExp(rest))
     else if (kind === 'allow' || kind === 'once') {
@@ -42,11 +42,13 @@ export function readList(text) {
 // Every forbidden name in `text`: [{ at, found }], `at` the offset in `text`.
 export function hits(list, text) {
   const out = []
-  const lower = text.toLowerCase()
+  // A name is matched as it is spelled in the list, never folded: the list has a line for each way
+  // the old name was written, and any other casing of its letters is two words joined (stepAction).
+  // The exception before it is read in any case (impact, Compact, COMPACT).
   for (const name of list.names) {
-    for (let i = lower.indexOf(name); i >= 0; i = lower.indexOf(name, i + 1)) {
-      if (list.except.some((p) => i >= p.length && lower.slice(i - p.length, i) === p)) continue
-      out.push({ at: i, found: text.slice(i, i + name.length) })
+    for (let i = text.indexOf(name); i >= 0; i = text.indexOf(name, i + 1)) {
+      if (list.except.some((p) => i >= p.length && text.slice(i - p.length, i).toLowerCase() === p)) continue
+      out.push({ at: i, found: name })
     }
   }
   for (const re of list.retired) {
@@ -64,15 +66,17 @@ const lineOf = (text, at) => text.slice(0, at).split('\n').length
 if (process.argv.includes('--selftest')) {
   const list = readList(readFileSync(listPath, 'utf8'))
   const p = 'pa' + 'ct'
-  const planted = [`${p.toUpperCase()}_FOO`, `${p}Id`, `${p}_identity`, `to${p[0].toUpperCase()}${p.slice(1)}`, `\\n${p} id`, `%2F${p}-probe`, `x-${p}-cert`, 'relay_' + 'call']
-  const english = ['impact', 'Compact', 'IMPACT', 'compacted', 'impacts', 'the compactor']
+  const P = p[0].toUpperCase() + p.slice(1)
+  const planted = [`${p.toUpperCase()}_FOO`, `${p}Id`, `${P}Id`, `is${P}`, `x_${p}`, `${p}_identity`, `\\n${p} id`, `%2F${p}-probe`, `x-${p}-cert`, `x/${p}-probe.txt`, 'relay_' + 'call']
+  // English words, and two words joined in camelCase, which are not the name.
+  const english = ['impact', 'Compact', 'IMPACT', 'COMPACT', 'compacted', 'impacts', 'the compactor', 'stepAction', 'stepUpActions', 'keepActive', 'skipAction', 'HTTPAction']
   const missed = planted.filter((s) => hits(list, s).length !== 1)
   const flagged = english.filter((s) => hits(list, s).length !== 0)
   if (missed.length || flagged.length) {
     console.error(`check-names --selftest: missed ${JSON.stringify(missed)}, flagged ${JSON.stringify(flagged)}`)
     process.exit(1)
   }
-  console.log(`check-names --selftest: ok (${planted.length} planted names found, ${english.length} English words pass)`)
+  console.log(`check-names --selftest: ok (${planted.length} planted names found, ${english.length} English words and joined words pass)`)
   process.exit(0)
 }
 
@@ -82,7 +86,7 @@ const repo = basename(origin).replace(/\.git$/, '')
 const listText = readFileSync(listPath, 'utf8')
 const list = readList(listText)
 const problems = []
-if (list.names.length < 1 || list.retired.length < 10) problems.push(`read ${list.names.length} names and ${list.retired.length} retired names from ${LIST}: the reader is broken, not the tree`)
+if (list.names.length < 3 || list.retired.length < 10) problems.push(`read ${list.names.length} names and ${list.retired.length} retired names from ${LIST}: the reader is broken, not the tree`)
 
 const listRel = relative(root, listPath)
 const selfRel = relative(root, join(here, SELF))
