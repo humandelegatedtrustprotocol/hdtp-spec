@@ -4,7 +4,8 @@
 # hdtp-spec is checked out beside that repository.
 #
 # The guard reads the TREE (`git ls-files`), never history. It skips binary files (any NUL byte),
-# built and vendored output (dist/, node_modules/, target/) and go.sum, whose lines are hashes.
+# built and vendored output (dist/, node_modules/, target/) and go.sum, whose lines are hashes, and
+# the dated records a `frozen` manifest lists, for as long as they are the bytes it lists.
 #
 # Lines, after comments (#) and blank lines:
 #
@@ -26,6 +27,28 @@
 #                                     longer entry's text is the longer entry's
 #   once <repo> <path> <text>         as allow, and <text> must occur exactly once in that file and
 #                                     in no other file of the repository
+#   frozen <repo> <manifest>          in repository <repo>, the files <manifest> lists are dated
+#                                     records: a review's findings, a captured run, a design as
+#                                     it was decided. They are true of their day, code cites them
+#                                     and a later audit reads them, so they are kept byte for byte
+#                                     and the guard reads neither their text nor their path.
+#                                     <manifest> is a tracked file of that repository holding one
+#                                     `<sha256>  <path>` per line, as `shasum -a 256` writes it,
+#                                     and nothing else: no comment, no blank line, no path twice.
+#                                     Its own text is not scanned, because it is that list; a
+#                                     manifest with any other line in it is refused whole, and is
+#                                     then scanned like any file. Adding a line is the act a
+#                                     reviewer reads. What holds a record to its line:
+#                                       - a file is exempt only while its bytes hash to its line.
+#                                         Edited, it is scanned like any other file, and its
+#                                         entry fails as well: a record is replaced by a new line
+#                                         in the manifest, or not at all;
+#                                       - a listed path that is not a tracked file fails as stale;
+#                                       - a file beside the records that the manifest does not
+#                                         list is scanned as always: nothing new hides there;
+#                                       - a manifest that is missing or lists nothing fails, in
+#                                         that repository's gate and in no other. Where no
+#                                         `frozen` line names it, such a file is only a file.
 #
 # The guard fails when it reads fewer than three names or ten retired names: then the reader is
 # broken, not the tree.
@@ -90,3 +113,6 @@ allow batondeck terraform/legacy-redirects.tf pact-cloud.com
 allow batondeck terraform/legacy-redirects.tf pact.contact
 allow batondeck terraform/legacy-redirects.tf pact-protocol.com
 allow batondeck terraform/legacy-redirects.tf pact-gateway.com
+
+# BatonDeck's dated records: review findings, captured run logs and designs, each true of its date.
+frozen batondeck docs/records.sha256
