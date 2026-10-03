@@ -124,7 +124,7 @@ Final Specification Agreement (OWFa 1.0)
 
 Identify the Specification and version number here:
 
-HDTP — Human Delegated Trust Protocol, the specification under docs/specification/ in the repository humandelegatedtrustprotocol/hdtp-spec: every version of it published in that repository. CHANGES.md lists the released versions, each with its version number and date. The version current on the Date below is 1.0.0, of 2026-10-03.
+HDTP — Human Delegated Trust Protocol, the specification under docs/specification/ in the repository humandelegatedtrustprotocol/hdtp-spec: every version of it published in that repository. CHANGES.md lists the released versions, and docs/release/changes-before-hdtp.md those published there before the rename, each with its version number and date. The version current on the Date below is 1.0.0, of 2026-10-03.
 
 If signing this OWFa as an individual:
 I acknowledge that, depending upon local law or contractual agreements, when I am employed by or acting on behalf of another entity, the promises I make relating to this Specification may actually be obligations of that other entity. In such a situation,
