@@ -1,4 +1,4 @@
-// Every font a HDTP page or document names is an open font: one of fonts.json's families (each
+// Every font an HDTP page or document names is an open font: one of fonts.json's families (each
 // shipped as a file under its SIL Open Font License) or one of CSS's generic families, which resolve
 // to the reader's own system font and name nothing. A family on the list is also refused where
 // nothing in the scanned files supplies it (an @font-face, or the file's own Google Fonts link).
