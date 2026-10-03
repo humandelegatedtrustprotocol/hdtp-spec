@@ -37,8 +37,9 @@ retired verifyRotationProof|AnnounceLegacyRenewal
 retired accept_1x|accept1x|Accept1x|notified_1x|identity\.upgraded
 retired contacts1x|OneXArchiveRefused|ONE_X_ARCHIVE
 retired EncodeCompatCard|encode_compat|card\.compat
-# The relay role: mode, env, routes, tools, tables, delivery state, audit actions.
-retired [Rr]elay-assisted|RelayAssisted|HDTP_RELAY|HDTP_GATEWAY_|/relay/mcp
+# The relay role: mode, routes, tools, tables, delivery state, audit actions. Its environment
+# variables were spelled with the old name, which the name rule above already refuses.
+retired [Rr]elay-assisted|RelayAssisted|/relay/mcp
 retired relay_allowlist|relay_queue|relay_call|relay_ack|relay_fetch|relay_process|fetch_queued|queued_at_relay
 retired relay_recipients|gateway_fingerprint|gateway_url
 retired DeliveryRelay|SplitRecipients|JoinRecipients|relay fetch

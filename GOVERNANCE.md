@@ -31,10 +31,20 @@ down as a SEP before it becomes text.
 - **Enhancement proposals.** A change to what an implementation must do — a new tool, a new rule, a
   change on the wire — starts as a SEP. `seps/README.md` is the process: how a SEP is written,
   reviewed, accepted or rejected, and how an accepted one becomes text in `draft/`.
-- **Evidence.** The text is held by gates that run locally and in the workflow: the vectors of
-  Appendix B, the intrusion battery, the MUST registry of the identity library, and the schema
-  generated from that library's contract (`CONTRIBUTING.md`). A change that the gates cannot hold
-  says so in its pull request.
+- **Evidence.** The text is held by gates, and where each runs is part of the claim
+  (`CONTRIBUTING.md`):
+  - the workflow (`.github/workflows/whitepaper.yml`), on every push to `main` and every pull
+    request, runs `npm run vectors:check` — the vectors of Appendix B against the text, then the
+    name guard — and the whitepaper build, and nothing else;
+  - locally, in this repository, `make check` adds the web renderer's tests (`npm run spec:check`)
+    and the schema held to the identity library's contract (`npm run schema:check`); both read the
+    private sibling `hdtp-identity`, which the workflow has no credential for. The intrusion
+    battery (`npm run vectors:intrude`) is run by hand here: no gate of this repository runs it;
+  - locally, in `hdtp-identity`, that library's gate (`sh gate.sh`, its pre-push hook) runs this
+    repository's vector check and intrusion battery again, and holds the MUST registry: every
+    normative sentence of the text names the test or scenario that holds it.
+
+  A change that the gates cannot hold says so in its pull request.
 
 ## Licences and patents
 
