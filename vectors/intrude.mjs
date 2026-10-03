@@ -355,7 +355,7 @@ scenario('card', 'a card without a certificate', 'bad_request', () => decodeCard
 // §14.1: a key identifier is 32 bytes. A card turns the leaf's into the identity a person is shown, so
 // three bytes became `sha256:AQID` — a contact no chain could ever satisfy.
 scenario('card', 'a card whose leaf names its issuer in three bytes', 'bad_request', () => decodeCard(encodeCard({ fn: 'A', cert: leafOf(rootA, 'Alina Rao', hostA, E_A, { aki: Buffer.from([1, 2, 3]) }) })).error);
-scenario('card', 'a 2.0 card stays under a kilobyte', blockedIf((got) => got < 1024), () => card(chainA).length);
+scenario('card', 'a card stays under a kilobyte', blockedIf((got) => got < 1024), () => card(chainA).length);
 
 // ── Chain confusion: §14.2 takes exactly two certificates, in one order ──────────
 // Every shape below is a path an X.509 verifier that was NOT written to this profile

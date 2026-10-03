@@ -38,7 +38,7 @@ const certs = {
   // notBefore of 30 February, which a reader that normalises dates takes for 2 March.
   leaf_b_twin: buildLeaf({ cn: 'Bharat Mehta', rootCn: 'Bharat Mehta', root: rootB, hostKey: hosts.leaf_b, endpoint: ENDPOINT_B, notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), label: 'leaf_b', misencode: { sigTwin: true } }),
   leaf_a_feb30: leafA('leaf_a_feb30', { notBefore: at('2026-03-02T12:00:00Z'), notAfter: at('2027-03-01T00:00:00Z'), misencode: { notBefore: '260230120000Z' } }),
-  // …and a third (2.1.3): leaf_a naming its issuer in THREE bytes. It parses, its signature verifies,
+  // …and a third: leaf_a naming its issuer in THREE bytes. It parses, its signature verifies,
   // and a card made from it used to show a person `sha256:AQID` as the identity to pin.
   leaf_a_aki3: leafA('leaf_a_aki3', { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), aki: Buffer.from([1, 2, 3]) }),
 };
