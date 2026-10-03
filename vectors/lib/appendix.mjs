@@ -1,4 +1,4 @@
-// SPEC.md's Appendix B, read by one rule, which the checker (check.mjs) and the splicer (gen.mjs)
+// The specification's Appendix B, read by one rule, which the checker (check.mjs) and the splicer (gen.mjs)
 // share: every block fenced as ```json between the heading `## Appendix B` and the first `*End of
 // HDTP` AFTER it, both markers there, every fence closed, every block JSON. vectors/appendix-b-reader.json
 // is the list of cases it is held to, refusals word for word, and a byte-identical copy of the list

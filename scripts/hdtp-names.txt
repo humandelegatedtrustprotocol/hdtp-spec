@@ -70,3 +70,10 @@ allow hdtp-docs redirects.json docs.pact-protocol.com
 allow hdtp-docs redirects.json /pact-cloud-openapi.json
 allow hdtp-docs redirects.json /reference/pact-cloud-mcp.json
 allow hdtp-docs redirects.json /reference/pact-gateway-owner-mcp.json
+
+# The specification site vendors the rendered 1.0 text, which carries that one sentence: once in
+# each of these files.
+allow hdtp-spec-site spec/hdtp-1.0/spec.html HDTP was formerly named PACT.
+allow hdtp-spec-site public/spec/index.html HDTP was formerly named PACT.
+allow hdtp-spec-site public/llms/spec-hdtp-1.0.md HDTP was formerly named PACT.
+allow hdtp-spec-site public/llms-full.txt HDTP was formerly named PACT.

@@ -33,8 +33,8 @@ licence (its section 3).
   application, or bind a third party's patents. The agreement says this itself (section 2.1.3):
   it gives no assurance that an implementation does not infringe anyone else's rights.
 - **What this project can do beyond the pledge is publish.** Each version of the specification
-  (`docs/specification/`) is dated by its version line and listed in `CHANGES.md`. A dated public
-  disclosure can be cited against a later patent application
+  (`docs/specification/`) is dated by its version line, and each released one is listed in
+  `CHANGES.md`. A dated public disclosure can be cited against a later patent application
   that claims what it discloses. Whether it defeats a particular application is decided by the
   patent office or the court that examines that application, not by this file. This repository
   is private as of 2026-09-30, so a version that exists only here is not a public disclosure until
@@ -124,7 +124,7 @@ Final Specification Agreement (OWFa 1.0)
 
 Identify the Specification and version number here:
 
-HDTP — Human Delegated Trust Protocol, the specification under docs/specification/ in the repository humandelegatedtrustprotocol/hdtp-spec: every released version of it published in that repository. CHANGES.md lists them, each with its version number and date. The version current on the Date below is 1.0.0, of 2026-10-03.
+HDTP — Human Delegated Trust Protocol, the specification under docs/specification/ in the repository humandelegatedtrustprotocol/hdtp-spec: every version of it published in that repository. CHANGES.md lists the released versions, each with its version number and date. The version current on the Date below is 1.0.0, of 2026-10-03.
 
 If signing this OWFa as an individual:
 I acknowledge that, depending upon local law or contractual agreements, when I am employed by or acting on behalf of another entity, the promises I make relating to this Specification may actually be obligations of that other entity. In such a situation,
