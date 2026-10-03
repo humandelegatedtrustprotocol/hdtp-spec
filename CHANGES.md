@@ -8,6 +8,9 @@ The wire carries the major alone: `X-HDTP-VERSION`, an envelope's `v`, `hdtp_exp
 within a major can still change what an implementation writes or accepts; each entry says whether
 it does.
 
+The versions published before the rename, 1.0.0 of 2026-08-23 to 2.2.5 of 2026-09-30, are recorded
+as they were written in `docs/release/changes-before-hdtp.md`, a dated record kept byte for byte.
+
 ## 1.0.0 · 2026-10-03
 
 The first release. An identity is the fingerprint of a self-signed root certificate the person
