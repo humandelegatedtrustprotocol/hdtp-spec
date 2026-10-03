@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 // The HDTP name guard: no tracked file of this repository carries, in its path or its text, a name
-// that hdtp-names.txt (beside this file) forbids, outside that list's allow entries. The list says
-// what each kind of line means; this file is the same bytes in every repository that runs it.
+// that hdtp-names.txt (beside this file) forbids, outside that list's allow entries and the dated
+// records its frozen manifests list. The list says what each kind of line means; this file is the
+// same bytes in every repository that runs it.
 //
 //   node <dir>/check-names.mjs              # the gate
-//   node <dir>/check-names.mjs --selftest   # proves the matcher finds planted names and passes English
+//   node <dir>/check-names.mjs --selftest   # proves the matcher finds planted names and passes English,
+//                                           # and that a manifest takes its one kind of line and no other
 //
 // The repository is named by its origin remote, never by its folder: a checkout's folder can carry
 // any name. Outside hdtp-spec, the list and this file are compared byte for byte with hdtp-spec's
 // scripts/ copies whenever that repository is beside this one (or at HDTP_SPEC_DIR).
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,7 +23,7 @@ const SELF = basename(fileURLToPath(import.meta.url))
 const listPath = join(here, LIST)
 
 export function readList(text) {
-  const list = { names: [], except: [], retired: [], allow: [] }
+  const list = { names: [], except: [], retired: [], allow: [], frozen: [] }
   for (const raw of text.split('\n')) {
     const line = raw.trim()
     if (!line || line.startsWith('#')) continue
@@ -34,6 +37,11 @@ export function readList(text) {
       const text = rest.slice(repo.length + path.length + 2)
       if (!repo || !path || !text) throw new Error(`${LIST}: an ${kind} entry needs a repository, a path and a text: ${line}`)
       list.allow.push({ once: kind === 'once', repo, path, text })
+    } else if (kind === 'frozen') {
+      const [repo] = rest.split(' ', 1)
+      const path = rest.slice(repo.length + 1)
+      if (!repo || !path) throw new Error(`${LIST}: a frozen entry needs a repository and a manifest's path: ${line}`)
+      list.frozen.push({ repo, path })
     } else throw new Error(`${LIST}: a line of no known kind: ${line}`)
   }
   return list
@@ -61,6 +69,27 @@ export function hits(list, text) {
   return out
 }
 
+// A frozen manifest's entries, [{ hash, path }]: one `<sha256>  <path>` per line, as `shasum -a 256`
+// writes it, and nothing else. Throws on the first line that is anything else, on a path listed
+// twice and on a manifest that lists nothing: a manifest's text is not scanned for names, so nothing
+// but its one kind of line may be in it.
+export function readManifest(text, name) {
+  const lines = text.split('\n')
+  if (lines.at(-1) === '') lines.pop() // the newline that ends the file
+  const out = []
+  const seen = new Set()
+  lines.forEach((line, i) => {
+    const m = /^([0-9a-f]{64})  (\S.*)$/.exec(line)
+    if (!m) throw new Error(`${name}:${i + 1}: not a line of "<sha256>  <path>", which is all a frozen manifest holds`)
+    if (seen.has(m[2])) throw new Error(`${name}:${i + 1}: ${m[2]} is listed twice`)
+    seen.add(m[2])
+    out.push({ hash: m[1], path: m[2] })
+  })
+  if (!out.length) throw new Error(`${name}: lists nothing`)
+  return out
+}
+
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const lineOf = (text, at) => text.slice(0, at).split('\n').length
 
 if (process.argv.includes('--selftest')) {
@@ -72,11 +101,23 @@ if (process.argv.includes('--selftest')) {
   const english = ['impact', 'Compact', 'IMPACT', 'COMPACT', 'compacted', 'impacts', 'the compactor', 'stepAction', 'stepUpActions', 'keepActive', 'skipAction', 'HTTPAction']
   const missed = planted.filter((s) => hits(list, s).length !== 1)
   const flagged = english.filter((s) => hits(list, s).length !== 0)
-  if (missed.length || flagged.length) {
-    console.error(`check-names --selftest: missed ${JSON.stringify(missed)}, flagged ${JSON.stringify(flagged)}`)
+  // A manifest: its one kind of line is read, and everything else a file could hold is refused.
+  const h = 'ab01'.repeat(16)
+  const refuses = (text) => { try { readManifest(text, 'm'); return false } catch { return true } }
+  const good = readManifest(`${h}  docs/a b.md\n${h}  docs/c.txt\n`, 'm')
+  const notLines = [
+    '', '\n', // nothing; a blank line
+    `${h} docs/a.md\n`, `${h.toUpperCase()}  docs/a.md\n`, `${h.slice(1)}  docs/a.md\n`, `${h}  \n`, // one space; upper-case; 63 digits; no path
+    `# a comment\n${h}  docs/a.md\n`, `${h}  docs/a.md\nfree text\n`, `${h}  docs/a.md\n\n${h}  docs/b.md\n`, // anything beside the lines
+    `${h}  docs/a.md\n${h}  docs/a.md\n`, `${h}  docs/a.md\r\n`, // a path twice; a carriage return
+  ]
+  const taken = notLines.filter((t) => !refuses(t))
+  const manifestOk = good.length === 2 && good[0].hash === h && good[0].path === 'docs/a b.md' && !taken.length
+  if (missed.length || flagged.length || !manifestOk) {
+    console.error(`check-names --selftest: missed ${JSON.stringify(missed)}, flagged ${JSON.stringify(flagged)}, manifest lines read ${JSON.stringify(good)}, manifests wrongly taken ${JSON.stringify(taken)}`)
     process.exit(1)
   }
-  console.log(`check-names --selftest: ok (${planted.length} planted names found, ${english.length} English words and joined words pass)`)
+  console.log(`check-names --selftest: ok (${planted.length} planted names found, ${english.length} English words and joined words pass, ${notLines.length} texts that are not a manifest refused)`)
   process.exit(0)
 }
 
@@ -94,11 +135,35 @@ const built = /(^|\/)(dist|node_modules|target)\/|(^|\/)go\.sum$/
 const tracked = execFileSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8', maxBuffer: 1 << 28 }).split('\0').filter(Boolean)
 const mine = list.allow.filter((a) => a.repo === repo)
 const used = new Map(mine.map((a) => [a, []]))
+
+// The dated records of this repository: the files its frozen manifests list, each exempt, text and
+// path, only while it is the bytes its line names. A manifest that reads is not scanned itself, being
+// the list of those paths; one that does not read exempts nothing and is scanned like any file.
+const trackedSet = new Set(tracked)
+const bytesOf = (rel) => { try { return statSync(join(root, rel)).isDirectory() ? null : readFileSync(join(root, rel)) } catch { return null } }
+const frozen = new Set()
+const manifests = new Set()
+for (const f of list.frozen.filter((f) => f.repo === repo)) {
+  const text = trackedSet.has(f.path) ? bytesOf(f.path) : null
+  if (text === null) { problems.push(`frozen manifest ${f.path} is not a tracked file of ${repo}: the list is stale`); continue }
+  let entries
+  try { entries = readManifest(text.toString('utf8'), f.path) } catch (e) { problems.push(`${e.message}: the manifest is refused whole, and exempts nothing`); continue }
+  manifests.add(f.path)
+  for (const e of entries) {
+    const bytes = trackedSet.has(e.path) ? bytesOf(e.path) : null
+    if (!trackedSet.has(e.path)) problems.push(`${f.path}: ${e.path} is not a tracked file here: the entry is stale`)
+    else if (bytes === null) problems.push(`${f.path}: ${e.path} is tracked and is not a file in this tree: the entry is stale`)
+    else if (sha256(bytes) !== e.hash) problems.push(`${f.path}: ${e.path} is not the bytes its line names (it is ${sha256(bytes)}): a changed record is scanned like any other file`)
+    else frozen.add(e.path)
+  }
+}
+
 const found = []
 let scanned = 0
 for (const rel of tracked) {
+  if (frozen.has(rel)) continue
   for (const h of hits(list, rel)) found.push(`${rel}: the path carries ${JSON.stringify(h.found)}`)
-  if (rel === listRel || built.test(rel)) continue
+  if (rel === listRel || manifests.has(rel) || built.test(rel)) continue
   let buf
   try { if (statSync(join(root, rel)).isDirectory()) continue; buf = readFileSync(join(root, rel)) } catch { continue } // deleted since ls-files
   if (buf.includes(0)) continue
@@ -145,4 +210,4 @@ if (problems.length) {
   console.error('check-names:\n' + problems.join('\n'))
   process.exit(1)
 }
-console.log(`check-names: ok (${repo}: ${tracked.length} paths, ${scanned} files, ${list.names.length + list.retired.length} rules, ${mine.length} allowed)`)
+console.log(`check-names: ok (${repo}: ${tracked.length} paths, ${scanned} files, ${list.names.length + list.retired.length} rules, ${mine.length} allowed, ${frozen.size} frozen)`)
