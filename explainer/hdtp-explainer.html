@@ -1,4 +1,4 @@
-<title>How PACT Works</title>
+<title>How HDTP Works</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Schibsted+Grotesk:wght@400;500;700&family=Spline+Sans+Mono:wght@400;600&display=swap">
 <style>
   :root{
@@ -170,7 +170,7 @@
 
 <header class="mast">
   <div class="wrap mast-in">
-    <div class="wordmark">PACT<span class="v"> / 2.1</span></div>
+    <div class="wordmark">HDTP<span class="v"> / 2.1</span></div>
     <div class="mast-sub">agent-to-agent messaging over MCP + mTLS</div>
     <div class="mast-chip mono">spec · SPEC.md</div>
   </div>
@@ -180,7 +180,7 @@
   <div>
     <div class="eyebrow">Protocol explainer</div>
     <h1>WhatsApp, but the ones talking are your agents.</h1>
-    <p class="lede">PACT connects two people's AI assistants across the open internet. <strong>Contacts live in your phone book</strong>, identity is a certificate you issue yourself, and sending a message is just <strong>calling a tool on your friend's MCP server</strong>. Humans stay in charge: every contact is manually approved, and every capability is a per-contact switch.</p>
+    <p class="lede">HDTP connects two people's AI assistants across the open internet. <strong>Contacts live in your phone book</strong>, identity is a certificate you issue yourself, and sending a message is just <strong>calling a tool on your friend's MCP server</strong>. Humans stay in charge: every contact is manually approved, and every capability is a per-contact switch.</p>
     <div class="hero-facts">
       <div class="fact"><div class="k">1 root</div><div class="l">is your identity</div></div>
       <div class="fact"><div class="k">1 vCard</div><div class="l">is your contact card</div></div>
@@ -266,8 +266,8 @@
       </div>
       <div class="pillar">
         <h3>Contacts = vCards in your phone</h3>
-        <p>A PACT identity is a standard contact card with three extra fields. It saves to the phone book, syncs everywhere, and travels over WhatsApp, email, AirDrop, or a contact QR — channels people already trust.</p>
-        <div class="art mono">BEGIN:VCARD · FN:Alina Rao<br><span class="hl">X-PACT-VERSION:</span>2<br><span class="hl">X-PACT-CERT:</span>MIIB… the leaf: address, key, root<br><span class="hl">X-PACT-SEAL:</span>required</div>
+        <p>An HDTP identity is a standard contact card with three extra fields. It saves to the phone book, syncs everywhere, and travels over WhatsApp, email, AirDrop, or a contact QR — channels people already trust.</p>
+        <div class="art mono">BEGIN:VCARD · FN:Alina Rao<br><span class="hl">X-HDTP-VERSION:</span>1<br><span class="hl">X-HDTP-CERT:</span>MIIB… the leaf: address, key, root<br><span class="hl">X-HDTP-SEAL:</span>required</div>
       </div>
       <div class="pillar">
         <h3>Capabilities = MCP tools</h3>
@@ -379,7 +379,7 @@
 
     <div class="steps measure" style="margin-top:28px">
       <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Invites are revocable at the protocol level</h3><p>All settings — expiry, <code>max_uses</code> (set it high for a QR shown to a room), auto-accept, permission preset — live on the sender's server, not in the link. Delete the token and the link is dead everywhere, instantly.</p></div></div>
-      <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Shared vCards use channels people already trust</h3><p>Someone sends you their card over WhatsApp or AirDrop; your agent spots the <code>X-PACT-*</code> fields and offers "connect our agents?". The card you already hold is the trust anchor — the accepting caller must prove a chain under exactly the root that card names.</p></div></div>
+      <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Shared vCards use channels people already trust</h3><p>Someone sends you their card over WhatsApp or AirDrop; your agent spots the <code>X-HDTP-*</code> fields and offers "connect our agents?". The card you already hold is the trust anchor — the accepting caller must prove a chain under exactly the root that card names.</p></div></div>
       <div class="step"><div class="n" aria-hidden="true"></div><div><h3>Unsolicited requests are always manual</h3><p>Strangers get exactly two tools: <code>redeem_invite</code> and <code>request_contact</code>. Nothing else exists for them until a human approves. Blocking is silent — a blocked contact simply becomes a stranger again.</p></div></div>
     </div>
   </div>
@@ -498,7 +498,7 @@ check_availability → { slots: [ 2 ] }</pre>
 
 <footer>
   <div class="wrap">
-    <p><strong style="color:var(--ink)">PACT 2.1</strong> · the identity generation · 2026-09-19</p>
+    <p><strong style="color:var(--ink)">HDTP 2.1</strong> · the identity generation · 2026-09-19</p>
     <p style="margin-top:6px">Full details — tool tables, invite settings, error codes, conformance checklist — in <span class="mono">SPEC.md</span>. Landscape research and the hardened draft's review history live in the companion documents.</p>
   </div>
 </footer>

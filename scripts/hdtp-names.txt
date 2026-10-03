@@ -1,0 +1,51 @@
+# The HDTP name guard's list: what no tracked file of an HDTP or BatonDeck repository may carry, in
+# its path or in its text. One list, byte-identical in every repository whose gate runs the guard;
+# this copy, in hdtp-spec, is the canonical one, and each other copy is compared with it whenever
+# hdtp-spec is checked out beside that repository.
+#
+# The guard reads the TREE (`git ls-files`), never history. It skips binary files (any NUL byte),
+# built and vendored output (dist/, node_modules/, target/) and go.sum, whose lines are hashes.
+#
+# Lines, after comments (#) and blank lines:
+#
+#   name <word>                       forbidden, case-insensitive, wherever it occurs: inside a
+#                                     longer word, after a digit, an underscore or an escape
+#   except-after <prefix>             ...unless the letters right before it are <prefix>,
+#                                     case-insensitive. This is how English words pass
+#   retired <regular expression>      forbidden, case-sensitive: a name of a behaviour HDTP does not
+#                                     have. Written to run unchanged in JavaScript and in Go (RE2)
+#   allow <repo> <path> <text>        in repository <repo> (its origin remote's name), file <path>,
+#                                     a forbidden name inside the exact <text> is allowed. An entry
+#                                     whose text is not in its file fails as stale
+#   once <repo> <path> <text>         as allow, and <text> must occur exactly once in that file and
+#                                     in no other file of the repository
+#
+# The guard fails when it reads fewer than one name or ten retired names: then the reader is broken,
+# not the tree.
+
+name pact
+except-after im
+except-after com
+
+# Key rotation: the flag, the columns, the audit actions, the events.
+retired rotate-key|rotate_key|RotateKey|rotateKey
+retired prev_key_sealed|prev_fingerprint|grace_until|PrevKeySealed|PrevFingerprint|GraceUntil
+retired account_rotate|rotate_introduce|identity\.rotated|contact\.rotated
+retired rotation_fanout|RotationFanout|rotationFanout|renewal_1x
+retired verifyRotationProof|AnnounceLegacyRenewal
+# Coexistence knobs.
+retired accept_1x|accept1x|Accept1x|notified_1x|identity\.upgraded
+retired contacts1x|OneXArchiveRefused|ONE_X_ARCHIVE
+retired EncodeCompatCard|encode_compat|card\.compat
+# The relay role: mode, env, routes, tools, tables, delivery state, audit actions.
+retired [Rr]elay-assisted|RelayAssisted|HDTP_RELAY|HDTP_GATEWAY_|/relay/mcp
+retired relay_allowlist|relay_queue|relay_call|relay_ack|relay_fetch|relay_process|fetch_queued|queued_at_relay
+retired relay_recipients|gateway_fingerprint|gateway_url
+retired DeliveryRelay|SplitRecipients|JoinRecipients|relay fetch
+# Contact sync: every contact of an account, on a timer or on request.
+retired sync_contacts|SyncContacts|syncContacts
+# Bundles that carried a key.
+retired StripKeys|StripLeafKeys|StripAccountKeys|backup identity|restore-identity
+
+# The one sentence that says what HDTP was called, in the specification's first page.
+once hdtp-spec docs/specification/1.0/index.md HDTP was formerly named PACT.

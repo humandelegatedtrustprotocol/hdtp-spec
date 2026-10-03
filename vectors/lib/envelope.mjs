@@ -11,7 +11,7 @@ export const HEADER_MEMBERS = 'cty,exp,kid,msg_id,suite,ts,v';
 // implementations cannot disagree about what was signed; latitude in the types reopens the same gap,
 // since `"1757000000"` and `1757000000` are different bytes under one signature and compare alike.
 const INTEGER_MEMBERS = ['v', 'ts', 'exp'], STRING_MEMBERS = ['suite', 'kid', 'msg_id', 'cty'];
-// JSON as every port reads it (pact-identity CONTRACT §0): bytes that are not UTF-8, a \u escape of
+// JSON as every port reads it (hdtp-identity CONTRACT §0): bytes that are not UTF-8, a \u escape of
 // half a surrogate pair, a number that is infinite as a double (`1e400`) and containers nested more
 // than 127 deep are text that is not JSON. The core's parser (serde_json) refuses all four and
 // another reads them, so both ports refuse them. Here Buffer's toString read a stray byte as U+FFFD,
@@ -30,7 +30,7 @@ function readJSON(bytes) {
   if (v !== null && typeof v === 'object' && nestedPast(v, 1)) throw new Error('nested more than 127 deep');
   return v;
 }
-// An integer is what every port reads as one (pact-identity CONTRACT §0; serde_json's `as_i64`): an
+// An integer is what every port reads as one (hdtp-identity CONTRACT §0; serde_json's `as_i64`): an
 // optional minus and digits, no fraction and no exponent, within 64 bits, and not `-0`, which
 // serde_json reads as a float. JSON.parse keeps no spelling — `-0`, `1757764800.0` and `1.7577648e9`
 // read as the integers they name, and a ts past 2^53 but within 64 bits was refused here for its size
@@ -63,10 +63,10 @@ const PENDING_TOOLS = ['contact_accepted', 'contact_rejected'];
 // Sender side, with every knob an attacker would turn. `recipientLeaf` is the DER of the leaf being sealed to.
 // `reference: true` names the sender's leaf by fingerprint instead of carrying the chain (§13.2): the small form,
 // for a receiver that already holds the leaf. A host sends the chain on first contact and after each renewal.
-export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = 'tools/call', params, msgId, ts, exp, cty = 'application/pact-call+json', ephemeralSeed, signWith, header = {}, chainInside, info = 'PACT-SEAL-v2', suite, recipientPub, reference = false, referenceKey, referenceFingerprint, both = false }) {
+export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = 'tools/call', params, msgId, ts, exp, cty = 'application/hdtp-call+json', ephemeralSeed, signWith, header = {}, chainInside, info = 'HDTP-SEAL-v1', suite, recipientPub, reference = false, referenceKey, referenceFingerprint, both = false }) {
   const leaf = parse(recipientLeaf);
   const s = suite ?? suiteForLeaf(leaf), pub = recipientPub ?? recipientOf(leaf);
-  const h = { v: 2, suite: s, kid: fingerprint(leaf.publicKey), msg_id: msgId, ts, exp: exp ?? ts + 600, cty, ...header };
+  const h = { v: 1, suite: s, kid: fingerprint(leaf.publicKey), msg_id: msgId, ts, exp: exp ?? ts + 600, cty, ...header };
   const aad = Buffer.from(canonical(h));
   const chain = (chainInside ?? senderChain).map(b64url);
   // `referenceFingerprint` names a leaf by a string nobody holds: what a guesser sends.
@@ -112,7 +112,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   try { header = readJSON(aad); } catch { return invalid('protected is not JSON'); }
   if (Object.keys(header).sort().join(',') !== HEADER_MEMBERS) return invalid('header members');
   if (!headerTypesOk(header, spellings(aad))) return invalid('header member types');
-  if (header.v !== 2 || !SUITES[header.suite]) return invalid('version or suite');
+  if (header.v !== 1 || !SUITES[header.suite]) return invalid('version or suite');
 
   const held = node.keys.find((k) => k.kid === header.kid && (k.current || node.now <= k.notAfter));
   if (!held) {
@@ -129,7 +129,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   // bytes identical.
   if (enc.length !== SUITES[header.suite].npk) return invalid("encapsulated key is not the suite's length");
   let body;
-  try { body = readJSON(open(header.suite, held.key.priv, held.key.pub, Buffer.from('PACT-SEAL-v2'), aad, enc, ct)); } catch { return invalid('does not open'); }
+  try { body = readJSON(open(header.suite, held.key.priv, held.key.pub, Buffer.from('HDTP-SEAL-v1'), aad, enc, ct)); } catch { return invalid('does not open'); }
   const members = body && typeof body === 'object' ? Object.keys(body).sort().join(',') : '';
   if (members !== 'chain,method,params' && members !== 'leaf,method,params') return invalid('plaintext members');
   if (!['tools/call', 'tools/list'].includes(body.method)) return invalid('plaintext shape');
@@ -141,7 +141,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   // contact's sealed listing answers at the pending tier. Anything else waits for the approval.
   const pendingAllows = body.method === 'tools/list' || PENDING_TOOLS.includes(tool);
   const freshness = () => {
-    if (header.cty !== 'application/pact-call+json') return invalid('not a request');
+    if (header.cty !== 'application/hdtp-call+json') return invalid('not a request');
     const nowS = Math.floor(node.now / 1000);
     if (!(nowS < header.exp) || Math.abs(nowS - header.ts) > SKEW_S) return invalid('outside the time window');
     if (header.exp - header.ts > MAX_LIFETIME_S) return invalid('exp too far from ts');

@@ -1,11 +1,11 @@
 // The one mermaid pipeline: the whitepaper (site/build-whitepaper.mjs) and the web fragments
-// (site/spec-html.mjs) both render SPEC.md's diagrams through this — the bundled mermaid from
+// (site/spec-html.mjs) both render the specification's diagrams through this — the bundled mermaid from
 // node_modules inside headless Chrome, with the ELK layout engine (@mermaid-js/layout-elk, also
 // from node_modules) for flowcharts and state diagrams, one configuration, and the same two fixes
 // applied to every drawing. Nothing is fetched at render time.
 //
 // The functions under "browser side" run inside the page, so they take no imports and close over
-// nothing: installMermaid() copies their source into the page as `window.pactMermaid`.
+// nothing: installMermaid() copies their source into the page as `window.hdtpMermaid`.
 
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -148,12 +148,12 @@ function cover(svg) {
 /* ------------------------------------------------------------ node side */
 
 // Loads mermaid into the page, registers the ELK layouts with it, and the helpers above as
-// window.pactMermaid. The ELK bundle is an ES module (it loads its chunks by relative import),
+// window.hdtpMermaid. The ELK bundle is an ES module (it loads its chunks by relative import),
 // so it goes in as a module script; the page is a file:// URL and the browser is launched with
 // file access, so the import resolves inside node_modules.
 export async function installMermaid(tab) {
   await tab.addScriptTag({ path: mermaidScript })
-  await tab.addScriptTag({ type: 'module', content: `import elk from ${JSON.stringify(pathToFileURL(elkScript).href)}; mermaid.registerLayoutLoaders(elk); window.pactElk = true` })
-  await tab.waitForFunction(() => window.pactElk === true, { timeout: 30000 })
-  await tab.addScriptTag({ content: `window.pactMermaid = { config: ${mermaidConfig}, widenNotes: ${widenNotes}, cover: ${cover} }` })
+  await tab.addScriptTag({ type: 'module', content: `import elk from ${JSON.stringify(pathToFileURL(elkScript).href)}; mermaid.registerLayoutLoaders(elk); window.hdtpElk = true` })
+  await tab.waitForFunction(() => window.hdtpElk === true, { timeout: 30000 })
+  await tab.addScriptTag({ content: `window.hdtpMermaid = { config: ${mermaidConfig}, widenNotes: ${widenNotes}, cover: ${cover} }` })
 }

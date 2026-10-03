@@ -1,17 +1,18 @@
-// What site/spec-html.mjs promises, shown on both texts the protocol site publishes: the
-// current SPEC.md (HEAD) and the PACT 1.2.0 text (d130444, which this repository must never
-// hold as markdown). Run by `npm run spec:check`, part of `make check`.
+// What site/spec-html.mjs promises, shown on two texts: the newest released version of the
+// specification at HEAD, and a fixture committed into a scratch repository, which carries what the
+// specification does not — a MUST inside a fence and one inside a diagram — and no LICENSE-docs.
+// Run by `npm run spec:check`, part of `make check`.
 //
-// The MUST extractor here is a copy of pact-identity's; the copy is held to the original
-// whenever the sibling checkout is beside this repository (PACT_IDENTITY_DIR overrides the
+// The MUST extractor here is a copy of hdtp-identity's; the copy is held to the original
+// whenever the sibling checkout is beside this repository (HDTP_IDENTITY_DIR overrides the
 // place), and the run fails without it: a copy nothing compares drifts the day it is written.
-// The diagram contract is a copy of pact-web-kit's kit/diagram-classes.json; with the kit
-// beside this repository (PACT_WEB_KIT_DIR overrides the place) the copy is held to the
+// The diagram contract is a copy of hdtp-web-kit's kit/diagram-classes.json; with the kit
+// beside this repository (HDTP_WEB_KIT_DIR overrides the place) the copy is held to the
 // kit's file byte for byte and the drawings are audited against the kit's; without it the
 // audit holds to the committed copy, and the run says so on stderr and as a skipped test.
 //
 // The licence: the fragment of the current text ends in the attribution line for its version,
-// the PACT 1 fragment carries none, and the whitepaper is built once (site/build-whitepaper.mjs
+// the fixture's (a tree without LICENSE-docs) carries none, and the whitepaper is built once (site/build-whitepaper.mjs
 // --out, into a scratch directory) and read back from its bytes. The wording is
 // site/licence.mjs's; each claim it makes is held here to the file it is true of.
 
@@ -29,15 +30,15 @@ import { slugify, splitSpec } from './markdown.mjs'
 import { info, text as pdfText, withInfo } from './pdf.mjs'
 import { auditFragment, auditText, build, CONTRACT, CONTRACT_PATH, extractMusts, loadRegistry, sectionId } from './spec-html.mjs'
 import { identityDir } from './siblings.mjs'
+import { current, readSpec, readSpecAt } from './spec-source.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
-const PACT1 = 'd130444'
 const identity = identityDir()
-const kit = process.env.PACT_WEB_KIT_DIR ?? resolve(root, '..', 'pact-web-kit')
+const kit = process.env.HDTP_WEB_KIT_DIR ?? resolve(root, '..', 'hdtp-web-kit')
 const kitContract = join(kit, 'kit', 'diagram-classes.json')
 const sibling = existsSync(kitContract)
-if (!sibling) console.error(`spec-html.test: pact-web-kit is not at ${kit} (set PACT_WEB_KIT_DIR): the drawings are audited against the committed copy site/diagram-classes.json, which this run cannot compare with the kit's`)
+if (!sibling) console.error(`spec-html.test: hdtp-web-kit is not at ${kit} (set HDTP_WEB_KIT_DIR): the drawings are audited against the committed copy site/diagram-classes.json, which this run cannot compare with the kit's`)
 // The contract the drawings are audited against: the kit's when it is here, the copy otherwise.
 const contract = sibling ? JSON.parse(readFileSync(kitContract, 'utf8')) : CONTRACT
 const PRIMITIVE = /<(rect|circle|ellipse|line|path|polygon|polyline|text)\b[^>]*class="([^"]*)"/g
@@ -54,21 +55,40 @@ const flat = (toc) => toc.flatMap((n) => [n, ...flat(n.children)])
 const prose = (body) => body.replace(/^```[\s\S]*?^```/gm, '').replace(/`[^`\n]*`/g, '')
 const count = (s, re) => (s.match(re) ?? []).length
 
-let scratch, out2, out2again, out1, spec2, body2, spec1, body1, paper
+let scratch, out2, out2again, out1, spec2, body2, spec1, body1, paper, fixture
+
+// The fixture: one version of a text, committed into a repository of its own, with no LICENSE-docs.
+// git runs with no GIT_* of the caller's: a hook in a linked worktree exports GIT_DIR, which would
+// point these commands at this repository instead.
+const FIXTURE = {
+  'index.md': '# Fixture\n\n**Version 0.1.0 · 2026-01-01**\n\nA text that is not the specification.\n\n## Table of contents\n\n1. [Fixture](fixture.md)\n\n---\n\n',
+  'fixture.md': '## 1. Fixture\n\nA sender MUST seal.\n\n```text\na receiver MUST refuse\n```\n\n```mermaid\nsequenceDiagram\n    participant A as Alina\n    participant B as Bharat\n    A->>B: sealed_call\n    Note over B: B MUST open it\n```\n',
+}
+function makeFixture(dir) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')))
+  const run = (...args) => execFileSync('git', ['-C', dir, ...args], { env, stdio: 'pipe' })
+  mkdirSync(join(dir, 'docs', 'specification', '0.1'), { recursive: true })
+  for (const [name, text] of Object.entries(FIXTURE)) writeFileSync(join(dir, 'docs', 'specification', '0.1', name), text)
+  run('init', '-q')
+  run('add', '.')
+  run('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'fixture')
+  return dir
+}
 
 before(async () => {
   scratch = await mkdtemp(join(tmpdir(), 'spec-html-test-'))
-  out2 = join(scratch, 'pact-2')
-  out2again = join(scratch, 'pact-2-again')
-  out1 = join(scratch, 'pact-1')
+  out2 = join(scratch, 'hdtp-2')
+  out2again = join(scratch, 'hdtp-2-again')
+  out1 = join(scratch, 'fixture-out')
+  fixture = makeFixture(join(scratch, 'fixture'))
   // Once through the command line, so the contract on the shell is the one exercised.
   execFileSync(process.execPath, [resolve(root, 'site', 'spec-html.mjs'), '--ref', 'HEAD', '--out', out2], { stdio: 'pipe' })
   await build({ ref: 'HEAD', out: out2again })
-  await build({ ref: PACT1, out: out1 })
+  await build({ ref: 'HEAD', out: out1, repo: fixture })
   paper = join(scratch, 'whitepaper')
   execFileSync(process.execPath, [resolve(root, 'site', 'build-whitepaper.mjs'), '--out', paper], { stdio: 'pipe' })
-  spec2 = git('show', 'HEAD:SPEC.md'); body2 = splitSpec(spec2).body
-  spec1 = git('show', `${PACT1}:SPEC.md`); body1 = splitSpec(spec1).body
+  spec2 = readSpecAt('HEAD', current()); body2 = splitSpec(spec2).body
+  spec1 = readSpecAt('HEAD', '0.1', fixture); body1 = splitSpec(spec1).body
 })
 after(() => rm(scratch, { recursive: true, force: true }))
 
@@ -132,18 +152,18 @@ describe('headings', () => {
 })
 
 describe('diagrams', () => {
-  it("carry pact-web-kit's diagram contract: site/diagram-classes.json is the kit's kit/diagram-classes.json byte for byte", (t) => {
-    if (!sibling) return t.skip(`pact-web-kit is not at ${kit}: the copy was not compared with the kit's; the audits below hold to the copy`)
+  it("carry hdtp-web-kit's diagram contract: site/diagram-classes.json is the kit's kit/diagram-classes.json byte for byte", (t) => {
+    if (!sibling) return t.skip(`hdtp-web-kit is not at ${kit}: the copy was not compared with the kit's; the audits below hold to the copy`)
     assert.ok(readFileSync(CONTRACT_PATH).equals(readFileSync(kitContract)), `site/diagram-classes.json differs from ${kitContract}: copy the kit's file over it`)
     assert.deepEqual(CONTRACT, contract)
   })
 
   it('replace every mermaid block with an inline SVG, inside <figure class="diagram">, that carries the contract\'s classes only', () => {
     const kinds = Object.keys(contract.svg).filter((k) => k !== 'dg')
-    for (const [out, body] of [[out2, body2], [out1, body1]]) {
+    for (const [out, body, least] of [[out2, body2, 9], [out1, body1, 1]]) {
       const html = read(out, 'spec.html')
       const fences = count(body, /^```mermaid$/gm)
-      assert.ok(fences >= 9, 'the text has diagrams to prove this on')
+      assert.ok(fences >= least, 'the text has diagrams to prove this on')
       assert.equal(count(html, /<svg\b/g), fences)
       assert.equal(count(html, new RegExp(`<figure class="diagram"><svg\\b[^>]*class="dg (${kinds.join('|')})"`, 'g')), fences)
       assert.equal(count(html, /mermaid/g), 0, 'no mermaid source left in the fragment')
@@ -178,9 +198,9 @@ describe('diagrams', () => {
     assert.match(planted('<figure class="diagram"><svg', '<figure class="diagram diagram-flowchart"><svg').join('\n'), /9 drawings, 8 inside <figure class="diagram">/)
   })
 
-  it('draw every class of the contract, on exactly the tags it lists, across the two texts; nothing else', () => {
+  it('draw every class of the contract, on exactly the tags it lists, in the current text; nothing else', () => {
     const drawn = new Map()
-    for (const out of [out2, out1]) {
+    for (const out of [out2]) {
       for (const m of read(out, 'spec.html').matchAll(PRIMITIVE)) {
         if (!drawn.has(m[2])) drawn.set(m[2], new Set())
         drawn.get(m[2]).add(m[1])
@@ -274,12 +294,12 @@ describe('MUSTs', () => {
         assert.ok(before > after, `a bare MUST outside code at ${m.index}`)
       }
     }
-    assert.ok(count(body1, /^```[\s\S]*?MUST[\s\S]*?^```/gm) >= 1, 'the PACT 1 text has a MUST inside a fence, so this is proven on one')
+    assert.ok(count(body1, /^```[\s\S]*?MUST[\s\S]*?^```/gm) >= 1, 'the fixture has a MUST inside a fence, so this is proven on one')
     assert.ok(/<svg\b[\s\S]*?MUST[\s\S]*?<\/svg>/.test(read(out1, 'spec.html')), 'and one inside a diagram')
   })
 
-  it('are listed as sentences under their heading, by the extractor pact-identity uses', async () => {
-    assert.ok(existsSync(join(identity, 'js', 'musts.mjs')), `pact-identity is not at ${identity}: set PACT_IDENTITY_DIR`)
+  it('are listed as sentences under their heading, by the extractor hdtp-identity uses', async () => {
+    assert.ok(existsSync(join(identity, 'js', 'musts.mjs')), `hdtp-identity is not at ${identity}: set HDTP_IDENTITY_DIR`)
     const { extract } = await import(pathToFileURL(join(identity, 'js', 'musts.mjs')).href)
     for (const [out, body] of [[out2, body2], [out1, body1]]) {
       const theirs = extract(body), mine = extractMusts(body)
@@ -307,54 +327,52 @@ describe('MUSTs', () => {
     assert.ok(current.every((s) => s.id), 'every MUST of the current text has a registry id')
   })
 
-  it('come from the registry PACT_IDENTITY_DIR names, wherever it is, and from the sibling without it', () => {
+  it('come from the registry HDTP_IDENTITY_DIR names, wherever it is, and from the sibling without it', () => {
     // A registry no real checkout holds, in a directory that is not beside this repository: only
     // a renderer that reads the variable can return these bytes.
     const elsewhere = join(scratch, `identity-${randomUUID()}`)
     mkdirSync(join(elsewhere, 'js'), { recursive: true })
     const text = JSON.stringify({ 'TEST-ELSEWHERE': { hash: randomUUID(), text: 'not a sentence of the specification' } })
     writeFileSync(join(elsewhere, 'js', 'musts.json'), text)
-    const was = process.env.PACT_IDENTITY_DIR
-    process.env.PACT_IDENTITY_DIR = elsewhere
+    const was = process.env.HDTP_IDENTITY_DIR
+    process.env.HDTP_IDENTITY_DIR = elsewhere
     try {
       assert.equal(identityDir(), elsewhere)
       const loaded = loadRegistry(undefined)
       assert.ok(loaded, `the renderer found no registry at ${elsewhere}`)
-      assert.equal(loaded.sha256, createHash('sha256').update(text).digest('hex'), 'the renderer read another registry than PACT_IDENTITY_DIR\'s')
+      assert.equal(loaded.sha256, createHash('sha256').update(text).digest('hex'), 'the renderer read another registry than HDTP_IDENTITY_DIR\'s')
       assert.deepEqual(Object.keys(loaded.registry), ['TEST-ELSEWHERE'])
     } finally {
-      if (was === undefined) delete process.env.PACT_IDENTITY_DIR; else process.env.PACT_IDENTITY_DIR = was
+      if (was === undefined) delete process.env.HDTP_IDENTITY_DIR; else process.env.HDTP_IDENTITY_DIR = was
     }
-    assert.equal(identityDir({}), resolve(root, '..', 'pact-identity'), 'without the variable, the sibling checkout')
+    assert.equal(identityDir({}), resolve(root, '..', 'hdtp-identity'), 'without the variable, the sibling checkout')
     // And the build this file made through the command line recorded the registry this run names.
     assert.equal(json(out2, 'meta.json').musts.registry.sha256, createHash('sha256').update(readFileSync(join(identity, 'js', 'musts.json'), 'utf8')).digest('hex'))
   })
 })
 
-describe('the PACT 1 text', () => {
-  it('renders from git at d130444: 1.2.0, its diagrams, no vectors file', () => {
+describe('the version and the place', () => {
+  it('renders the version --version names, from the commit, with no vectors file where the commit has none', () => {
     const meta = json(out1, 'meta.json')
-    assert.equal(meta.version, '1.2.0')
-    assert.equal(meta.date, '2026-08-30')
-    assert.equal(meta.commit, git('rev-parse', PACT1).trim())
-    assert.equal(meta.diagrams, 9)
+    assert.equal(meta.dir, '0.1')
+    assert.equal(meta.version, '0.1.0')
+    assert.equal(meta.date, '2026-01-01')
+    assert.equal(meta.diagrams, 1)
     assert.equal(meta.vectors, null)
     assert.ok(!existsSync(join(out1, 'vectors')))
+    assert.equal(json(out2, 'meta.json').dir, current(), 'without --version, the newest released version')
   })
 
-  it('carries names the 1.x guard refuses, which is why the output never enters this repository', async () => {
-    const markers = readFileSync(join(root, 'vectors', 'pact1x-markers.txt'), 'utf8')
-      .split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => new RegExp(l))
-    const html = read(out1, 'spec.html')
-    assert.ok(markers.some((m) => m.test(html)), 'the PACT 1 fragment names a retired thing')
+  it('refuses a version the commit does not have, and an output this repository would track', async () => {
+    await assert.rejects(build({ ref: 'HEAD', out: join(scratch, 'none'), version: '9.9' }), /has no docs\/specification\/9\.9\/index\.md/)
     await assert.rejects(build({ ref: 'HEAD', out: join(root, 'site', 'never') }), /not gitignored/)
   })
 })
 
 describe('vectors', () => {
   it('are the committed file, byte for byte, with a fragment that indexes every member', () => {
-    const bytes = readFileSync(join(out2, 'vectors', 'pact-2.0-vectors.json'))
-    assert.ok(bytes.equals(execFileSync('git', ['-C', root, 'show', 'HEAD:vectors/pact-2.0-vectors.json'])))
+    const bytes = readFileSync(join(out2, 'vectors', 'hdtp-1.0-vectors.json'))
+    assert.ok(bytes.equals(execFileSync('git', ['-C', root, 'show', 'HEAD:vectors/hdtp-1.0-vectors.json'])))
     const meta = json(out2, 'meta.json')
     assert.equal(meta.vectors.bytes, bytes.length)
     const html = read(out2, 'vectors/index.html')
@@ -368,13 +386,13 @@ describe('the licence', () => {
   const file = (p) => readFileSync(join(root, p), 'utf8')
   // The README's attribution line, as a reader would copy it: no quote marker, no emphasis.
   const readmeLine = () => {
-    const lines = file('README.md').split('\n').filter((l) => /^> \*PACT\b.*licensed under/.test(l))
+    const lines = file('README.md').split('\n').filter((l) => /^> \*HDTP\b.*licensed under/.test(l))
     assert.equal(lines.length, 1, "the README has one attribution line")
     return lines[0].replace(/^> /, '').replace(/\*/g, '')
   }
   const headRights = () => licence((p) => git('ls-tree', '--name-only', 'HEAD', p).trim() ? git('show', `HEAD:${p}`) : null, splitSpec(spec2))
 
-  it("ends the current text's fragment in the attribution line for its version, and gives the PACT 1 text none", () => {
+  it("ends the current text's fragment in the attribution line for its version, and gives a tree without LICENSE-docs none", () => {
     const { version, date } = splitSpec(spec2)
     const html = read(out2, 'spec.html')
     const footer = /<div class="licence">[\s\S]*?<\/div>\n$/.exec(html)?.[0]
@@ -386,14 +404,14 @@ describe('the licence', () => {
     assert.ok(words.includes(`version ${version} (${date})`), 'with the version and date of the header line')
     assert.ok(footer.includes('href="https://creativecommons.org/licenses/by/4.0/"'))
     assert.ok(words.startsWith(`${headRights().copyright}.`))
-    assert.doesNotMatch(read(out1, 'spec.html'), /class="licence"|creativecommons|CC BY/, 'the PACT 1.2.0 text predates the licences')
+    assert.doesNotMatch(read(out1, 'spec.html'), /class="licence"|creativecommons|CC BY/, 'the fixture has no LICENSE-docs')
   })
 
   it('is printed in the whitepaper and written into its document information, with the version of the header line', () => {
-    const { version, date } = splitSpec(readFileSync(join(root, 'SPEC.md'), 'utf8'))
-    const pdf = readFileSync(join(paper, 'pact-whitepaper.pdf'))
+    const { version, date } = splitSpec(readSpec(root))
+    const pdf = readFileSync(join(paper, 'hdtp-whitepaper.pdf'))
     const pages = pdfText(pdf)
-    assert.equal(pages.length, JSON.parse(readFileSync(join(paper, 'pact-whitepaper.meta.json'), 'utf8')).pages)
+    assert.equal(pages.length, JSON.parse(readFileSync(join(paper, 'hdtp-whitepaper.meta.json'), 'utf8')).pages)
     const last = squash(pages.at(-1))
     assert.ok(last.includes(squash(readmeLine())), "the last page carries the README's attribution line")
     assert.ok(last.includes(squash(`version ${version} (${date})`)))
@@ -408,7 +426,7 @@ describe('the licence', () => {
   })
 
   it('is refused by the check when a line, the version or the metadata is wrong — shown red on each planted defect', () => {
-    const pdf = readFileSync(join(paper, 'pact-whitepaper.pdf'))
+    const pdf = readFileSync(join(paper, 'hdtp-whitepaper.pdf'))
     const rights = headRights()
     assert.deepEqual(pdfProblems(pdf, rights), [])
     const { version } = splitSpec(spec2)
@@ -422,12 +440,12 @@ describe('the licence', () => {
   it('says only what the licence files say', () => {
     const readme = file('README.md')
     const row = (start) => readme.split('\n').find((l) => l.startsWith(start)) ?? ''
-    // The text: SPEC.md, CC BY 4.0, the legal code in LICENSE-docs, the id in CITATION.cff.
-    assert.match(row('| The specification text, `SPEC.md`'), /CC BY 4\.0/)
+    // The text: docs/specification/, CC BY 4.0, the legal code in LICENSE-docs, the id in CITATION.cff.
+    assert.match(row('| The specification text, `docs/specification/`'), /CC BY 4\.0/)
     assert.match(file('LICENSE-docs'), /^Attribution 4\.0 International/)
     assert.match(file('CITATION.cff'), /^license: CC-BY-4\.0$/m)
     // Code and the vectors file: Apache-2.0, with NOTICE.
-    assert.match(row('| Data: `vectors/pact-2.0-vectors.json`'), /Apache-2\.0/)
+    assert.match(row('| Data: `vectors/hdtp-1.0-vectors.json`'), /Apache-2\.0/)
     assert.match(row('| Code: '), /Apache-2\.0.*NOTICE/)
     assert.match(file('LICENSE'), /Apache License\s+Version 2\.0/)
     assert.match(file('NOTICE'), /^Copyright 2026 Sumit Agrawal$/m)

@@ -1,11 +1,11 @@
-// Renders one committed SPEC.md into layout-agnostic HTML fragments for the protocol site.
+// Renders one committed version of the specification into layout-agnostic HTML fragments for the
+// protocol site.
 //
-//   node site/spec-html.mjs --ref <git ref> --out <dir> [--musts <path>|none]
+//   node site/spec-html.mjs --ref <git ref> --out <dir> [--version <X.Y>|draft] [--musts <path>|none]
 //
-// The text comes from `git show <ref>:SPEC.md`, never from the working tree, so an uncommitted
-// SPEC is never published and a superseded one (the PACT 1 text, d130444) is rendered without
-// ever being written into this repository as markdown — its retired names would fail
-// vectors/check-no-1x.mjs the day they were committed. For the same reason `--out` may not be
+// The text is docs/specification/<version>/ as commit <ref> has it, read whole through
+// site/spec-source.mjs (`git show`, never the working tree), so an uncommitted text is never
+// published. --version defaults to the newest released version at that commit. `--out` may not be
 // a tracked path: inside the repository it must be gitignored (dist/), or it must be outside.
 //
 // Written into <dir>:
@@ -17,7 +17,7 @@
 //                are <figure class="diagram"> holding a pre-rendered inline SVG that carries
 //                classes only — no <style>, no style= attribute, no paint or font attribute,
 //                no HTML inside the drawing, no font fetched — so the site's stylesheet owns
-//                every colour and font. The classes are pact-web-kit's diagram contract
+//                every colour and font. The classes are hdtp-web-kit's diagram contract
 //                (site/diagram-classes.json, a copy of the kit's kit/diagram-classes.json).
 //                Flowcharts and state diagrams are laid out by ELK (site/mermaid.mjs); a
 //                flowchart wider than the text column is also laid out the other way round
@@ -25,23 +25,23 @@
 //                larger in the column. When the commit carries LICENSE-docs, the fragment ends in
 //                <div class="licence">: the copyright line and the attribution line for that
 //                commit's version, worded by site/licence.mjs from that commit's NOTICE and
-//                CITATION.cff, as the whitepaper's licence page is. The PACT 1.2.0 text predates the
-//                licences and has no such block.
+//                CITATION.cff, as the whitepaper's licence page is.
 //   diagrams.json  what each drawing was drawn from, in document order: [{ kind, source,
-//                turned }] — `source` is the mermaid the SVG was rendered from (SPEC.md's
+//                turned }] — `source` is the mermaid the SVG was rendered from (the text's
 //                block, with a flowchart's direction swapped where `turned` is true), so the
 //                site can show the source beside the drawing.
 //   toc.json     the heading tree: [{ level, text, id, children: [...] }].
 //   musts.json   every normative sentence, [{ heading, section, id, hash, text }]: `heading` is
-//                the id of the heading it sits under, `id` is pact-identity's registry id for
+//                the id of the heading it sits under, `id` is hdtp-identity's registry id for
 //                that sentence (musts.json, matched by the sentence hash its checker computes)
 //                or null when the registry has no entry for these exact words. The registry is
-//                --musts <path>, else js/musts.json in PACT_IDENTITY_DIR, else in the sibling
-//                ../pact-identity (site/siblings.mjs); --musts none, or no file there, renders
+//                --musts <path>, else js/musts.json in HDTP_IDENTITY_DIR, else in the sibling
+//                ../hdtp-identity (site/siblings.mjs); --musts none, or no file there, renders
 //                every id as null.
 //   meta.json    the version and date the whitepaper build parses from the header line, the
-//                ref, the commit, this generator's version, and the counts.
-//   vectors/     when the commit has vectors/pact-2.0-vectors.json: that file, byte for byte,
+//                directory it was read from (`dir`), the ref, the commit, this generator's
+//                version, and the counts.
+//   vectors/     when the commit has vectors/hdtp-1.0-vectors.json: that file, byte for byte,
 //                as a download, and index.html, a fragment rendering it.
 //
 // The markdown pipeline is site/markdown.mjs and the mermaid pipeline site/mermaid.mjs, both
@@ -60,18 +60,19 @@ import { licence } from './licence.mjs'
 import { esc, renderSpec, slugify, splitSpec } from './markdown.mjs'
 import { FONT, installMermaid, launch } from './mermaid.mjs'
 import { identityDir } from './siblings.mjs'
+import { readSpecAt, SPEC_DIR } from './spec-source.mjs'
 
 export const GENERATOR = 'spec-html 3'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-// The column a drawing is read in on the site, in px: pact-web-kit's docs layout gives the text
+// The column a drawing is read in on the site, in px: hdtp-web-kit's docs layout gives the text
 // 46rem (736 px), and a drawing past 960 px tall no longer fits a laptop's window beside its text.
 const COLUMN = 736, TALL = 960
 
 /* ---------------------------------------------------------- the contract */
 
-// Every class an emitted drawing may carry is pact-web-kit's diagram contract, whose one copy
+// Every class an emitted drawing may carry is hdtp-web-kit's diagram contract, whose one copy
 // is the kit's kit/diagram-classes.json; site/diagram-classes.json is that file byte for byte,
 // so a build needs no sibling checkout, and site/spec-html.test.mjs holds the copy to the
 // kit's whenever the kit is checked out beside this repository. The shape: the <svg> carries
@@ -102,7 +103,7 @@ export function sectionId(title) {
 
 /* ----------------------------------------------------------------- MUSTs */
 
-// A copy of `extract` in pact-identity/js/musts.mjs: the same units, the same sentence
+// A copy of `extract` in hdtp-identity/js/musts.mjs: the same units, the same sentence
 // splitter, the same hash, so a sentence here matches the registry's entry for it. The copy is
 // held to the original by site/spec-html.test.mjs whenever the sibling is checked out.
 export function extractMusts(markdown) {
@@ -373,19 +374,19 @@ function renderVectors(json) {
 
 /* ------------------------------------------------------------- the build */
 
-const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
 const sha256 = (s) => createHash('sha256').update(s).digest('hex')
 
 function parseArgs(argv) {
-  const opts = { ref: null, out: null, musts: undefined }
+  const opts = { ref: null, out: null, version: undefined, musts: undefined }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--ref') opts.ref = argv[++i]
     else if (a === '--out') opts.out = argv[++i]
+    else if (a === '--version') opts.version = argv[++i]
     else if (a === '--musts') opts.musts = argv[++i]
     else throw new Error(`unknown argument ${a}`)
   }
-  if (!opts.ref || !opts.out) throw new Error('usage: node site/spec-html.mjs --ref <git ref> --out <dir> [--musts <path>|none]')
+  if (!opts.ref || !opts.out) throw new Error('usage: node site/spec-html.mjs --ref <git ref> --out <dir> [--version <X.Y>|draft] [--musts <path>|none]')
   return opts
 }
 
@@ -408,14 +409,20 @@ export function loadRegistry(musts) {
   return { registry: JSON.parse(text), sha256: sha256(text) }
 }
 
-// `contract` is the committed copy unless a test passes another, to show the audits red.
-export async function build({ ref, out, musts, contract = CONTRACT }) {
+// `contract` is the committed copy unless a test passes another, to show the audits red; `repo` is
+// this repository unless a test renders a fixture text committed elsewhere.
+export async function build({ ref, out, version: dir, musts, contract = CONTRACT, repo = root }) {
+  const git = (...args) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
   const commit = git('rev-parse', '--verify', '--quiet', `${ref}^{commit}`).trim()
   out = resolve(out)
   refuseTrackedOut(out)
-  const spec = git('show', `${commit}:SPEC.md`)
   const tree = new Set(git('ls-tree', '-r', '--name-only', commit).split('\n'))
-  const vectorsPath = 'vectors/pact-2.0-vectors.json'
+  const released = [...new Set([...tree].map((p) => p.startsWith(SPEC_DIR + '/') && p.slice(SPEC_DIR.length + 1).split('/')[0]))]
+    .filter((d) => /^\d+\.\d+$/.test(d)).sort((a, b) => a.split('.').map(Number).reduce((c, x, i) => c || x - b.split('.').map(Number)[i], 0))
+  dir ??= released.at(-1)
+  if (!dir || !tree.has(`${SPEC_DIR}/${dir}/index.md`)) throw new Error(`${ref} has no ${SPEC_DIR}/${dir ?? '<version>'}/index.md`)
+  const spec = readSpecAt(commit, dir, repo)
+  const vectorsPath = 'vectors/hdtp-1.0-vectors.json'
   const vectors = tree.has(vectorsPath) ? git('show', `${commit}:${vectorsPath}`) : null
 
   const { version, date, revisionNote, body } = splitSpec(spec)
@@ -449,9 +456,9 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
     })
     if (fonts.length) throw new Error(`fonts not loaded: ${fonts.join(', ')}`)
     await installMermaid(tab)
-    await tab.addScriptTag({ content: `window.pactCleanSvg = ${cleanSvg}` })
+    await tab.addScriptTag({ content: `window.hdtpCleanSvg = ${cleanSvg}` })
     drawings = await tab.evaluate(async (font, column, tall) => {
-      mermaid.initialize(pactMermaid.config(font, { htmlLabels: false, base: font }))
+      mermaid.initialize(hdtpMermaid.config(font, { htmlLabels: false, base: font }))
       // How large a drawing of w x h reads in the column: never above 1, and a drawing taller
       // than `tall` counts as shrunk to it, so turning a wide flowchart does not buy a tower.
       const fit = (w, h) => Math.min(1, column / w, tall / h)
@@ -464,11 +471,11 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
           const { svg: markup } = await mermaid.render(`spec-diagram-${n++}`, source)
           figure.innerHTML = markup
           const svg = figure.querySelector('svg')
-          pactMermaid.widenNotes(svg)
-          const { x0, y0, x1, y1 } = pactMermaid.cover(svg)
+          hdtpMermaid.widenNotes(svg)
+          const { x0, y0, x1, y1 } = hdtpMermaid.cover(svg)
           return { source, w: x1 - x0, h: y1 - y0, html: figure.innerHTML }
         }
-        const written = pre.textContent.replace(/\n$/, '')   // the block as SPEC.md writes it
+        const written = pre.textContent.replace(/\n$/, '')   // the block as the text writes it
         let best = await draw(written)
         if (best.w > column && turn(written) !== written) {
           const other = await draw(turn(written))
@@ -476,7 +483,7 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
         }
         figure.innerHTML = best.html
         const svg = figure.querySelector('svg')
-        const { unmapped, text } = pactCleanSvg(svg)
+        const { unmapped, text } = hdtpCleanSvg(svg)
         svg.setAttribute('width', Math.round(best.w))
         svg.setAttribute('height', Math.round(best.h))
         out.push({ kind: svg.getAttribute('class').split(' ')[1].replace(/^dg-/, ''), svg: figure.innerHTML, source: best.source, turned: best.source !== written, unmapped, text })
@@ -519,7 +526,7 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
   const sentences = mustsOf(body, loaded?.registry)
   const meta = {
     generator: GENERATOR,
-    ref, commit, version, date, revision_note: revisionNote ?? null,
+    ref, commit, dir, version, date, revision_note: revisionNote ?? null,
     headings: headings.length,
     diagrams: drawings.length,
     musts: {
@@ -540,7 +547,7 @@ export async function build({ ref, out, musts, contract = CONTRACT }) {
   writeFileSync(join(out, 'meta.json'), json(meta))
   if (vectors) {
     mkdirSync(join(out, 'vectors'), { recursive: true })
-    writeFileSync(join(out, 'vectors', 'pact-2.0-vectors.json'), vectors)
+    writeFileSync(join(out, 'vectors', 'hdtp-1.0-vectors.json'), vectors)
     writeFileSync(join(out, 'vectors', 'index.html'), renderVectors(vectors))
   }
   return meta
