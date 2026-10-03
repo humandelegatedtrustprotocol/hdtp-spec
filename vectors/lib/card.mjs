@@ -6,13 +6,13 @@ const DAY = 86_400_000;
 
 // A card is LINES, and everything a caller supplies is written into one. A control character in any of
 // it is refused: a line break writes a property of the writer's choosing, and the decoder reads the
-// FIRST of a name, so `FN` "x\r\nX-PACT-SEAL:none" made a card that requires sealing into one that does
+// FIRST of a name, so `FN` "x\r\nX-HDTP-SEAL:none" made a card that requires sealing into one that does
 // not. A name with a line break in it is not a name.
 export function encodeCard({ fn, cert, seal, extra = [] }) {
   for (const [what, text] of [['fn', fn], ['seal', seal ?? ''], ...extra.map((e) => ['extra', e])])
     if (/\p{Cc}/u.test(String(text))) throw new Error(`${what} carries a control character`);
-  const lines = ['BEGIN:VCARD', 'VERSION:4.0', 'FN:' + fn, 'X-PACT-VERSION:2', 'X-PACT-CERT:' + b64url(cert), ...extra];
-  if (seal) lines.push('X-PACT-SEAL:' + seal);
+  const lines = ['BEGIN:VCARD', 'VERSION:4.0', 'FN:' + fn, 'X-HDTP-VERSION:1', 'X-HDTP-CERT:' + b64url(cert), ...extra];
+  if (seal) lines.push('X-HDTP-SEAL:' + seal);
   lines.push('END:VCARD');
   return lines.map(fold).join('\r\n') + '\r\n';
 }
@@ -34,9 +34,9 @@ export function decodeCard(text) {
     props.get(name).push(line.slice(i + 1));
   }
   const bad = (why) => ({ error: 'bad_request', why });
-  const version = props.get('X-PACT-VERSION')?.[0];
-  if (version !== '2') return bad(version ? 'version not implemented' : 'no X-PACT-VERSION');
-  const certs = props.get('X-PACT-CERT') ?? [];
+  const version = props.get('X-HDTP-VERSION')?.[0];
+  if (version !== '1') return bad(version ? 'version not implemented' : 'no X-HDTP-VERSION');
+  const certs = props.get('X-HDTP-CERT') ?? [];
   if (certs.length !== 1) return bad(`${certs.length} certificates`);
   // Read as the ports read it (strictB64url): Buffer.from skipped a stray character, so a card the
   // Rust core refused was taken here.
@@ -51,8 +51,8 @@ export function decodeCard(text) {
   if (leaf.uris.length !== 1) return bad(`${leaf.uris.length} endpoints`);
   if (leaf.notAfter - leaf.notBefore > MAX_LEAF_DAYS * DAY) return bad('validity over 398 days');
   return {
-    fn: props.get('FN')?.[0] ?? '', version: 2, seal: props.get('X-PACT-SEAL')?.[0] ?? 'none',
+    fn: props.get('FN')?.[0] ?? '', version: 1, seal: props.get('X-HDTP-SEAL')?.[0] ?? 'none',
     cert: leaf.der, leaf, root: 'sha256:' + b64url(leaf.aki), endpoint: leaf.uris[0],
-    expired: leaf.notAfter < new Date(), ignored: [...props.keys()].filter((k) => k.startsWith('X-PACT-') && !['X-PACT-VERSION', 'X-PACT-CERT', 'X-PACT-SEAL'].includes(k)),
+    expired: leaf.notAfter < new Date(), ignored: [...props.keys()].filter((k) => k.startsWith('X-HDTP-') && !['X-HDTP-VERSION', 'X-HDTP-CERT', 'X-HDTP-SEAL'].includes(k)),
   };
 }

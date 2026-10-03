@@ -1,6 +1,8 @@
-// Generates the 2.0 vectors of Appendix B deterministically: every key derives from a label.
-// Output: vectors/pact-2.0-vectors.json. Run `node vectors/check.mjs` to prove them against SPEC.md.
-import { readFileSync, writeFileSync } from 'node:fs';
+// Generates the vectors of Appendix B deterministically: every key derives from a label.
+// Output: vectors/hdtp-1.0-vectors.json. Run `node vectors/check.mjs` to prove them against the specification.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { root, current, versionDir, pagesOf } from '../site/spec-source.mjs';
 import { seed, ed25519FromSeed, p256FromSeed, pkcs8Of, spkiOf, fingerprint, b64url, PRF_SALT, deriveSeed } from './lib/keys.mjs';
 import { buildRoot, buildLeaf, fingerprintOf, parse } from './lib/x509.mjs';
 import { signDetached, suiteForLeaf, recipientOf, sealDeterministic } from './lib/hpke.mjs';
@@ -87,24 +89,24 @@ const renewedCases = [
   { name: 'another root discarded', pinned_leaf: 'leaf_a', dialed: ENDPOINT_A, now: NOW, answer: { code: 'certificate_renewed', data: { chain: chainB64('leaf_b', 'root_b') } }, expect: 'discard' },
 ];
 
-// Three v2 envelopes: one each way carrying the chain, pairing the curves, and one
+// Three v: 1 envelopes: one each way carrying the chain, pairing the curves, and one
 // in the small form, naming a leaf the receiver already holds (§13.2).
 const ts = Math.floor(Date.parse(NOW) / 1000);
 function envelope(name, sender, senderChain, recipientChain, msgId, form = 'chain') {
   const recipientLeaf = parse(certs[recipientChain[0]]);
   const suite = suiteForLeaf(recipientLeaf);
-  const protectedHeader = { v: 2, suite, kid: fingerprint(recipientLeaf.publicKey), msg_id: msgId, ts, exp: ts + 600, cty: 'application/pact-call+json' };
+  const protectedHeader = { v: 1, suite, kid: fingerprint(recipientLeaf.publicKey), msg_id: msgId, ts, exp: ts + 600, cty: 'application/hdtp-call+json' };
   const aad = Buffer.from(canonical(protectedHeader));
-  const call = { method: 'tools/call', params: { name: 'send_message', arguments: { msg_id: 'vec-1', text: 'hello from the PACT test vectors' } } };
+  const call = { method: 'tools/call', params: { name: 'send_message', arguments: { msg_id: 'vec-1', text: 'hello from the HDTP test vectors' } } };
   const plaintext = Buffer.from(JSON.stringify(form === 'chain' ? { ...call, chain: chainB64(...senderChain) } : { ...call, leaf: fingerprint(sender.pub) }));
-  const { enc, ct } = sealDeterministic(suite, recipientOf(recipientLeaf), Buffer.from('PACT-SEAL-v2'), aad, plaintext, seed('ephemeral/' + name));
+  const { enc, ct } = sealDeterministic(suite, recipientOf(recipientLeaf), Buffer.from('HDTP-SEAL-v1'), aad, plaintext, seed('ephemeral/' + name));
   const sig = signDetached(sender.priv, Buffer.concat([aad, enc, ct]));
   return { name, form, suite, sender_chain: senderChain, recipient_chain: recipientChain, plaintext_hex: hex(plaintext), protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(sig) };
 }
 const envelopes = [
-  envelope('alina-to-bharat', hosts.leaf_a, ['leaf_a', 'root_a'], ['leaf_b', 'root_b'], 'vec-v2-alina-to-bharat'),
-  envelope('bharat-to-alina', hosts.leaf_b, ['leaf_b', 'root_b'], ['leaf_a', 'root_a'], 'vec-v2-bharat-to-alina'),
-  envelope('alina-to-bharat-by-reference', hosts.leaf_a, ['leaf_a', 'root_a'], ['leaf_b', 'root_b'], 'vec-v2-alina-to-bharat-ref', 'leaf'),
+  envelope('alina-to-bharat', hosts.leaf_a, ['leaf_a', 'root_a'], ['leaf_b', 'root_b'], 'vec-v1-alina-to-bharat'),
+  envelope('bharat-to-alina', hosts.leaf_b, ['leaf_b', 'root_b'], ['leaf_a', 'root_a'], 'vec-v1-bharat-to-alina'),
+  envelope('alina-to-bharat-by-reference', hosts.leaf_a, ['leaf_a', 'root_a'], ['leaf_b', 'root_b'], 'vec-v1-alina-to-bharat-ref', 'leaf'),
 ];
 
 // §2.1, a root derived from a passkey. There is no authenticator in a vector file, so the PRF output
@@ -119,9 +121,9 @@ const envelopes = [
 // which of the two steps was wrong, which is most of its value.
 const PRF = seed('prf/derived-vector');
 const derivation = [
-  { label: 'root', info: 'pact/root/1', alg: 'ed25519' },
-  { label: 'store-key', info: 'pact/store-key/1' },
-  { label: 'store-id', info: 'pact/store-id/1' },
+  { label: 'root', info: 'hdtp/root/1', alg: 'ed25519' },
+  { label: 'store-key', info: 'hdtp/store-key/1' },
+  { label: 'store-id', info: 'hdtp/store-id/1' },
 ].map(({ label, info, alg }) => {
   const s = deriveSeed(PRF, info);
   const base = { label, prf: b64url(PRF), salt: b64url(PRF_SALT), info, seed: b64url(s) };
@@ -142,23 +144,29 @@ const out = {
   chain_cases: chainCases, newest_leaf_cases: newestLeafCases, certificate_renewed_cases: renewedCases, envelopes,
   derivation,
 };
-const path = new URL('./pact-2.0-vectors.json', import.meta.url);
+const path = new URL('./hdtp-1.0-vectors.json', import.meta.url);
 const json = JSON.stringify(out, null, 2);
 writeFileSync(path, json + '\n');
 
-// And into Appendix B, because the document is what implementations read. `check.mjs` asserts the
-// two agree; it used to be the only thing standing between a regenerated file and a spec still
-// carrying yesterday's bytes, which is a gate reporting a mistake rather than preventing one.
-const specPath = new URL('../SPEC.md', import.meta.url);
-const spec = readFileSync(specPath, 'utf8');
-// Read by the one rule the checker reads it by (lib/appendix.mjs): the end marker after the heading,
-// every fence closed, the block JSON. This searched for the end marker from the start of the file.
-const { blocks } = appendixB(spec);
-if (blocks.length !== 1) throw new Error(`SPEC.md: Appendix B should hold one json block, found ${blocks.length}`);
-const [b] = blocks;
-const spliced = spec.slice(0, b.from) + '```json\n' + json + '\n```' + spec.slice(b.to);
-if (spliced !== spec) {
-  writeFileSync(specPath, spliced);
-  console.log('spliced into SPEC.md Appendix B');
+// And into Appendix B, because the document is what implementations read: of the newest released
+// version and of the draft, which carries the same vectors until the wire changes. `check.mjs`
+// asserts they agree; it used to be the only thing standing between a regenerated file and a spec
+// still carrying yesterday's bytes, which is a gate reporting a mistake rather than preventing one.
+for (const version of [current(), 'draft']) {
+  const dir = versionDir(root, version);
+  if (!existsSync(join(dir, 'index.md'))) continue;
+  // The page that holds the appendix, read by the one rule the checker reads it by
+  // (lib/appendix.mjs): the end marker after the heading, every fence closed, the block JSON.
+  const page = pagesOf(readFileSync(join(dir, 'index.md'), 'utf8')).map((p) => join(dir, p)).find((p) => readFileSync(p, 'utf8').includes('## Appendix B'));
+  if (!page) throw new Error(`${version}: no page holds Appendix B`);
+  const text = readFileSync(page, 'utf8');
+  const { blocks } = appendixB(text);
+  if (blocks.length !== 1) throw new Error(`${version}: Appendix B should hold one json block, found ${blocks.length}`);
+  const [b] = blocks;
+  const spliced = text.slice(0, b.from) + '```json\n' + json + '\n```' + text.slice(b.to);
+  if (spliced !== text) {
+    writeFileSync(page, spliced);
+    console.log(`spliced into ${version}'s Appendix B`);
+  }
 }
 console.log(`wrote ${path.pathname}: ${Object.keys(certs).length} certificates, ${chainCases.length} chain cases, ${envelopes.length} envelopes, ${derivation.length} derivations`);

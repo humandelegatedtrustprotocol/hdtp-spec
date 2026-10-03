@@ -1,20 +1,20 @@
 cff-version: 1.2.0
-message: "If you use or refer to the PACT specification, please cite it as below."
-title: "PACT — Personal Agent Communication & Trust Protocol"
+message: "If you use or refer to the HDTP specification, please cite it as below."
+title: "HDTP — Human Delegated Trust Protocol"
 authors:
   - family-names: Agrawal
     given-names: Sumit
-version: "2.2.5"
-date-released: "2026-09-30"
-url: "https://pact-protocol.com/spec/"
+version: "1.0.0"
+date-released: "2026-10-03"
+url: "https://hdtp.io/spec/"
 license: CC-BY-4.0
 preferred-citation:
   type: standard
-  title: "PACT — Personal Agent Communication & Trust Protocol"
+  title: "HDTP — Human Delegated Trust Protocol"
   authors:
     - family-names: Agrawal
       given-names: Sumit
-  version: "2.2.5"
-  date-released: "2026-09-30"
-  url: "https://pact-protocol.com/spec/"
+  version: "1.0.0"
+  date-released: "2026-10-03"
+  url: "https://hdtp.io/spec/"
   license: CC-BY-4.0

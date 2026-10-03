@@ -2,8 +2,8 @@
 // configuration its drawings are laid out with, the explainer — is an open font or a CSS generic
 // family. Run by `npm run spec:check`, part of `make check`.
 //
-// site/fonts.json (the list) and site/fonts.mjs (the scanner) are copies of pact-web-kit's
-// bin/fonts.json and bin/fonts.mjs. With the kit beside this repository (PACT_WEB_KIT_DIR overrides
+// site/fonts.json (the list) and site/fonts.mjs (the scanner) are copies of hdtp-web-kit's
+// bin/fonts.json and bin/fonts.mjs. With the kit beside this repository (HDTP_WEB_KIT_DIR overrides
 // the place) both are held to the kit's byte for byte; without it the run says so on stderr and as
 // a skipped test, and the scan holds to the committed copies.
 //
@@ -19,15 +19,15 @@ import { describe, it } from 'node:test'
 import { EXTENSIONS, fontProblems, scan } from './fonts.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const kit = process.env.PACT_WEB_KIT_DIR ?? resolve(root, '..', 'pact-web-kit')
+const kit = process.env.HDTP_WEB_KIT_DIR ?? resolve(root, '..', 'hdtp-web-kit')
 const sibling = existsSync(join(kit, 'kit', 'styles.css'))
-if (!sibling) console.error(`fonts.test: pact-web-kit is not at ${kit} (set PACT_WEB_KIT_DIR): site/fonts.json and site/fonts.mjs were not compared with the kit's`)
+if (!sibling) console.error(`fonts.test: hdtp-web-kit is not at ${kit} (set HDTP_WEB_KIT_DIR): site/fonts.json and site/fonts.mjs were not compared with the kit's`)
 
 // Families the explainer loads from Google Fonts, each published there under the SIL Open Font
 // License 1.1 (fonts.google.com lists the licence on each family's page). A family added to the
 // explainer's link is added here only after reading its licence.
 const GOOGLE_OFL = ['Bricolage Grotesque', 'Schibsted Grotesk', 'Spline Sans Mono']
-const EXPLAINER = 'explainer/pact-explainer.html'
+const EXPLAINER = 'explainer/hdtp-explainer.html'
 
 // Every file of the repository a font can be named in: tracked, or new and not ignored. The scanner
 // itself is left out: its source quotes the syntax it reads.
@@ -35,11 +35,11 @@ const files = execFileSync('git', ['-C', root, 'ls-files', '--cached', '--others
   .split('\n').filter((f) => f && EXTENSIONS.some((e) => f.endsWith(e)) && f !== 'site/fonts.mjs' && existsSync(join(root, f)))
 
 describe('fonts', () => {
-  it("are pact-web-kit's list and scanner: site/fonts.json and site/fonts.mjs are the kit's bin/ files byte for byte", (t) => {
-    if (!sibling) return t.skip(`pact-web-kit is not at ${kit}: the copies were not compared with the kit's`)
+  it("are hdtp-web-kit's list and scanner: site/fonts.json and site/fonts.mjs are the kit's bin/ files byte for byte", (t) => {
+    if (!sibling) return t.skip(`hdtp-web-kit is not at ${kit}: the copies were not compared with the kit's`)
     for (const f of ['fonts.json', 'fonts.mjs']) {
       const theirs = join(kit, 'bin', f)
-      assert.ok(existsSync(theirs), `${theirs} is missing: pact-web-kit's open-fonts change (bin/${f}) lands in the kit first`)
+      assert.ok(existsSync(theirs), `${theirs} is missing: hdtp-web-kit's open-fonts change (bin/${f}) lands in the kit first`)
       assert.ok(readFileSync(join(root, 'site', f)).equals(readFileSync(theirs)), `site/${f} differs from ${theirs}: copy the kit's file over it`)
     }
   })
