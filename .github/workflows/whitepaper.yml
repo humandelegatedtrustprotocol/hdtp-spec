@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     # A gate and nothing more: the vectors, then the build. It holds no credential and keeps no
     # artifact. The whitepaper PDF is published by the maintainer, locally (`make publish`), and
-    # served to registered readers by pact-protocol.com; a workflow artifact would hand it out.
+    # served to registered readers by hdtp.io; a workflow artifact would hand it out.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -25,9 +25,9 @@ jobs:
 
       - run: npm ci
 
-      # The vectors open under this document's own rules, and no PACT 1.x name has come back
-      # anywhere but the SPEC's refusal and the intrusion battery (vectors/check-no-1x.mjs).
-      - name: Vectors and clearance
+      # The vectors open under this document's own rules, and no tracked path or text carries a name
+      # the name guard forbids (scripts/check-names.mjs).
+      - name: Vectors and names
         run: npm run vectors:check
 
       - name: Build

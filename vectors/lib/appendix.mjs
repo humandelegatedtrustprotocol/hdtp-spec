@@ -1,8 +1,8 @@
 // SPEC.md's Appendix B, read by one rule, which the checker (check.mjs) and the splicer (gen.mjs)
 // share: every block fenced as ```json between the heading `## Appendix B` and the first `*End of
-// PACT` AFTER it, both markers there, every fence closed, every block JSON. vectors/appendix-b-reader.json
+// HDTP` AFTER it, both markers there, every fence closed, every block JSON. vectors/appendix-b-reader.json
 // is the list of cases it is held to, refusals word for word, and a byte-identical copy of the list
-// pact-identity holds its four readers to.
+// hdtp-identity holds its four readers to.
 //
 // The two copies here searched for the end marker from the start of the file, so an end marker quoted
 // before the heading cut the appendix to nothing; with no end marker at all the checker's slice
@@ -16,8 +16,8 @@
 export function appendixB(spec) {
   const start = spec.indexOf('## Appendix B');
   if (start < 0) throw new Error('the document has no Appendix B');
-  const end = spec.indexOf('*End of PACT', start);
-  if (end < 0) throw new Error('Appendix B has no end marker (*End of PACT)');
+  const end = spec.indexOf('*End of HDTP', start);
+  if (end < 0) throw new Error('Appendix B has no end marker (*End of HDTP)');
   const text = spec.slice(start, end);
   const blocks = [];
   let at = 0;

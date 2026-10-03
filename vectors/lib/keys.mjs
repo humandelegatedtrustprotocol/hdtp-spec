@@ -11,7 +11,7 @@ export const b64url = (b) => Buffer.from(b).toString('base64url');
 export const fromB64url = (s) => Buffer.from(s, 'base64url');
 /**
  * Bytes this library did not write — a card's certificate, the chain in a peer's plaintext — read as
- * both pact-identity ports read them (its CONTRACT §0): base64url, forgiving the padding and the
+ * both hdtp-identity ports read them (its CONTRACT §0): base64url, forgiving the padding and the
  * standard alphabet's `+` and `/`, and nothing else. Returns the bytes, or null.
  *
  * `fromB64url` above cannot fail: Buffer.from skips every character it does not know, so a card whose
@@ -47,7 +47,7 @@ export const wireB64url = (s) => {
 export const sha256 = (b) => createHash('sha256').update(b).digest();
 
 // Every secret in the vectors derives from a label, so the generator is reproducible.
-export const seed = (label) => sha256(Buffer.from('pact-2.0-vectors/' + label));
+export const seed = (label) => sha256(Buffer.from('hdtp-1.0-vectors/' + label));
 
 // §2.1: a root derived from a passkey. `PRF_SALT` is the fixed input handed to the authenticator's
 // prf extension — fixed because a wallet arriving cold on a new device has to derive before it can
@@ -57,7 +57,7 @@ export const seed = (label) => sha256(Buffer.from('pact-2.0-vectors/' + label));
 // The name is stale on purpose: there is no vault at the address any more. Every PRF measurement
 // this design rests on was taken with these exact bytes, so renaming the string would invalidate
 // the measurement and buy nothing but tidiness.
-export const PRF_SALT = sha256(Buffer.from('pact/vault/1'));
+export const PRF_SALT = sha256(Buffer.from('hdtp/vault/1'));
 
 // HKDF-SHA256 with an EMPTY salt, so extract is HMAC-SHA256(key = 0x00 x 32, prf). One PRF output
 // yields unrelated 32-byte seeds per `info`, which is what lets one credential hold a root, the key
