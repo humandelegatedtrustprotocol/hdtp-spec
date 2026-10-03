@@ -41,7 +41,7 @@ npm run schema:check      # schema/*/schema.json is what hdtp-identity's contrac
 npm run build             # the whitepaper; the build is also a gate
 ```
 
-`make check` runs the first three, `make build` the fourth. The name guard (`scripts/check-names.mjs`) fails on any tracked path or text carrying a name `scripts/hdtp-names.txt` forbids: the name its `name` line gives, in any case, anywhere except right after `im` or `com`, and the names of behaviours HDTP does not have. The file also lists what is allowed, one exact text in one file of one repository per line: this repository's one entry is the sentence that says what HDTP was called, and the others are the sites' redirect configs and the specification site's vendored copies of that sentence.
+`make check` runs the first three, `make build` the fourth. The name guard (`scripts/check-names.mjs`) fails on any tracked path or text carrying a name `scripts/hdtp-names.txt` forbids: the old name in the three spellings its `name` lines give (lower-case, capitalised, upper-case), anywhere except right after `im` or `com`, and the names of behaviours HDTP does not have. The file also lists what is allowed, one exact text in one file of one repository per line: this repository's one entry is the sentence that says what HDTP was called, and the others are the sites' redirect configs and the specification site's vendored copies of that sentence.
 
 ## Building the whitepaper
 
