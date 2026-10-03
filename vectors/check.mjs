@@ -9,6 +9,7 @@ import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519F
 import { canonical } from './lib/canonical.mjs';
 import { makeNode, pin, receive } from './lib/envelope.mjs';
 import { appendixB } from './lib/appendix.mjs';
+import { stated } from './lib/stated.mjs';
 import { splitSpec } from '../site/markdown.mjs';
 import { readSpec, root, current } from '../site/spec-source.mjs';
 import { licence } from '../site/licence.mjs';
@@ -17,6 +18,9 @@ const spec = readSpec();
 const blocks = appendixB(spec).blocks.map((b) => b.value);
 if (blocks.length < 1) throw new Error('Appendix B has no vector blocks');
 const [vec] = blocks;
+// The HPKE info string is the one the TEXT states (§13.1), read out of its sentence: the envelopes
+// below open under what the document says, not under a second copy of the label written here.
+const INFO = Buffer.from(stated(spec).info[0] ?? '');
 
 let failures = 0, checks = 0;
 const ok = (cond, what) => { checks++; if (!cond) { failures++; console.log('  FAIL ' + what); } };
@@ -95,7 +99,7 @@ if (!vec) {
     ok(header.kid === fingerprint(recipientLeaf.publicKey), `${v.name}: kid is the recipient leaf key`);
     ok(createPublicKey(recipientPriv).export({ format: 'der', type: 'spki' }).equals(recipientLeaf.spki), `${v.name}: the recipient key is the leaf's`);
     let plaintext = null;
-    try { plaintext = open(v.suite, recipientPriv, recipientLeaf.publicKey, Buffer.from('HDTP-SEAL-v1'), aad, enc, ct); } catch (e) { ok(false, `${v.name}: open threw ${e.message}`); }
+    try { plaintext = open(v.suite, recipientPriv, recipientLeaf.publicKey, INFO, aad, enc, ct); } catch (e) { ok(false, `${v.name}: open threw ${e.message}`); }
     ok(plaintext && plaintext.toString('hex') === v.plaintext_hex, `${v.name}: plaintext`);
     if (plaintext) {
       const body = JSON.parse(plaintext.toString());
@@ -172,7 +176,7 @@ console.log('JSON as the ports read it (§13.1, §13.3)');
     const to = parse(LEAF_B).publicKey, suite = suiteForKey(to);
     const aad = Buffer.from(header(canonical({ v: 1, suite, kid: fingerprint(to), msg_id: 'json-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/hdtp-call+json' })));
     const body = `{"method":"tools/call","params":{"name":"send_message","arguments":${argsText}},"chain":${JSON.stringify([b64url(LEAF_A), b64url(ROOT_A)])}}`;
-    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('HDTP-SEAL-v1'), aad, Buffer.from(bytes(Buffer.from(body))), Buffer.alloc(32, 9));
+    const { enc, ct } = sealDeterministic(suite, to, INFO, aad, Buffer.from(bytes(Buffer.from(body))), Buffer.alloc(32, 9));
     return { protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(signDetached(hostA.priv, Buffer.concat([aad, enc, ct]))) };
   };
   // The body is the first container and params the second; `arguments` is the rest.
@@ -346,7 +350,7 @@ console.log('bytes this library did not write (§3, §13.3)');
     const to = parse(LEAF_B).publicKey, suite = suiteForKey(to);
     const aad = Buffer.from(canonical({ v: 1, suite, kid: fingerprint(to), msg_id: 'strict-' + ++msg, ts: nowS, exp: nowS + 600, cty: 'application/hdtp-call+json' }));
     const body = JSON.stringify({ method: 'tools/call', params: { name: 'send_message', arguments: {} }, chain });
-    const { enc, ct } = sealDeterministic(suite, to, Buffer.from('HDTP-SEAL-v1'), aad, Buffer.from(body), Buffer.alloc(32, 9));
+    const { enc, ct } = sealDeterministic(suite, to, INFO, aad, Buffer.from(body), Buffer.alloc(32, 9));
     return { protected: b64url(aad), enc: b64url(enc), ct: b64url(ct), sig: b64url(signDetached(hostA.priv, Buffer.concat([aad, enc, ct]))) };
   };
   for (const [what, member, want] of [
@@ -415,6 +419,47 @@ console.log('Appendix B, as vectors/appendix-b-reader.json reads it');
   }
 }
 
+// Every sentence that states a wire version, or says what the appendix holds, against the bytes: an
+// envelope header's `v` is the one in Appendix B's envelopes, a card's major the one the card codec
+// writes, an export's version the one the schema (generated from hdtp-identity's contract) gives,
+// and the appendix's counts the vectors' own. Nothing here is a second copy of a number: each
+// expected value is read from the thing itself. The released version and the draft are both held.
+console.log('what the text states about versions and its vectors, against the bytes');
+{
+  const { decodeCard, encodeCard } = await import('./lib/card.mjs');
+  const headers = vec.envelopes.map((e) => JSON.parse(fromB64url(e.protected).toString('utf8')));
+  const envelopeV = String(headers[0].v);
+  ok(headers.every((h) => String(h.v) === envelopeV), `Appendix B's envelopes carry one v: ${headers.map((h) => h.v)}`);
+  const card = encodeCard({ fn: 'A', cert: Buffer.from(vec.certificates.leaf_a.der_hex, 'hex') });
+  const cardMajor = /^X-HDTP-VERSION:(\d+)\r?$/m.exec(card)?.[1];
+  ok(cardMajor !== undefined && decodeCard(card).error === undefined, 'the card codec writes a major it reads back');
+  ok(decodeCard(card.replace(`X-HDTP-VERSION:${cardMajor}`, `X-HDTP-VERSION:${Number(cardMajor) + 1}`)).error === 'bad_request', 'and refuses the next one');
+  const refused = Object.values(vec.certificates).filter((c) => c.refused).length;
+  const counts = {
+    certificates: Object.keys(vec.certificates).length - refused, refused,
+    chainCases: vec.chain_cases.length, comparisons: vec.newest_leaf_cases.length,
+    renewed: vec.certificate_renewed_cases.length, discarded: vec.certificate_renewed_cases.filter((c) => c.expect === 'discard').length,
+    envelopes: vec.envelopes.length,
+  };
+  for (const dir of [current(), 'draft']) {
+    if (!existsSync(new URL(`../docs/specification/${dir}/index.md`, import.meta.url))) continue;
+    const said = stated(readSpec(root, dir));
+    const schemaPath = new URL(`../schema/${dir}/schema.json`, import.meta.url);
+    const exportV = existsSync(schemaPath) ? String(JSON.parse(readFileSync(schemaPath, 'utf8')).$defs.ExportManifest.properties.hdtp_export.const) : undefined;
+    ok(exportV !== undefined, `${dir}: schema/${dir}/schema.json gives the export's version`);
+    // A floor under each, so a scan that found nothing cannot pass: the sentences are there today.
+    for (const [what, got, want, floor] of [['an envelope\'s v', said.envelope, envelopeV, 4], ['a card\'s major', said.card, cardMajor, 4], ['hdtp_export', said.exported, exportV, 2]]) {
+      ok(got.length >= floor, `${dir}: the text states ${what} ${got.length} times, fewer than ${floor}: the scan is broken, or the sentences went`);
+      ok(got.every((g) => g === want), `${dir}: the text states ${what} as ${JSON.stringify(got)}; the bytes say ${want}`);
+    }
+    ok(said.info.length === 1 && said.info[0] === INFO.toString(), `${dir}: one sentence defines the HPKE info string, and it is the one the envelopes open under: ${JSON.stringify(said.info)}`);
+    ok(said.infoLabels.length >= 2 && said.infoLabels.every((l) => l === said.info[0]), `${dir}: every spelling of the info label is that string: ${JSON.stringify([...new Set(said.infoLabels)])}`);
+    ok(said.generations.length === 0, `${dir}: the prose names a generation by a bare number: ${said.generations.join(', ')}`);
+    for (const [k, want] of Object.entries(counts)) ok(said.counts[k] === want, `${dir}: Appendix B's paragraph says ${said.counts[k]} for ${k}; the vectors hold ${want}`);
+  }
+  console.log(`  envelope v ${envelopeV}, card major ${cardMajor}, info ${INFO}, ${counts.certificates}+${counts.refused} certificates, ${counts.chainCases} chain cases`);
+}
+
 // The citation carries the version and date a second and a third time: CITATION.cff (twice, the
 // work and its preferred citation) and the attribution line in the README. All are held to the
 // header line of the specification's index page, the one place a version is written, so a release cannot leave them behind.
@@ -433,7 +478,11 @@ console.log('the citation, as the version line of the specification reads');
   const read = (p) => existsSync(new URL(`../${p}`, import.meta.url)) ? readFileSync(new URL(`../${p}`, import.meta.url), 'utf8') : null;
   const want = `> ${licence(read, { version, date }).attribution.markdown}`;
   ok(line.length === 1 && line[0] === want, `README.md: the attribution line says ${JSON.stringify(line)}, not ${JSON.stringify(want)}`);
-  console.log(`  ${version} (${date}): CITATION.cff and the README's attribution line`);
+  // And three more places say which version is current, and when it was released.
+  ok(readme.includes(`**Status: ${version} (${date}), released.`), `README.md: the status line does not say ${version} (${date}), released`);
+  ok(new RegExp(`^## ${version.replace(/\./g, '\\.')} · ${date}$`, 'm').test(read('CHANGES.md') ?? ''), `CHANGES.md: no entry headed "## ${version} · ${date}"`);
+  ok((read('CLAUDE.md') ?? '').includes(`**${version} (${date})**`), `CLAUDE.md: the current version is not given as ${version} (${date})`);
+  console.log(`  ${version} (${date}): CITATION.cff, the README's attribution and status lines, CHANGES.md's entry, CLAUDE.md`);
 }
 
 console.log(`${checks - failures}/${checks} checks passed`);
