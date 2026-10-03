@@ -9,7 +9,8 @@ import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519F
 import { canonical } from './lib/canonical.mjs';
 import { makeNode, pin, receive } from './lib/envelope.mjs';
 import { appendixB } from './lib/appendix.mjs';
-import { stated } from './lib/stated.mjs';
+import { ARTICLE, stated } from './lib/stated.mjs';
+import { execFileSync } from 'node:child_process';
 import { splitSpec } from '../site/markdown.mjs';
 import { readSpec, root, current } from '../site/spec-source.mjs';
 import { licence } from '../site/licence.mjs';
@@ -455,8 +456,22 @@ console.log('what the text states about versions and its vectors, against the by
     ok(said.info.length === 1 && said.info[0] === INFO.toString(), `${dir}: one sentence defines the HPKE info string, and it is the one the envelopes open under: ${JSON.stringify(said.info)}`);
     ok(said.infoLabels.length >= 2 && said.infoLabels.every((l) => l === said.info[0]), `${dir}: every spelling of the info label is that string: ${JSON.stringify([...new Set(said.infoLabels)])}`);
     ok(said.generations.length === 0, `${dir}: the prose names a generation by a bare number: ${said.generations.join(', ')}`);
+    ok(said.articles.length === 0, `${dir}: the text writes "a" before the name, which takes "an": ${said.articles.join(', ')}`);
     for (const [k, want] of Object.entries(counts)) ok(said.counts[k] === want, `${dir}: Appendix B's paragraph says ${said.counts[k]} for ${k}; the vectors hold ${want}`);
   }
+  // The same article, in every other tracked text of this repository (a rename leaves "a" where the
+  // old name took it). Where git cannot list the tree — an export with no .git — only the text is held.
+  let tracked = [];
+  try { tracked = execFileSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\0').filter(Boolean); } catch { /* no git here */ }
+  const wrong = [];
+  for (const rel of tracked) {
+    if (rel.startsWith('docs/specification/') || /\.(woff2|png|pdf)$/.test(rel) || rel === 'package-lock.json') continue;
+    const file = new URL(`../${rel}`, import.meta.url);
+    if (!existsSync(file)) continue;
+    const body = readFileSync(file, 'utf8');
+    for (const m of body.matchAll(ARTICLE)) wrong.push(`${rel}:${body.slice(0, m.index).split('\n').length} ${JSON.stringify(m[0])}`);
+  }
+  ok(wrong.length === 0, `"a" before the name outside the text: ${wrong.join(', ')}`);
   console.log(`  envelope v ${envelopeV}, card major ${cardMajor}, info ${INFO}, ${counts.certificates}+${counts.refused} certificates, ${counts.chainCases} chain cases`);
 }
 
