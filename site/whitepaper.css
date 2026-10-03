@@ -1,4 +1,4 @@
-/* PACT whitepaper — print stylesheet for site/build-whitepaper.mjs. Paged through paged.js
+/* HDTP whitepaper — print stylesheet for site/build-whitepaper.mjs. Paged through paged.js
    inside headless Chrome; every rule here targets paper, not a screen. Brand tokens match
    the marketing site. Fonts are local woff2 only — never system fonts, never a CDN. */
 
@@ -63,7 +63,7 @@
   margin: 24mm 20mm 24mm 20mm;
 
   @top-left {
-    content: "PACT \2014  Personal Agent Communication & Trust";
+    content: "HDTP \2014  Human Delegated Trust Protocol";
     font-family: 'Inter', sans-serif;
     font-size: 7.5pt;
     font-weight: 500;

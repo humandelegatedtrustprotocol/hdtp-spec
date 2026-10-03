@@ -1,4 +1,4 @@
-# Patents: the OWFa 1.0 declaration for the PACT specification
+# Patents: the OWFa 1.0 declaration for the HDTP specification
 
 The specification text is licensed under CC BY 4.0 (`LICENSE-docs`). That licence grants no patent
 rights: its section 2(b)(2) says so. This file adds the patent layer. Sumit Agrawal, the author of
@@ -32,10 +32,9 @@ licence (its section 3).
 - **It binds no one else.** No licence or agreement can stop a third party from filing a patent
   application, or bind a third party's patents. The agreement says this itself (section 2.1.3):
   it gives no assurance that an implementation does not infringe anyone else's rights.
-- **What this project can do beyond the pledge is publish.** Each version of `SPEC.md` is dated
-  by its header line and listed in `CHANGES.md`. As measured on 2026-09-30, version 2.2.5 is
-  served without registration at <https://pact-protocol.com/spec/>, and the page shows the date
-  "revised 2026-09-30". A dated public disclosure can be cited against a later patent application
+- **What this project can do beyond the pledge is publish.** Each version of the specification
+  (`docs/specification/`) is dated by its version line and listed in `CHANGES.md`. A dated public
+  disclosure can be cited against a later patent application
   that claims what it discloses. Whether it defeats a particular application is decided by the
   patent office or the court that examines that application, not by this file. This repository
   is private as of 2026-09-30, so a version that exists only here is not a public disclosure until
@@ -43,7 +42,7 @@ licence (its section 3).
 
 ## Contributions
 
-Contributions to `SPEC.md` are accepted only on the same terms. A contributor licenses their text
+Contributions to the specification are accepted only on the same terms. A contributor licenses their text
 under CC BY 4.0 and makes the same OWFa 1.0 (Patent Only) commitment for the specification that
 includes their contribution. `CONTRIBUTING.md` sets out how, with the sign-off every commit
 carries.
@@ -56,7 +55,7 @@ fetched 2026-09-30. The page's HTML had SHA-256
 page's text with the HTML removed. The only edits are to the form at the end, and they fill in its
 blanks: the individual block for Sumit Agrawal, and the Bound Entity block for Shailka Systems
 Private Limited. The company's name, CIN and address, and Sumit Agrawal's title, are as the legal
-pages of PACT Cloud state them (the pact-cloud repository, `docs/legal/privacy.md`).
+pages of BatonDeck state them (the batondeck repository, `docs/legal/privacy.md`).
 
 OWF publishes two OWFa 1.0 agreements, and this is the Patent Only one. OWF's own page describes
 the Patent Only version as "appropriate for uses where the copyright is already covered by another
@@ -125,30 +124,30 @@ Final Specification Agreement (OWFa 1.0)
 
 Identify the Specification and version number here:
 
-PACT — Personal Agent Communication & Trust Protocol, the file SPEC.md in the repository pact-cloud/pact-protocol: every version of it published in that repository. CHANGES.md lists them, each with its version number and date. The version current on the Date below is 2.2.5, of 2026-09-30.
+HDTP — Human Delegated Trust Protocol, the specification under docs/specification/ in the repository humandelegatedtrustprotocol/hdtp-spec: every released version of it published in that repository. CHANGES.md lists them, each with its version number and date. The version current on the Date below is 1.0.0, of 2026-10-03.
 
 If signing this OWFa as an individual:
 I acknowledge that, depending upon local law or contractual agreements, when I am employed by or acting on behalf of another entity, the promises I make relating to this Specification may actually be obligations of that other entity. In such a situation,
 I represent that I have been authorized by that entity to make these promises. I also understand that certain Specification projects may require additional private identifying information or certifications from me before they accept this Agreement.
-Sumit Agrawal (declared by publishing this file on the main branch of pact-cloud/pact-protocol)
+Sumit Agrawal (declared by publishing this file on the main branch of humandelegatedtrustprotocol/hdtp-spec)
 Signed name
 Sumit Agrawal
 Print name
 (not published in this copy)
 Email address
-2026-09-30
+2026-10-03
 Date
 
 If signing this OWFa as a Bound Entity:
 I certify that I am authorized to execute this agreement on behalf of the Bound Entity named below, and that all promises made herein relating to this Specification are commitments of the Bound Entity.
 
-Sumit Agrawal, for Shailka Systems Private Limited (declared by publishing this file on the main branch of pact-cloud/pact-protocol)
+Sumit Agrawal, for Shailka Systems Private Limited (declared by publishing this file on the main branch of humandelegatedtrustprotocol/hdtp-spec)
 Signed name
 Sumit Agrawal
 Print name
 (not published in this copy)
 Email address
-2026-09-30
+2026-10-03
 Date
 Director
 Title

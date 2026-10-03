@@ -1,10 +1,10 @@
-// The one source of the licence and attribution wording every rendering of SPEC.md carries: the
+// The one source of the licence and attribution wording every rendering of the specification carries: the
 // whitepaper's cover line and licence page, its PDF metadata, the web fragment's last block, and the
 // README's attribution line (held to this by vectors/check.mjs). Nothing here is typed twice:
 //
 //   the copyright line   NOTICE's "Copyright <year> <holder>"
 //   title, author, URL   CITATION.cff (its first title:, given-names:/family-names:, url:, license:)
-//   version and date     the header line of SPEC.md, through splitSpec
+//   version and date     the version line of the specification's index page, through splitSpec
 //   typefaces            the families site/whitepaper.css loads with @font-face, each with the
 //                        licence site/fonts.json gives it (the open-fonts list spec:check holds)
 //
@@ -14,7 +14,7 @@
 //
 // `read(path)` returns a file of the repository, or null when it is absent: the whitepaper build
 // reads the working tree, the web renderer reads the commit it renders. A tree without LICENSE-docs
-// (the PACT 1.2.0 text, d130444, predates the licences) gets no licence at all: null.
+// gets no licence at all: null.
 
 import { scan } from './fonts.mjs'
 import { esc } from './markdown.mjs'
@@ -75,15 +75,15 @@ export function licence(read, { version, date }) {
   // without a label is the attribution line itself.
   const page = [
     ['Copyright', `${esc(copyright)}.`],
-    ['The text', `This document renders the specification, <code>SPEC.md</code>, whose text is licensed under the ${esc(text.title)} licence (${esc(text.name)}): ${link(text.url)}. ${esc(text.name)} requires attribution when the text is shared, as it is or adapted. Attribute it with this line, and state whether you changed the text:`],
+    ['The text', `This document renders the specification, <code>docs/specification/</code>, whose text is licensed under the ${esc(text.title)} licence (${esc(text.name)}): ${link(text.url)}. ${esc(text.name)} requires attribution when the text is shared, as it is or adapted. Attribute it with this line, and state whether you changed the text:`],
     ['', attribution.html],
-    ['Code and test vectors', `The test vectors, as the file <code>vectors/pact-2.0-vectors.json</code>, and the code of the specification's repository are licensed under the ${esc(code.title)} (${esc(code.name)}): ${link(code.url)}. Redistributions carry its <code>NOTICE</code> file. The copy of the vectors printed in Appendix B is part of this document's text.`],
-    ['Patents', `${esc(holder)} has made the Open Web Foundation Final Specification Agreement (OWFa 1.0), Patent Only, for this specification, as an individual and, as its director, for Shailka Systems Private Limited as a Bound Entity; the declaration is the file <code>PATENTS.md</code>, beside <code>SPEC.md</code> in the specification's source repository.`],
+    ['Code and test vectors', `The test vectors, as the file <code>vectors/hdtp-1.0-vectors.json</code>, and the code of the specification's repository are licensed under the ${esc(code.title)} (${esc(code.name)}): ${link(code.url)}. Redistributions carry its <code>NOTICE</code> file. The copy of the vectors printed in Appendix B is part of this document's text.`],
+    ['Patents', `${esc(holder)} has made the Open Web Foundation Final Specification Agreement (OWFa 1.0), Patent Only, for this specification, as an individual and, as its director, for Shailka Systems Private Limited as a Bound Entity; the declaration is the file <code>PATENTS.md</code>, in the specification's source repository.`],
     ...(fonts ? [['Typefaces', `Set in ${[...new Set(fonts.map((f) => f.licence))].map((l) => {
       const named = fonts.filter((f) => f.licence === l).map((f) => esc(f.family))
       return `${named.join(' and ')}, ${named.length > 1 ? 'each ' : ''}under the ${esc(l)}`
     }).join('; ')}.`]] : []),
-    ['The mark', 'The PACT mark on the cover is not covered by any of these licences.'],
+    ['The mark', 'The HDTP mark on the cover is not covered by any of these licences.'],
   ]
 
   return {
@@ -101,8 +101,8 @@ export function licence(read, { version, date }) {
     // The whitepaper's document information. ASCII only: written as PDF literal strings.
     info: {
       Author: author,
-      Subject: `PACT specification ${version} (${date}). Text: ${text.name}, ${text.url}. Code and the test-vector file: ${code.name}.`,
-      Keywords: `PACT, specification, ${text.name}, ${code.name}, OWFa 1.0`,
+      Subject: `HDTP specification ${version} (${date}). Text: ${text.name}, ${text.url}. Code and the test-vector file: ${code.name}.`,
+      Keywords: `HDTP, specification, ${text.name}, ${code.name}, OWFa 1.0`,
     },
   }
 }

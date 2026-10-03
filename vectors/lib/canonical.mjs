@@ -1,4 +1,4 @@
-// RFC 8785 for the objects PACT canonicalises: members sorted by code point, no whitespace,
+// RFC 8785 for the objects HDTP canonicalises: members sorted by code point, no whitespace,
 // numbers in their shortest form — which JSON.stringify already produces for integers and strings.
 export function canonical(value) {
   if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';

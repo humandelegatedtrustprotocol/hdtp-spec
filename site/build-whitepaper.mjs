@@ -1,5 +1,6 @@
-// Builds dist/pact-whitepaper.pdf from SPEC.md. Source of truth stays SPEC.md — this only
-// renders it: markdown → HTML (site/markdown.mjs) → mermaid diagrams as inline SVG
+// Builds dist/hdtp-whitepaper.pdf from the newest released version of the specification
+// (docs/specification/<version>/, read whole by site/spec-source.mjs). The text is the source of
+// truth; this only renders it: markdown → HTML (site/markdown.mjs) → mermaid diagrams as inline SVG
 // (site/mermaid.mjs) → paged.js for page numbers, running headers and the table of contents →
 // headless Chrome for the PDF. Everything is local: fonts from site/brand/, mermaid and
 // paged.js from node_modules. The licence page, the cover's licence line and the document
@@ -15,6 +16,7 @@ import { licence, pdfProblems } from './licence.mjs'
 import { esc, renderSpec, splitSpec } from './markdown.mjs'
 import { launch, installMermaid } from './mermaid.mjs'
 import { withInfo } from './pdf.mjs'
+import { readSpec } from './spec-source.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
@@ -23,12 +25,12 @@ if (args.length && !(args.length === 2 && args[0] === '--out')) {
   process.exit(1)
 }
 const out = resolve(args[1] ?? resolve(root, 'dist'))
-const pdfPath = resolve(out, 'pact-whitepaper.pdf')
-const htmlPath = resolve(out, 'pact-whitepaper.html')
+const pdfPath = resolve(out, 'hdtp-whitepaper.pdf')
+const htmlPath = resolve(out, 'hdtp-whitepaper.html')
 
-/* ------------------------------------------------------------- SPEC.md */
+/* ------------------------------------------------------- the specification */
 
-const spec = await readFile(resolve(root, 'SPEC.md'), 'utf8')
+const spec = readSpec(root)
 
 // The version and date come from the spec's header line, nowhere else, so a spec bump moves
 // the cover without touching this file. The h1 and the version line live on the cover; the
@@ -45,7 +47,7 @@ try {
 }
 const diagramCount = (body.match(/^```mermaid/gm) || []).length
 
-// The licence wording, read from the working tree as SPEC.md is.
+// The licence wording, read from the working tree as the text is.
 const rights = licence((p) => existsSync(resolve(root, p)) ? readFileSync(resolve(root, p), 'utf8') : null, { version, date })
 if (!rights) {
   console.error('LICENSE-docs is missing: the whitepaper has no licence to print')
@@ -69,7 +71,7 @@ const page = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>PACT — Protocol Specification ${esc(version)}</title>
+<title>HDTP — Protocol Specification ${esc(version)}</title>
 <link rel="stylesheet" href="${pathToFileURL(resolve(root, 'site', 'whitepaper.css')).href}">
 <style>
   @page { @bottom-left { content: "Whitepaper · Protocol Specification ${esc(version)}"; } }
@@ -77,23 +79,23 @@ const page = `<!doctype html>
 </head>
 <body>
 <section class="cover">
-  <div class="brand">${mark}<span class="wordmark">PACT</span></div>
+  <div class="brand">${mark}<span class="wordmark">HDTP</span></div>
   <div class="title-block">
     <div class="rule"></div>
-    <p class="title">Personal Agent Communication &amp; Trust</p>
+    <p class="title">Human Delegated Trust</p>
     <p class="kind">Protocol Specification · Whitepaper</p>
     <p class="version">Version ${esc(version)} · ${esc(date)}</p>
   </div>
   <div class="foot">
-    <p class="site">pact-protocol.com</p>
+    <p class="site">hdtp.io</p>
     <p class="rights">${esc(rights.short)} · ${esc(LICENCE_TITLE.toLowerCase())}, page <a class="pg" href="#licence"></a></p>
   </div>
 </section>
 <section class="front">
   <div class="about">
     <p class="about-title">About this document</p>
-    <p>This is the normative specification of PACT, the Personal Agent Communication &amp; Trust
-    protocol. Its status is <strong>${version.includes('-draft') ? 'draft' : 'released'}</strong>: version ${esc(version)}, dated ${esc(date)}.${
+    <p>This is the normative specification of HDTP, the Human Delegated Trust
+    Protocol. Its status is <strong>${version.includes('-draft') ? 'draft' : 'released'}</strong>: version ${esc(version)}, dated ${esc(date)}.${
       revisionNote ? ` This revision ${esc(revisionNote)}.` : ''}</p>
     <p>The reference gateway is in private development.</p>
   </div>
@@ -148,7 +150,7 @@ try {
     const fit = (w, h, width) => Math.min(1, width / w, HEIGHT / h)
     const flipped = (src) => src.replace(/^(\s*(?:flowchart|graph))\s+(LR|TB|TD)\b/,
       (m, k, d) => `${k} ${d === 'LR' ? 'TB' : 'LR'}`)
-    const config = (font) => pactMermaid.config(font, { htmlLabels: true, base: FONT })
+    const config = (font) => hdtpMermaid.config(font, { htmlLabels: true, base: FONT })
 
     const report = []
     let n = 0
@@ -161,8 +163,8 @@ try {
         const { svg: markup } = await mermaid.render(`diagram-${n++}`, src)
         figure.innerHTML = markup
         const svg = figure.querySelector('svg')
-        pactMermaid.widenNotes(svg)
-        const { x0, y0, x1, y1 } = pactMermaid.cover(svg)
+        hdtpMermaid.widenNotes(svg)
+        const { x0, y0, x1, y1 } = hdtpMermaid.cover(svg)
         // Arrowheads are fixed-size markers; grow them with the font so they scale down with it.
         for (const marker of svg.querySelectorAll('marker')) {
           for (const a of ['markerWidth', 'markerHeight']) marker.setAttribute(a, Number(marker.getAttribute(a)) * font / FONT)

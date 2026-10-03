@@ -1,10 +1,10 @@
-// Every font a PACT page or document names is an open font: one of fonts.json's families (each
+// Every font an HDTP page or document names is an open font: one of fonts.json's families (each
 // shipped as a file under its SIL Open Font License) or one of CSS's generic families, which resolve
 // to the reader's own system font and name nothing. A family on the list is also refused where
 // nothing in the scanned files supplies it (an @font-face, or the file's own Google Fonts link).
 //
-// The one copy of the list and of this scanner is pact-web-kit's bin/; a site's are .kit/bin/,
-// held to the release by kit.lock, and pact-protocol's site/fonts.json and site/fonts.mjs are held
+// The one copy of the list and of this scanner is hdtp-web-kit's bin/; a site's are .kit/bin/,
+// held to the release by kit.lock, and hdtp-spec's site/fonts.json and site/fonts.mjs are held
 // to the kit's byte for byte by its spec:check. Self-contained (node:fs and node:path only) so the
 // copy runs anywhere.
 //
@@ -107,7 +107,7 @@ function unquote(s) {
 
 /**
  * The problems with the fonts `files` (paths relative to `root`) name. `extra` maps a file to further
- * families that file may name (pact-protocol's explainer, which loads open families from Google Fonts).
+ * families that file may name (hdtp-spec's explainer, which loads open families from Google Fonts).
  * `fonts` is the allow-list (fonts.json by default). A family reached through var(--x) is reported at
  * the definition of --x, once, not at every use.
  */
