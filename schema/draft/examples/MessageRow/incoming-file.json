@@ -1,0 +1,20 @@
+{
+  "id": "m2",
+  "thread": "0f6e2c1a-7d4b-4f0e-9a51-3c2b8d9e4f10",
+  "contact": "sha256:xNHcE_FTHQUI4Sg5KTTMfi9XSCfJ2WDx9eXUQdLl0PM",
+  "msg_id": "6c1d0e2f-8a7b-4c3d-9e1f-0a2b3c4d5e6f",
+  "direction": "in",
+  "sender": "human",
+  "time": "2026-09-10T08:05:00Z",
+  "body": "",
+  "reply_to": "b2f6b7f0-3f0a-4d55-9f6e-2a1c9d4e8a11",
+  "status": "delivered",
+  "attachments": [
+    {
+      "file": "8096d8f95bd1b9903d6106e1ace67122848269bef637218de0e0dc56fadd4344",
+      "filename": "agenda.pdf",
+      "mime": "application/pdf",
+      "size": 18
+    }
+  ]
+}
