@@ -10,12 +10,12 @@ A **host** — the person's own machine, or a provider — serves the identity u
 
 | Certificate | Key held by | Algorithm | Names | Lives |
 |---|---|---|---|---|
-| root | the person, in a wallet | Ed25519; P-256 permitted | the identity, by fingerprint | as long as the identity; never rotated |
+| root | the person, in a wallet | Ed25519; P-256 permitted | the identity, by fingerprint | as long as the identity: until the end date the person sets, or for good; never rotated |
 | leaf | the host, one per identity | Ed25519 or ECDSA P-256 | the endpoint, as its subject alternative name | as long as the person chooses, up to 398 days, one year by default; renewed by the wallet with a fresh key |
 
 A **chain** is exactly two certificates, leaf then root. It travels everywhere identity must: as the TLS client certificate chain, inside a sealed envelope until the receiver holds the leaf and by fingerprint after that (§13.2), in the `redeem_invite` and `get_card` results, and on the invite landing (§4). A card carries the leaf alone (§3); the root arrives with the first exchange, and nothing about it needs to be trusted in advance, because it is accepted only if it hashes to the fingerprint the leaf names as its issuer.
 
-**Verification**, in full in §14.2: the root is self-signed and hashes to the fingerprint the verifier holds or is about to pin; the leaf is signed by that root, within its validity now, no longer than 398 days, and names exactly one endpoint; that endpoint equals the address in question, byte for byte. Then the leaf's key is the identity's voice at that address — until a newer leaf says otherwise, which it does the instant it is seen (§14.3).
+**Verification**, in full in §14.2: the root is self-signed, hashes to the fingerprint the verifier holds or is about to pin, and has not passed its end date, if it has one; the leaf is signed by that root, within its validity now, no longer than 398 days, ending no later than the root, and names exactly one endpoint; that endpoint equals the address in question, byte for byte. Then the leaf's key is the identity's voice at that address — until a newer leaf says otherwise, which it does the instant it is seen (§14.3).
 
 **Client side (who is calling):** a caller proves possession of its leaf key in either of two ways — by presenting the chain as its TLS client certificate, or by the detached signature on a sealed envelope (§13), which survives pipes that strip client certificates. The receiver validates the chain, takes the root's fingerprint as the caller's identity, and resolves it through its pins (§6.1). A pin records the root, the endpoint and the leaf last accepted: the caller's leaf is accepted only if it names the pinned endpoint and is no older than the pinned leaf. An older leaf proves nothing (§14.3); a different endpoint is a request to change it (§5.3). When both proofs are present their leaf keys **MUST** match, else `envelope_invalid`. A chain whose root resolves to no pin gets the *guest* tier only (§6.1).
 
@@ -25,7 +25,7 @@ A **chain** is exactly two certificates, leaf then root. It travels everywhere i
 
 **Moving** is a new leaf for a new endpoint, a contact request from there, and the old host forgetting: §5.3 and §9.
 
-**Losing keys.** A lost or compromised leaf key is a renewal with a new key. A lost **root** is the end of the identity: re-share a new card from a new identity. A compromised root is the same, because whoever holds it can issue leaves, and no rotation ceremony could tell the two holders apart. There is deliberately no recovery and no rotation; the person's own backups of the wallet are the only copy, and the wallet says so once, when the root is made. Where the root is derived from a credential (§2.1) the rule is unchanged, but what counts as a copy is wider: a passkey its provider synchronises is a copy of the identity, and an export (§9) is another.
+**Losing keys.** A lost or compromised leaf key is a renewal with a new key. A lost **root** is the end of the identity: re-share a new card from a new identity. A root past the end date its person set is the same end. A compromised root is the same, because whoever holds it can issue leaves, and no rotation ceremony could tell the two holders apart. There is deliberately no recovery and no rotation; the person's own backups of the wallet are the only copy, and the wallet says so once, when the root is made. Where the root is derived from a credential (§2.1) the rule is unchanged, but what counts as a copy is wider: a passkey its provider synchronises is a copy of the identity, and an export (§9) is another.
 
 ### 2.1 Deriving the root from a passkey
 
@@ -62,15 +62,18 @@ A wallet that derives its root **MUST** still be able to export it (§9). A deri
 
 Before issuing any certificate, a wallet **MUST** establish that the root it is about to sign with is the root the identity already has. For a derived root this is not a formality: the wrong credential yields a well-formed root, ready to sign, belonging to somebody else.
 
-A wallet **MUST** refuse to sign unless all three hold:
+A wallet **MUST** refuse to sign unless all four hold:
 
 1. the root key's fingerprint equals the fingerprint the identity is known by;
 2. the root **certificate** it will return parses, and its `SubjectPublicKeyInfo` equals the root key's;
 3. the root key signs a challenge that verifies under that certificate's public key. The challenge **MUST** be domain-separated from certificate bytes — the ASCII `HDTP root proof v1` followed by a newline and at least 32 random bytes — so that proving possession can never be made to sign a certificate.
+4. the root certificate has not passed its `notAfter` (§14.2 rule 4): a root past the end date its person set signs nothing more, and the wallet refuses before any signature is made — before a passkey or a card is asked.
+
+A leaf a wallet issues under a root with an end date ends no later than the root (§14.2 rule 4): where the validity the person chose would run past it, the wallet ends the leaf with the root and tells the person.
 
 A wallet **MUST** validate a chain it has assembled (§14.2) against the expected root and endpoint before returning it. A chain that fails validation is a wallet defect, and returning it makes the defect the host's to discover.
 
-**A root certificate is issued once.** A wallet **MUST NOT** rebuild a root certificate for an identity that already has one. A rebuilt root has the same fingerprint, a fresh serial and a later `notBefore`; leaves issued earlier still validate under it, because chain validation reads no date of the root (§14.2). Where the wallet keeps no copy of its own, the root certificate is supplied with the signing request and returned unchanged beside the new leaf.
+**A root certificate is issued once.** A wallet **MUST NOT** rebuild a root certificate for an identity that already has one. A rebuilt root has the same fingerprint, a fresh serial and a later `notBefore`; leaves issued earlier still validate under it unless it ends before they do, because chain validation reads the root's `notAfter` and never its `notBefore` (§14.2). Where the wallet keeps no copy of its own, the root certificate is supplied with the signing request and returned unchanged beside the new leaf.
 
 ---
 

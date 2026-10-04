@@ -50,7 +50,7 @@ if (!vec) {
     // root_b, because the twin of an ECDSA signature is a valid signature; the profile is what refuses.
     if (vec.certificates[name].refused) {
       let why = null;
-      try { why = profileError(parse(bytes), 'leaf'); } catch (e) { why = e.message; }
+      try { why = profileError(parse(bytes), name.startsWith('root') ? 'root' : 'leaf'); } catch (e) { why = e.message; }
       ok(why !== null, `${name}: marked refused, and parse + profile let it through`);
       if (name === 'leaf_b_twin') ok(new X509Certificate(bytes).verify(new X509Certificate(der.root_b).publicKey), `${name}: the twin VERIFIES under root_b per OpenSSL, which is why the profile has to refuse it`);
       continue;
@@ -60,7 +60,9 @@ if (!vec) {
     ok(c.ca === mine.ca, `${name}: cA`);
     if (mine.uris.length) ok(c.subjectAltName.includes('URI:' + mine.uris[0]), `${name}: subjectAltName`);
     ok(Math.abs(c.validFromDate - mine.notBefore) < 1000, `${name}: notBefore`);
+    ok(Math.abs(c.validToDate - mine.notAfter) < 1000, `${name}: notAfter`);
     if (name.startsWith('leaf_a')) ok(c.checkIssued(new X509Certificate(der.root_a)) && c.verify(new X509Certificate(der.root_a).publicKey), `${name}: issued and verified by root_a per OpenSSL`);
+    if (name.startsWith('leaf_c')) ok(c.checkIssued(new X509Certificate(der.root_c)) && c.verify(new X509Certificate(der.root_c).publicKey), `${name}: issued and verified by root_c per OpenSSL`);
     if (name === 'leaf_b') ok(c.checkIssued(new X509Certificate(der.root_b)) && c.verify(new X509Certificate(der.root_b).publicKey), `${name}: issued and verified by root_b per OpenSSL`);
     ok(bytes.length <= 4096, `${name}: under 4 KiB`);
   }
@@ -70,6 +72,9 @@ if (!vec) {
     const r = validateChain(chainOf(c.chain), { now: new Date(c.now), expectedRoot: c.expected_root, expectedEndpoint: c.expected_endpoint });
     if (c.expect === 'accept') ok(r.ok, `${c.name}: expected accept, got rule ${r.rule} (${r.reason})`);
     else ok(!r.ok && r.rule === c.rule, `${c.name}: expected refusal by rule ${c.rule}, got ${r.ok ? 'accept' : 'rule ' + r.rule + ' (' + r.reason + ')'}`);
+    // A case that names its reason is held to it: rule 4 refuses for four reasons, and a guard that
+    // went missing would still refuse by rule 4 for another one.
+    if (c.reason) ok(!r.ok && r.reason === c.reason, `${c.name}: expected the reason "${c.reason}", got ${r.ok ? 'accept' : '"' + r.reason + '"'}`);
     console.log(`  ${c.name}: ${r.ok ? 'accepted' : 'refused by rule ' + r.rule}`);
   }
 
