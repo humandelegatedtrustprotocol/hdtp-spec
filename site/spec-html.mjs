@@ -106,6 +106,9 @@ export function sectionId(title) {
 // A copy of `extract` in hdtp-identity/js/musts.mjs: the same units, the same sentence
 // splitter, the same hash, so a sentence here matches the registry's entry for it. The copy is
 // held to the original by site/spec-html.test.mjs whenever the sibling is checked out.
+// The opening words of the BCP 14 paragraph (index.md), which quotes every keyword to say how they are read.
+const BCP14 = 'The key words "MUST"'
+
 export function extractMusts(markdown) {
   const lines = markdown.split('\n')
   const units = []
@@ -127,6 +130,8 @@ export function extractMusts(markdown) {
   const out = []
   const seen = new Map()
   for (const u of units) {
+    // The BCP 14 paragraph names the keywords; it states no requirement.
+    if (u.text.startsWith(BCP14)) continue
     const pieces = u.text.startsWith('|') ? u.text.split('|').map((x) => x.trim()).filter(Boolean) : u.text.split(splitter)
     for (const p of pieces) {
       if (!NORM.test(p)) continue
