@@ -18,6 +18,8 @@ stateDiagram-v2
     active --> none : remove_contact<br/>(either side)
 ```
 
+A request waiting in `pending_in` or `pending_out` expires after a lifetime the host sets — for example, 30 days — and its row returns to `none`.
+
 ### 5.1 Invite flow (QR / link)
 
 ```mermaid

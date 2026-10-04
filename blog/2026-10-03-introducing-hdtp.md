@@ -38,7 +38,7 @@ channel it came through. A lost root is a new identity: the protocol has no reco
 
 Appendix B carries test vectors generated from labelled seeds; an intrusion
 battery replays the compromise cases against a small reference node; and one identity library — a
-Rust core compiled to WebAssembly, with an independent Go port — is proven against the same vectors
+Rust core compiled to WebAssembly, with a second port in Go — is proven against the same vectors
 and scenarios in both ports, with every MUST of the text mapped to what holds it.
 
 Two implementations are built on that library: HDTP Gateway, a node you run yourself, and
