@@ -1,0 +1,18 @@
+{
+  "counts": {
+    "contacts": 1,
+    "media": 1,
+    "messages": 2,
+    "threads": 1
+  },
+  "exported_at": "2026-09-13T12:00:00Z",
+  "files": {
+    "contacts.csv": "2fc2463ae8d3b674c195fc4e3bdbf94b35e34358762522254987078115500999",
+    "messages.jsonl": "8ea6e32228f044b0f0606b47e59ac4cac28ecc7e150c5415ea0a93825babb4a2",
+    "threads.csv": "34c4d7b651a8b691bd430351b551b5c78f5515d1f144946654d913290c0e3008"
+  },
+  "hdtp_export": 1,
+  "owner": "sha256:kfs9kG6xSsWaNtvWZsVnAWnGithg_HgKN4dbfWOGC1A",
+  "owner_name": "Alina Rao",
+  "tool": "example 1.0"
+}

@@ -34,8 +34,10 @@ down as a SEP before it becomes text.
 - **Evidence.** The text is held by gates, and where each runs is part of the claim
   (`CONTRIBUTING.md`):
   - the workflow (`.github/workflows/whitepaper.yml`), on every push to `main` and every pull
-    request, runs `npm run vectors:check` — the vectors of Appendix B against the text, then the
-    name guard — and the whitepaper build, and nothing else;
+    request, runs three things and nothing else: `npm run vectors:check` (the vectors of Appendix B
+    against the text, then the name guard), `npm run docs:check` (every section reference and link
+    resolves, and the schema's reference page and examples hold to `schema.json`) and the whitepaper
+    build;
   - locally, in this repository, `make check` adds the web renderer's tests (`npm run spec:check`)
     and the schema held to the identity library's contract (`npm run schema:check`); both read the
     private sibling `hdtp-identity`, which the workflow has no credential for. The intrusion

@@ -1,0 +1,13 @@
+{
+  "id": "m1",
+  "thread": "0f6e2c1a-7d4b-4f0e-9a51-3c2b8d9e4f10",
+  "contact": "sha256:xNHcE_FTHQUI4Sg5KTTMfi9XSCfJ2WDx9eXUQdLl0PM",
+  "msg_id": "b2f6b7f0-3f0a-4d55-9f6e-2a1c9d4e8a11",
+  "direction": "out",
+  "sender": "agent",
+  "time": "2026-09-10T08:00:00Z",
+  "body": "Alina would like 45 minutes with Bharat next week. What works?",
+  "reply_to": null,
+  "status": "delivered",
+  "attachments": []
+}
