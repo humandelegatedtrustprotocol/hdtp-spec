@@ -1,6 +1,6 @@
 ## 3. Contact cards (vCard)
 
-An HDTP contact card is a standard **vCard 4.0** (RFC 6350) with two extension properties, so it saves into phone contact books, syncs like every other contact, and travels over WhatsApp/email/AirDrop/QR unchanged:
+An HDTP contact card is a standard **vCard 4.0** (RFC 6350) with three extension properties, so it saves into phone contact books, syncs like every other contact, and travels over WhatsApp/email/AirDrop/QR unchanged:
 
 ```
 BEGIN:VCARD
@@ -23,6 +23,8 @@ END:VCARD
 A leaf is 400–500 bytes of DER, so a card stays under a kilobyte: a QR a phone reads from a screen, and for print the invite URL (§4) is the lighter carrier. A root is never in a card: the leaf names it by fingerprint (its issuer key identifier, §14.1), and the root itself arrives with the first exchange. An implementation writes no other `X-HDTP-*` property, and ignores any it reads — an endpoint, a key, a gateway: the address and the key are the leaf's, and there is no gateway.
 
 What a card anchors is the **root fingerprint** and the **endpoint** — both read from the leaf, and both outliving it. A card whose leaf has expired is still a valid bootstrap for that root at that address: the first exchange brings the current leaf (§2, §14.4). *Pinning* a card means recording those two things; trust in them equals trust in the channel that carried the card, and the first chain that validates to that root at that endpoint is the proof of possession. A sender MAY seal its first call to the leaf key of a card whose leaf has expired — as a bootstrap only, pinning nothing until a chain validates — and expects either a result carrying the current chain or `certificate_renewed` (§14.4).
+
+**A signed card.** Wherever a card is served — by `get_card`, by `redeem_invite`, and on the invite landing (§4) — it comes with `card_sig` and the identity's chain (§2). `card_sig` is the current leaf key's signature over the UTF-8 bytes of the card text exactly as sent, line breaks included: pure Ed25519 (RFC 8032), 64 bytes, for an Ed25519 leaf, or ECDSA with SHA-256 in ASN.1 DER for a P-256 leaf, written as base64url without padding (RFC 4648, Section 5). A receiver validates the chain (§14.2), checks that the card's `X-HDTP-CERT` is the chain's leaf, and verifies `card_sig` under that leaf's key over the card text it received. Appendix B carries a signed card.
 
 **`FN` is the sender's own claim, and carries no authority.** The identity is the
 root's fingerprint; the name beside it is whatever the card's author typed, and so
