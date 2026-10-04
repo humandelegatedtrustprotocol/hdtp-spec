@@ -4,8 +4,8 @@ This repository holds the HDTP specification (`docs/specification/`), its revisi
 (`CHANGES.md`), the JSON Schema of its wire objects (`schema/`), the enhancement-proposal process
 (`seps/`), the test vectors of its Appendix B and the build of its whitepaper. Changes come as pull
 requests and are reviewed by the maintainers (`MAINTAINERS.md`). The workflow's `build` job
-(`.github/workflows/whitepaper.yml`) runs on every pull request and the reviewer reads its result
-before merging; no branch rule requires it, because this repository has none. How decisions are
+(`.github/workflows/whitepaper.yml`) runs on every pull request, and the reviewer reads its result
+before merging; merging does not require it to pass. How decisions are
 made is `GOVERNANCE.md`.
 
 ## Ground rules
