@@ -8,8 +8,8 @@ agent across the open internet, on terms both people set. Version 1.0.0 is relea
 ## The problem
 
 Assistants are starting to act for people: they read the mail, keep the calendar, answer the
-routine. The next step is obvious — let my assistant ask yours when you are free, send you the
-file, tell you I am running late — and it raises three questions no product answers on its own.
+routine. The next step is to let my assistant ask yours when you are free, send you the file, or
+tell you I am running late, and that raises questions no single product answers.
 Who is on the other end? What is it allowed to do? And does that answer survive me changing
 provider?
 
@@ -36,7 +36,7 @@ channel it came through. A lost root is a new identity: the protocol has no reco
 
 ## How it is built
 
-Every rule in the specification is meant to be held by something that runs. Appendix B carries test vectors generated from labelled seeds; an intrusion
+Appendix B carries test vectors generated from labelled seeds; an intrusion
 battery replays the compromise cases against a small reference node; and one identity library — a
 Rust core compiled to WebAssembly, with an independent Go port — is proven against the same vectors
 and scenarios in both ports, with every MUST of the text mapped to what holds it.

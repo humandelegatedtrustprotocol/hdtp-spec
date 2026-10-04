@@ -1,7 +1,6 @@
 # Governance
 
-HDTP is a small project with one maintainer, and its governance says so rather than describing a
-body it does not have. This file is how decisions about the specification are made today, and what
+HDTP has one maintainer. This file is how decisions about the specification are made today, and what
 changes when more people take part.
 
 ## Who decides
