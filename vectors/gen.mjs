@@ -14,25 +14,35 @@ const at = (iso) => new Date(iso);
 const NOW = '2026-09-13T12:00:00Z';
 const ENDPOINT_A = 'https://agent.alina.example/mcp';
 const ENDPOINT_B = 'https://agent.bharat.example/mcp';
+const ENDPOINT_C = 'https://agent.chandra.example/mcp';
 
 // Alina: an Ed25519 root and Ed25519 host keys. Bharat: a P-256 root and a P-256 host key.
 const rootA = ed25519FromSeed(seed('root/alina'));
 const rootB = p256FromSeed(seed('root/bharat'));
+// Chandra: an Ed25519 root with an end date the person chose (§14.1), and leaves under it.
+const rootC = ed25519FromSeed(seed('root/chandra'));
+const ROOT_C_ENDS = '2028-01-01T00:00:00Z';
 const hosts = {
   leaf_a: ed25519FromSeed(seed('host/alina/2026')),
   leaf_a_next: ed25519FromSeed(seed('host/alina/2027')),
   leaf_b: p256FromSeed(seed('host/bharat/2026')),
+  leaf_c: ed25519FromSeed(seed('host/chandra/2026')),
 };
+const leafC = (name, o) => buildLeaf({ cn: 'Chandra Iyer', rootCn: 'Chandra Iyer', root: rootC, hostKey: hosts.leaf_c, endpoint: ENDPOINT_C, label: name, ...o });
 const leafA = (name, o) => buildLeaf({ cn: 'Alina Rao', rootCn: 'Alina Rao', root: rootA, hostKey: hosts[o.host ?? 'leaf_a'], endpoint: ENDPOINT_A, label: name, ...o });
 
 const certs = {
   root_a: buildRoot({ cn: 'Alina Rao', key: rootA, notBefore: at('2026-09-01T00:00:00Z'), label: 'root_a' }),
   root_b: buildRoot({ cn: 'Bharat Mehta', key: rootB, notBefore: at('2026-09-01T00:00:00Z'), label: 'root_b' }),
+  root_c: buildRoot({ cn: 'Chandra Iyer', key: rootC, notBefore: at('2026-09-01T00:00:00Z'), notAfter: at(ROOT_C_ENDS), label: 'root_c' }),
   leaf_a: leafA('leaf_a', { dnsName: 'agent.alina.example', notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z') }),
   leaf_b: buildLeaf({ cn: 'Bharat Mehta', rootCn: 'Bharat Mehta', root: rootB, hostKey: hosts.leaf_b, endpoint: ENDPOINT_B, notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), label: 'leaf_b' }),
   leaf_a_expired: leafA('leaf_a_expired', { notBefore: at('2025-06-01T00:00:00Z'), notAfter: at('2026-06-01T00:00:00Z') }),
   leaf_a_long: leafA('leaf_a_long', { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-10-10T00:00:00Z') }),
   leaf_a_next: leafA('leaf_a_next', { host: 'leaf_a_next', notBefore: at('2027-08-02T00:00:00Z'), notAfter: at('2028-08-01T00:00:00Z') }),
+  leaf_c: leafC('leaf_c', { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z') }),
+  leaf_c_last: leafC('leaf_c_last', { notBefore: at('2027-01-01T00:00:00Z'), notAfter: at(ROOT_C_ENDS) }),
+  leaf_c_outlives: leafC('leaf_c_outlives', { notBefore: at('2027-06-01T00:00:00Z'), notAfter: at('2028-06-01T00:00:00Z') }),
   // Two certificates that exist to be refused (§14.1), so every implementation reading this appendix
   // is held to both refusals. `leaf_b_twin` is leaf_b signed again with the signature swapped for its
   // twin `(r, n − s)`: it VERIFIES under root_b, which is the point. `leaf_a_feb30` is leaf_a with a
@@ -42,17 +52,24 @@ const certs = {
   // …and a third: leaf_a naming its issuer in THREE bytes. It parses, its signature verifies,
   // and a card made from it used to show a person `sha256:AQID` as the identity to pin.
   leaf_a_aki3: leafA('leaf_a_aki3', { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z'), aki: Buffer.from([1, 2, 3]) }),
+  // …and a fourth: root_c's key and name with an end date before its start.
+  root_c_backwards: buildRoot({ cn: 'Chandra Iyer', key: rootC, notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2026-08-31T23:59:59Z'), label: 'root_c_backwards' }),
 };
 const hex = (b) => Buffer.from(b).toString('hex');
-const REFUSED = ['leaf_b_twin', 'leaf_a_feb30', 'leaf_a_aki3'];
+const REFUSED = ['leaf_b_twin', 'leaf_a_feb30', 'leaf_a_aki3', 'root_c_backwards'];
 const notes = {
   root_a: 'Ed25519 root, self-signed, CN "Alina Rao", notAfter 9999-12-31',
   root_b: 'P-256 root, self-signed, CN "Bharat Mehta"',
+  root_c: `Ed25519 root, self-signed, CN "Chandra Iyer", with the end date its person chose: notAfter ${ROOT_C_ENDS.slice(0, 10)}`,
   leaf_a: `Ed25519 leaf under root_a for ${ENDPOINT_A}, 2026-09-01 to 2027-09-01, with a dNSName beside the URI`,
   leaf_b: `P-256 leaf under root_b for ${ENDPOINT_B}, 2026-09-01 to 2027-09-01, keyUsage digitalSignature+keyAgreement`,
   leaf_a_expired: 'leaf_a\'s key and endpoint, 2025-06-01 to 2026-06-01: expired at NOW',
   leaf_a_long: 'leaf_a\'s key and endpoint, 2026-09-01 to 2027-10-10: 404 days',
   leaf_a_next: 'a fresh key for the same endpoint, 2027-08-02 to 2028-08-01: the renewal that supersedes leaf_a',
+  leaf_c: `Ed25519 leaf under root_c for ${ENDPOINT_C}, 2026-09-01 to 2027-09-01, ending before its root`,
+  leaf_c_last: `leaf_c's key and endpoint, 2027-01-01 to ${ROOT_C_ENDS.slice(0, 10)}: ends the second its root does`,
+  leaf_c_outlives: 'leaf_c\'s key and endpoint, 2027-06-01 to 2028-06-01: ends after its root, which rule 4 refuses',
+  root_c_backwards: 'root_c\'s key and name with notAfter 2026-08-31T23:59:59Z, before its notBefore: refused by the profile (§14.1)',
   leaf_b_twin: 'leaf_b\'s TBS under the OTHER twin of an ECDSA signature, (r, n − s): it verifies under root_b and is refused by the profile (§14.1: low-S)',
   leaf_a_feb30: 'leaf_a\'s key and endpoint with a notBefore of 260230120000Z, 30 February: refused, not read as 2 March (§14.1)',
   leaf_a_aki3: 'leaf_a\'s key and endpoint with an authorityKeyIdentifier of three bytes, 01 02 03: refused, because a key identifier is 32 bytes (§14.1), at card intake as much as in a chain',
@@ -74,6 +91,11 @@ const chainCases = [
   { name: 'an ECDSA signature swapped for its twin', chain: ['leaf_b_twin', 'root_b'], now: NOW, expect: 'refuse', rule: 1 },
   { name: 'a validity field that is not a date', chain: ['leaf_a_feb30', 'root_a'], now: NOW, expect: 'refuse', rule: 1 },
   { name: 'an issuer key identifier that is not 32 bytes', chain: ['leaf_a_aki3', 'root_a'], now: NOW, expect: 'refuse', rule: 1 },
+  { name: 'a root with an end date not yet reached', chain: ['leaf_c', 'root_c'], expected_root: fingerprintOf(parse(certs.root_c)), expected_endpoint: ENDPOINT_C, now: NOW, expect: 'accept' },
+  { name: 'a root at the last second of its end date', chain: ['leaf_c_last', 'root_c'], now: ROOT_C_ENDS, expect: 'accept' },
+  { name: 'a root past its end date', chain: ['leaf_c_last', 'root_c'], now: '2028-01-01T00:00:01Z', expect: 'refuse', rule: 4, reason: 'root has expired' },
+  { name: 'a leaf that outlives its root', chain: ['leaf_c_outlives', 'root_c'], now: '2027-09-01T00:00:00Z', expect: 'refuse', rule: 4, reason: 'leaf outlives the root' },
+  { name: 'a root whose end date is before its start', chain: ['leaf_c', 'root_c_backwards'], now: NOW, expect: 'refuse', rule: 1, reason: 'root notAfter is before its notBefore' },
 ];
 
 const newestLeafCases = [
