@@ -22,3 +22,10 @@ sealed end to end, HPKE Base with `info` `HDTP-SEAL-v1` and a detached signature
 whose header has `v` 1 (§13). A person can move between hosts, taking an export of their contacts and
 conversations, and a host that is left deletes what it held (§9).
 Appendix B carries the vectors, generated from the seeds `hdtp-1.0-vectors/{label}`.
+
+Amended on 2026-10-04, before HDTP went live, in this version rather than a new one: a root may
+carry an end date its person chooses, and has none by default (§14.1). Chain validation refuses a
+chain whose root is past its end date, and a leaf whose `notAfter` is after its root's (§14.2 rule 4);
+a wallet signs nothing under such a root and ends a leaf no later than its root (§2.2). Appendix B
+gained a root with an end date, three leaves under it and five chain cases. An implementation of
+this version from before the amendment refuses, by rule 1, every chain whose root has an end date.

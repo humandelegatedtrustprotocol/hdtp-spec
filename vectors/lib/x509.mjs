@@ -28,12 +28,13 @@ function keyUsage(bits) {
 }
 const serialOf = (label) => sha256(Buffer.from('serial/' + label)).subarray(0, 8);
 
+// `notAfter` is the person's end date for the identity; absent, the root never expires (§14.1).
 // `basicConstraints` (DER bytes, hex) exists so the intrusion suite can build a root a wallet never
 // would: the two readings of that extension only matter on a certificate that claims to be a CA.
-export function buildRoot({ cn, key, notBefore, label, basicConstraints }) {
+export function buildRoot({ cn, key, notBefore, notAfter = FOREVER, label, basicConstraints }) {
   const spki = spkiOf(key.pub), id = keyId(key.pub), alg = sigAlg(algorithmOf(key.priv));
   const tbs = seq(
-    explicit(0, int(2)), int(serialOf(label)), alg, name(cn), seq(time(notBefore), time(FOREVER)), name(cn), spki,
+    explicit(0, int(2)), int(serialOf(label)), alg, name(cn), seq(time(notBefore), time(notAfter)), name(cn), spki,
     explicit(3, seq(
       ext(OID.basicConstraints, true, basicConstraints ? Buffer.from(basicConstraints, 'hex') : seq(bool(true), int(0))),
       ext(OID.keyUsage, true, keyUsage([5])),
@@ -306,7 +307,7 @@ export function profileError(c, kind) {
     if (crit(OID.basicConstraints) !== true || !c.ca || c.pathLen !== 0) return 'root basicConstraints';
     if (crit(OID.keyUsage) !== true || !same(c.keyUsage, [5])) return 'root keyUsage is not keyCertSign alone';
     if (crit(OID.ski) !== false || c.issuer !== c.subject) return 'root identity';
-    if (c.notAfter.getTime() !== FOREVER.getTime()) return 'root notAfter is not 9999-12-31';
+    if (c.notAfter < c.notBefore) return 'root notAfter is before its notBefore';
     return null;
   }
   if (!same([...ids].sort(), [OID.basicConstraints, OID.keyUsage, OID.eku, OID.san, OID.ski, OID.aki].sort())) return 'leaf extensions are not exactly the profile';
@@ -327,6 +328,10 @@ export function profileError(c, kind) {
 const verifyCert = (cert, issuerKey) => cert.sigAlg === (algorithmOf(issuerKey) === 'ed25519' ? OID.ed25519 : OID.ecdsaSha256) && verifyDetached(issuerKey, cert.tbs, cert.sig);
 export const fingerprintOf = (cert) => 'sha256:' + b64url(cert.keyId);
 
+// A root's end date, inclusive as RFC 5280 reads validity: the one test of it, for rule 4 and for a
+// wallet about to sign (§2.2). A root without one carries 9999-12-31 and never reaches it.
+export const rootExpired = (root, now) => now > root.notAfter;
+
 // §14.2, refusing at the first failure and naming the rule.
 const refuse = (rule, reason) => ({ ok: false, rule, reason });
 export function validateChain(chainDer, { now, expectedRoot, expectedEndpoint } = {}) {
@@ -343,8 +348,11 @@ export function validateChain(chainDer, { now, expectedRoot, expectedEndpoint } 
   if (!verifyCert(leaf, root.publicKey)) return refuse(3, 'leaf is not signed by the root');
   if (!leaf.aki.equals(root.keyId)) return refuse(3, 'authority key identifier is not the root');
 
+  // The root's end date first: past it, every leaf is refused, and the reason says why.
+  if (rootExpired(root, now)) return refuse(4, 'root has expired');
   if (now < leaf.notBefore || now > leaf.notAfter) return refuse(4, 'leaf outside its validity');
   if (leaf.notAfter - leaf.notBefore > MAX_LEAF_DAYS * DAY) return refuse(4, 'leaf longer than 398 days');
+  if (leaf.notAfter > root.notAfter) return refuse(4, 'leaf outlives the root');
 
   if (leaf.uris.length !== 1) return refuse(5, `${leaf.uris.length} URIs`);
   const endpoint = leaf.uris[0];
