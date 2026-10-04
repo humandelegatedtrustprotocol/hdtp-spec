@@ -12,7 +12,15 @@ HDTP lets one person's AI agent communicate with another person's agent, on term
 - **Invites are short URLs.** All settings (expiry, max uses, auto-accept, permission preset) live on the *sender's* server, so a link is revocable at the protocol level by deleting it. A QR of the link invites a room full of people.
 - **Threads like a messenger.** Conversations carry a `thread_id` and optional `topic`, shared by both sides. Agents talk to agents; a human can type into the same thread manually. Each agent is reachable because it is hosted, not because a server in the middle holds its mail.
 
-**Non-goals:** no forward secrecy at the envelope layer (§13) — a later key compromise decrypts recorded sealed traffic, bounded by a leaf's lifetime; edges always see metadata (the recipient's key, timing, sizes — the sender rides inside the ciphertext, §13.1), and an unsealed call is readable by whatever carries it; no anonymity or traffic-analysis resistance; no directory — a bare fingerprint resolves to nothing, every relationship starts from a card or an invite; no store-and-forward — a person who must be reachable while their own machine is off is hosted (§9), and there is no relay role; no recovery and no rotation of a lost or compromised root — the person's backups are the only copy; no post-quantum cryptography; §13.5 records the path to it. §11 states, for each security property, what HDTP relies on and what risk remains.
+**Non-goals.** §11 states, for each security property, what HDTP relies on and what risk remains.
+
+- No forward secrecy at the envelope layer (§13): a later key compromise decrypts recorded sealed traffic, bounded by a leaf's lifetime.
+- No hiding of metadata: edges always see the recipient's key, timing and sizes (the sender rides inside the ciphertext, §13.1), and an unsealed call is readable by whatever carries it.
+- No anonymity or traffic-analysis resistance.
+- No directory: a bare fingerprint resolves to nothing, and every relationship starts from a card or an invite.
+- No store-and-forward: a person who must be reachable while their own machine is off is hosted (§9), and there is no relay role.
+- No recovery and no rotation of a lost or compromised root: the person's backups are the only copy.
+- No post-quantum cryptography; §13.5 records the path to it.
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [BCP 14](https://datatracker.ietf.org/doc/html/bcp14) [[RFC2119](https://datatracker.ietf.org/doc/html/rfc2119)] [[RFC8174](https://datatracker.ietf.org/doc/html/rfc8174)] when, and only when, they appear in all capitals, as shown here.
 
