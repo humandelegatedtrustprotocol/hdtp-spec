@@ -221,11 +221,31 @@ for (const [what, misencode] of [
 ]) scenario('certificate', 'DER: ' + what, 'rule 1', () => rule([leafOf(rootA, 'Alina Rao', hostA, E_A, { misencode }), ROOT_A]));
 scenario('certificate', 'DER: a P-256 key BIT STRING with 1 unused bit', 'rule 1', () => rule([leafOf(rootB, 'Bharat Mehta', hostB, E_B, { misencode: { spkiUnusedBits: 1 } }), ROOT_B]));
 
-// A root's dates carry no trust — its fingerprint is the identity, and rule 4 checks the leaf's
-// validity alone (§14.2). Recorded as accepted on purpose: an implementation that reaches for RFC 5280
-// path validation would refuse this, and that divergence is the interoperability break to avoid.
+// A root's notBefore carries no trust — its fingerprint is the identity, and rule 4 reads the root's
+// notAfter and never its notBefore (§14.2). Recorded as accepted on purpose: an implementation that
+// reaches for RFC 5280 path validation would refuse this, and that divergence is the interoperability
+// break to avoid.
 scenario('certificate', 'a root whose notBefore is years away is not a refusal', 'accepted', () =>
   rule([LEAF_A, buildRoot({ cn: 'Alina Rao', key: rootA, notBefore: at('2030-01-01T00:00:00Z'), label: 'i/root_a' })]));
+
+// A root with the end date its person chose (§14.1). Past it, rule 4 refuses every chain under it, and
+// a leaf may not outlive it, so a pinned leaf (§13.2's small form) ends no later than its root does.
+const why = (chain) => { const r = validateChain(chain, { now: NOW }); return r.ok ? 'accepted' : `rule ${r.rule}: ${r.reason}`; };
+const endingRoot = (notAfter) => buildRoot({ cn: 'Alina Rao', key: rootA, notBefore: at('2026-09-01T00:00:00Z'), notAfter, label: 'i/root_a' });
+scenario('certificate', 'a root with an end date not yet reached (the control)', 'accepted', () =>
+  why([leafOf(rootA, 'Alina Rao', hostA, E_A), endingRoot(at('2027-09-01T00:00:00Z'))]));
+scenario('certificate', 'a root past its end date', 'rule 4: root has expired', () =>
+  why([leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2026-01-01T00:00:00Z'), notAfter: new Date(NOW.getTime() + 30 * D) }), endingRoot(new Date(NOW.getTime() - 1000))]));
+scenario('certificate', 'a leaf that outlives its root', 'rule 4: leaf outlives the root', () =>
+  why([leafOf(rootA, 'Alina Rao', hostA, E_A), endingRoot(new Date(NOW.getTime() + 30 * D))]));
+scenario('certificate', 'a root whose end date is before its start', 'rule 1: root notAfter is before its notBefore', () =>
+  why([leafOf(rootA, 'Alina Rao', hostA, E_A), endingRoot(at('2026-08-31T23:59:59Z'))]));
+scenario('reference', 'a pinned leaf that ended with its root, named in the small form, is asked for its chain', 'chain_required', () => {
+  const ended = leafOf(rootA, 'Alina Rao', hostA, E_A, { notBefore: at('2026-01-01T00:00:00Z'), notAfter: new Date(NOW.getTime() - 1000) });
+  const b = makeNode({ path: '/bharat', leafKey: hostB.sign, chain: chainB, now: NOW });
+  pin(b, FP_A, { endpoint: E_A, leafDer: ended });
+  return receive(b, message(hostA, [ended, endingRoot(new Date(NOW.getTime() - 1000))], LEAF_B, { reference: true })).code;
+});
 
 // ── Secrets ─────────────────────────────────────────────────────────────────────
 const openTo = (h, e, pub = h.sign.pub) => { try { open('HDTP-SEAL-X25519', h.sign.priv, pub, Buffer.from('HDTP-SEAL-v1'), fromB64url(e.protected), fromB64url(e.enc), fromB64url(e.ct)); return 'opened'; } catch { return 'closed'; } };
