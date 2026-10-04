@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # A gate and nothing more: the vectors, then the build. It holds no credential and keeps no
+    # A gate and nothing more: the vectors, the references and schema examples, then the build. It holds no credential and keeps no
     # artifact. The whitepaper PDF is published by the maintainer, locally (`make publish`), and
     # served to registered readers by hdtp.io; a workflow artifact would hand it out.
     steps:
@@ -29,6 +29,11 @@ jobs:
       # the name guard forbids (scripts/check-names.mjs).
       - name: Vectors and names
         run: npm run vectors:check
+
+      # Every section reference and relative link resolves, and the schema's reference page and examples
+      # are what schema.json generates and accepts (scripts/check-refs.mjs, schema/reference.mjs, schema/examples.mjs).
+      - name: References and schema examples
+        run: npm run docs:check
 
       - name: Build
         run: npm run build

@@ -33,7 +33,7 @@
     "B64url": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]*$",
-      "description": "Bytes, as base64url without padding. An ANSWER always spells them this way. An ARGUMENT is read forgivingly about padding and the standard alphabet, and about nothing else: whitespace of any kind is refused (§0). The members of an envelope that travelled are not read forgivingly at all (§5)."
+      "description": "Bytes, as base64url without padding, in exactly this alphabet. Every answer spells them this way, and every wire object of the specification is read this strictly: an envelope's members, an export's certificates, a signing request. A library argument outside those objects is also read with padding or the standard alphabet, and never with whitespace (CONTRACT §0)."
     },
     "CertDer": {
       "$ref": "#/$defs/B64url",
@@ -137,7 +137,7 @@
         "sig"
       ],
       "additionalProperties": false,
-      "description": "A sealed envelope as this library WRITES one (SPEC §13.1)."
+      "description": "A sealed envelope: its four members (SPEC §13.1)."
     },
     "ExportManifest": {
       "type": "object",
@@ -153,7 +153,7 @@
           "type": "string"
         },
         "exported_at": {
-          "type": "string"
+          "$ref": "#/$defs/InstantIn"
         },
         "tool": {
           "type": "string"
@@ -339,7 +339,7 @@
         },
         "valid_days": {
           "type": "string",
-          "pattern": "^[1-9][0-9]{0,2}$",
+          "pattern": "^(?:[1-9][0-9]?|[12][0-9]{2}|3[0-8][0-9]|39[0-8])$",
           "description": "The validity the host asks for, 1 to 398, as the form's text: a suggestion; the person chooses."
         },
         "expires": {
