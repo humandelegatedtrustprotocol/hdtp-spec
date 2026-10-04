@@ -70,7 +70,7 @@ A wallet MUST refuse to sign unless all three hold:
 
 A wallet MUST validate a chain it has assembled (§14.2) against the expected root and endpoint before returning it. A chain that fails validation is a wallet defect, and returning it makes the defect the host's to discover.
 
-**A root certificate is issued once.** A wallet MUST NOT rebuild a root certificate for an identity that already has one. A rebuild carries the same fingerprint with a fresh serial and a later `notBefore`, under which leaves issued earlier no longer validate — the identity keeps its name and quietly stops verifying. Where the wallet keeps no copy of its own, the root certificate is supplied with the signing request and returned unchanged beside the new leaf.
+**A root certificate is issued once.** A wallet MUST NOT rebuild a root certificate for an identity that already has one. A rebuilt root has the same fingerprint, a fresh serial and a later `notBefore`; leaves issued earlier still validate under it, because chain validation reads no date of the root (§14.2). Where the wallet keeps no copy of its own, the root certificate is supplied with the signing request and returned unchanged beside the new leaf.
 
 ---
 
