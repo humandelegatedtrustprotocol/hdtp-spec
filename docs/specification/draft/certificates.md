@@ -4,7 +4,13 @@ Two X.509 certificates, one rule about which leaf is newest, and one answer for 
 
 ### 14.1 Profile
 
-Both certificates are X.509 v3 (RFC 5280). Keys are Ed25519 (RFC 8410) or ECDSA P-256, and a P-256 key is written as its uncompressed point (RFC 5480, Section 2.2, also allows the compressed one, which is not an HDTP key), so one key has one SubjectPublicKeyInfo and one fingerprint (§2); signatures are Ed25519 or ECDSA with SHA-256, in the encodings §13.1 pins. A certificate's `signatureAlgorithm` **MUST** be its issuer key's own algorithm; a verifier takes the algorithm from the key, never from the certificate, so a mismatch is simply a certificate the key did not sign. The algorithm identifier inside the `tbsCertificate` and the outer `signatureAlgorithm` **MUST** be byte-equal and carry no parameters, as RFC 5280, Section 4.1.1.2, requires — a certificate that reads one way to a verifier of this profile and another to a TLS stack is exactly what §14.1 exists to exclude. An ECDSA signature `(r, s)` has a twin, `(r, n − s)`, that verifies under the same key over the same bytes and that anybody can compute with no key at all; on a certificate it is a second byte string for one leaf — same key, same fingerprint, same endpoint, same `notBefore` — which §14.3 reads as a conflict. So an ECDSA signature on a certificate **MUST** be the twin with `s ≤ n/2`, the *low-S* form: an issuer normalises what it signs, including a signature a hardware token made, and a verifier refuses the other twin as outside the profile, at card intake as much as in a chain. The rule is the certificate's alone: an envelope's, a request's or a card's signature is verified and never pinned or compared as bytes, so its twin harms nobody. A **key identifier** is the 32-byte SHA-256 of the SubjectPublicKeyInfo — the bytes a fingerprint (§2) encodes — used for `subjectKeyIdentifier` and `authorityKeyIdentifier` alike, so the leaf's issuer key identifier *is* the root's fingerprint.
+Both certificates are X.509 v3 (RFC 5280). Keys are Ed25519 (RFC 8410) or ECDSA P-256, and a P-256 key is written as its uncompressed point (RFC 5480, Section 2.2, also allows the compressed one, which is not an HDTP key), so one key has one SubjectPublicKeyInfo and one fingerprint (§2); signatures are Ed25519 or ECDSA with SHA-256, in the encodings §13.1 pins.
+
+A certificate's `signatureAlgorithm` **MUST** be its issuer key's own algorithm; a verifier takes the algorithm from the key, never from the certificate, so a mismatch is simply a certificate the key did not sign. The algorithm identifier inside the `tbsCertificate` and the outer `signatureAlgorithm` **MUST** be byte-equal and carry no parameters, as RFC 5280, Section 4.1.1.2, requires — a certificate that reads one way to a verifier of this profile and another to a TLS stack is what this profile excludes.
+
+An ECDSA signature `(r, s)` has a twin, `(r, n − s)`, that verifies under the same key over the same bytes and that anybody can compute with no key at all; on a certificate it is a second byte string for one leaf — same key, same fingerprint, same endpoint, same `notBefore` — which §14.3 reads as a conflict. So an ECDSA signature on a certificate **MUST** be the twin with `s ≤ n/2`, the *low-S* form: an issuer normalises what it signs, including a signature a hardware token made, and a verifier refuses the other twin as outside the profile, at card intake as much as in a chain. The rule is the certificate's alone: an envelope's, a request's or a card's signature is verified and never pinned or compared as bytes, so its twin harms nobody.
+
+A **key identifier** is the 32-byte SHA-256 of the SubjectPublicKeyInfo — the bytes a fingerprint (§2) encodes — used for `subjectKeyIdentifier` and `authorityKeyIdentifier` alike, so the leaf's issuer key identifier *is* the root's fingerprint.
 
 | | Root | Leaf |
 |---|---|---|
@@ -19,7 +25,19 @@ Both certificates are X.509 v3 (RFC 5280). Keys are Ed25519 (RFC 8410) or ECDSA 
 | `subjectKeyIdentifier` | its key identifier | its key identifier |
 | `authorityKeyIdentifier` | — | the root's key identifier, and nothing else |
 
-A **chain** is the leaf followed by the root and nothing else; a verifier **MUST** refuse any other length. The profile is exact: a certificate that carries an extension not listed here, critical or not, a duplicated extension, a name of another shape, a signature algorithm other than its issuer key's own, an ECDSA signature in the high-S form, a validity field that is not a date that exists (`260230120000Z` is refused, not read as 2 March), an extension whose value is not the type RFC 5280 gives it (a `keyUsage` that is not a BIT STRING, a `subjectAltName` that is not a SEQUENCE) or does not fill its OCTET STRING, a `basicConstraints` that is anything but DER's own three spellings of it — empty, `TRUE`, or `TRUE` and a path length read in full — a non-minimal DER length, or a byte after its end is not an HDTP certificate. An exact profile closes the whole class of things one parser sees and another does not, rather than one instance at a time. There is no CRL, no OCSP and no policy: revocation is the next leaf (§14.3), and expiry is expiry.
+A **chain** is the leaf followed by the root and nothing else; a verifier **MUST** refuse any other length.
+
+The profile is exact. A certificate is not an HDTP certificate if it carries any of these:
+
+- an extension not listed here, critical or not, or a duplicated extension;
+- a name of another shape;
+- a signature algorithm other than its issuer key's own, or an ECDSA signature in the high-S form;
+- a validity field that is not a date that exists (`260230120000Z` is refused, not read as 2 March);
+- an extension whose value is not the type RFC 5280 gives it (a `keyUsage` that is not a BIT STRING, a `subjectAltName` that is not a SEQUENCE), or does not fill its OCTET STRING;
+- a `basicConstraints` that is anything but DER's own three spellings of it: empty, `TRUE`, or `TRUE` and a path length read in full;
+- a non-minimal DER length, or a byte after its end.
+
+An exact profile closes the whole class of things one parser sees and another does not, rather than one instance at a time. There is no CRL, no OCSP and no policy: revocation is the next leaf (§14.3), and expiry is expiry.
 
 ### 14.2 Chain validation
 
