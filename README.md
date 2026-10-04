@@ -8,7 +8,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 
 | Path | What it is |
 |---|---|
-| `docs/specification/1.0/` | **The protocol**, version 1.0: `index.md` (the title, the version line, the introduction and the contents) and one page per section — architecture; identity, certificates and mTLS; contact cards; invites; adding contacts; the MCP tool surface; messaging and threads; permissions; hosting; deployment; security notes; errors, limits and conformance; sealed envelopes; certificates; worked examples; the test vectors. Mermaid diagrams throughout. |
+| `docs/specification/1.0/` | **The protocol**, version 1.0: `index.md` (the title, the version line, the introduction and the contents) and one page per section — architecture; identity, certificates and mTLS; contact cards; invites; adding contacts; the MCP tool surface; messaging and threads; permissions; hosting; deployment; security notes; errors, limits and conformance; sealed envelopes; certificates; worked examples; the test vectors. |
 | `docs/specification/draft/` | Where the next version is written. It starts as a copy of 1.0 under the version line `1.1.0-draft`; `seps/README.md` says how a change gets there. |
 | `schema/1.0/`, `schema/draft/` | `schema.json`, the JSON Schema of the JSON objects on the wire, generated from hdtp-identity's contract by `schema/gen.mjs`; `schema/README.md` says what it covers and what it leaves out. |
 | `seps/` | HDTP Enhancement Proposals: the process (`seps/README.md`) and the template. |
@@ -25,7 +25,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 1. **Identity** — a self-signed root certificate you hold, pinned by its fingerprint. The host you choose serves you under a leaf your root issued for its address, valid for as long as you choose up to 398 days; contacts learn each renewed leaf from the chain, carried once and named by fingerprint after. Every call is mTLS with the leaf key.
 2. **Contacts** — standard vCards with `X-HDTP-CERT`; shared over channels people already use; always mutual, always human-approved.
 3. **Invites** — short URLs/QRs whose settings (expiry, max uses, auto-accept, preset) live server-side, so they're revocable at the protocol level.
-4. **Capabilities** — everything a contact may do is an MCP tool, filtered per caller via `tools/list`; new integrations are just new tools.
+4. **Capabilities** — everything a contact may do is an MCP tool, filtered per caller via `tools/list`; an integration is another tool.
 5. **Delivery** — direct HTTPS, always; there is no relay. A person who must be reachable while their own machine is off is hosted by a provider under a leaf they issued and can leave (§9).
 
 ## Implementations
