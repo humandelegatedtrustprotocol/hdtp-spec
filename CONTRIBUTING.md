@@ -27,7 +27,9 @@ made is `GOVERNANCE.md`.
   hash and fails that library's gate until the entry is re-verified in both of its ports, so say in
   the pull request which MUSTs you touched.
 - `schema/*/schema.json` is generated from hdtp-identity's contract (`npm run schema`), never
-  edited by hand; `npm run schema:check` fails when it differs.
+  edited by hand; `npm run schema:check` fails when it differs. The same command writes
+  `schema/*/reference.md` from it; `npm run docs:check` fails when that page differs from what
+  `schema.json` generates, or when an example in `schema/*/examples/` does not validate against it.
 - The name guard (`scripts/check-names.mjs`, run by `npm run vectors:check`) fails on any tracked
   path or text carrying a name `scripts/hdtp-names.txt` forbids.
 - Mermaid blocks must render, and a heading stays under 120 characters. The whitepaper build fails
@@ -45,6 +47,7 @@ this one (or `HDTP_IDENTITY_DIR`).
 
 ```
 npm run vectors:check     # the vectors against the specification, then the name guard (its self-test first)
+npm run docs:check        # every section reference and link resolves; the schema's reference page and examples
 npm run spec:check        # the web renderer and the open-fonts rule
 npm run schema:check      # the schema is what hdtp-identity's contract generates
 npm run build             # the newest released version -> dist/hdtp-whitepaper.pdf; the build is also a gate
@@ -52,14 +55,14 @@ npm run vectors:intrude   # the compromise cases against the in-memory node; a R
 npm run vectors           # regenerate the vectors (only after a wire-visible edit)
 ```
 
-`make check` runs the first three and `make build` the build. `make publish` is the maintainer's:
+`make check` runs the first four and `make build` the build. `make publish` is the maintainer's:
 it puts the built PDF and its meta into the private bucket that hdtp.io serves, with credentials
 read from a local file and from nowhere else.
 
 ## Gates and where they run
 
-There is no CI credential and there will be none. The workflow runs `npm run vectors:check` and
-`npm run build` on every push to `main` and on every pull request, with `permissions: contents:
+There is no CI credential and there will be none. The workflow runs `npm run vectors:check`, `npm run docs:check`
+and `npm run build` on every push to `main` and on every pull request, with `permissions: contents:
 read`; it publishes nothing and keeps no artifact. `spec:check` and `schema:check` read the private
 sibling `hdtp-identity`, so they run locally. This repository has no git hooks. Run every gate
 locally before opening a pull request.

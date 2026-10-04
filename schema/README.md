@@ -6,6 +6,17 @@ specification defines, one file per version directory of `docs/specification/`. 
 that library's ports are validated against on every gate run — and `npm run schema:check` fails when
 a committed file differs from what the contract generates. Nothing in it is written by hand.
 
+Beside each schema:
+
+- `reference.md`, the reference page: one section per definition, its members, their types, bounds
+  and descriptions. `schema/reference.mjs` generates it from `schema.json` alone (`npm run schema` runs
+  it after `schema/gen.mjs`), and `npm run docs:check` fails when the committed page differs.
+- `examples/<Definition>/<name>.json`, at least one example of each object below. `npm run docs:check`
+  validates every example against its definition, with a control: the same example with one member
+  the definition does not list must be refused. The examples were made by real code: the envelope is
+  Appendix B's first, the export objects come from hdtp-identity's export writer, and the signing
+  request's CSR from its `csr_new`; the certificates and fingerprints are the vectors'.
+
 ## What it covers
 
 | Definition | The object | Section |

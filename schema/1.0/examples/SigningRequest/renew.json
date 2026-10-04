@@ -1,0 +1,10 @@
+{
+  "csr": "MIHRMIGEAgEAMBQxEjAQBgNVBAMMCUFsaW5hIFJhbzAqMAUGAytlcAMhAN-icJ3l352LoHd9ygwFeSmWXi5MHa1ksrVXXaUxfmhBoD0wOwYJKoZIhvcNAQkOMS4wLDAqBgNVHREEIzAhhh9odHRwczovL2FnZW50LmFsaW5hLmV4YW1wbGUvbWNwMAUGAytlcANBAGVz2JLCYAOun5mq3tJYN50Z9iNrg3oRBdipUmv-YP6LplFP_IrqqKJWVE6g5ls7vHTtNIZI75le_ehqh7leZAk",
+  "purpose": "renew",
+  "expect_root": "sha256:kfs9kG6xSsWaNtvWZsVnAWnGithg_HgKN4dbfWOGC1A",
+  "redirect": "https://agent.alina.example/wallet/answer",
+  "state": "SabQW45LUWZW5GQnHZ3TjQp-AUL39JVG9Nq9JyDK_DQ",
+  "recipient": "agent.alina.example",
+  "valid_days": "365",
+  "expires": "2026-09-13T12:10:00Z"
+}

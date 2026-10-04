@@ -12,6 +12,7 @@
 // schema/README.md names what is left out and why.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { identityDir } from '../site/siblings.mjs'
 import { root, versions } from '../site/spec-source.mjs'
 
@@ -79,4 +80,5 @@ function main() {
   if (check) console.log(`schema: ok (${OBJECTS.length} objects, from ${path})`)
 }
 
-main()
+// Importable for its OBJECTS (schema/examples.mjs): the generation runs only when this file is the program.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
