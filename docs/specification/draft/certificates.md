@@ -48,7 +48,7 @@ The rule is absolute. A newer leaf from the root takes priority the instant it i
 
 What that leaves, stated plainly rather than swept: an attacker holding a leaf key stolen from a host can call a contact that has not heard of the renewal, and that contact's pinned leaf *is* the stolen one, so it is accepted — until that leaf's `notAfter`. This is §14.5's second row and it is not new. What bounds it is the leaf's lifetime, which is the person's own choice (§2, §14.1): someone who wants a tighter window over a host they trust less signs a shorter leaf, and the ceiling of §14.2 is the longest that window can ever be. A revocation list would close the case at the cost this protocol declines to pay — a third party that learns who talks to whom, and a responder every conversation depends on reaching.
 
-A verifier that does confirm a pin, by whatever means and at whatever moment it chooses, MUST NOT treat an unanswered or failed confirmation as a reason to refuse a contact or to un-pin one: an endpoint that is down, slow, or behind a network the verifier cannot reach at this moment is not a compromised endpoint, and a rule that turned unreachability into revocation would hand any carrier the power to disconnect two people by dropping one request. The pin stands and the leaf's `notAfter` remains the only deadline that refuses on its own. A sequence number would add nothing that `notBefore` does not already carry, signed by the root; the wallet keeps it monotonic across the leaves it issues (§14.1).
+A verifier that does confirm a pin, by whatever means and at whatever moment it chooses, MUST NOT treat an unanswered or failed confirmation as a reason to refuse a contact or to un-pin one: an endpoint that is down, slow, or behind a network the verifier cannot reach at this moment is not a compromised endpoint, and a rule that turned unreachability into revocation would hand any carrier the power to disconnect two people by dropping one request. The pin stands and the leaf's `notAfter` remains the only deadline that refuses on its own. `notBefore` orders the leaves: the root signs it, and the wallet keeps it increasing across the leaves it issues (§14.1).
 
 ### 14.4 `certificate_renewed`
 
@@ -56,7 +56,7 @@ An endpoint keeps the key identifiers of every leaf it has held for an identity 
 
 ### 14.5 Compromise cases
 
-What an attacker can hold, what stops each, and what each still costs. Every row names rules that live elsewhere in this document; the table is the checklist, not a new mechanism. `vectors/intrude.mjs` in the repository replays each row, and the corner cases around it, against the seed implementation, and reports which attacks are blocked and which succeed by decision.
+What an attacker can hold, what stops each, and what each still costs. Every row names rules that live elsewhere in this document; the table is the checklist, not a new mechanism.
 
 | The attacker holds | What stops it | What remains |
 |---|---|---|
