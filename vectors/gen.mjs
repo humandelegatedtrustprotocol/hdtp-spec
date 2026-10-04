@@ -8,6 +8,7 @@ import { buildRoot, buildLeaf, fingerprintOf, parse } from './lib/x509.mjs';
 import { signDetached, suiteForLeaf, recipientOf, sealDeterministic } from './lib/hpke.mjs';
 import { canonical } from './lib/canonical.mjs';
 import { appendixB } from './lib/appendix.mjs';
+import { encodeCard } from './lib/card.mjs';
 
 const at = (iso) => new Date(iso);
 const NOW = '2026-09-13T12:00:00Z';
@@ -133,6 +134,15 @@ const derivation = [
     note: 'the identity this passkey is: Ed25519 from the derived seed. No certificate: a root\'s serial and notBefore are the wallet\'s, not the derivation\'s, so the key is what reproduces and the certificate is not' };
 });
 
+// A signed card (§3): the card leaf_a's host serves, and `card_sig`, the leaf key's signature over the
+// card's UTF-8 bytes exactly as sent, unpadded base64url. leaf_a is Ed25519, so it reproduces byte for
+// byte; the name stays in the Basic Multilingual Plane, where every port folds a line alike.
+const card = encodeCard({ fn: 'Alina Rao', cert: certs.leaf_a, seal: 'required' });
+const signedCard = {
+  leaf: 'leaf_a', card, card_sig: b64url(signDetached(hosts.leaf_a.priv, Buffer.from(card, 'utf8'))),
+  note: 'the card leaf_a\'s host serves with `get_card`, `redeem_invite` and the invite landing; card_sig is pure Ed25519 by leaf_a\'s key over the card text\'s UTF-8 bytes, CRLF line ends included, written as base64url without padding',
+};
+
 const out = {
   generated_by: 'vectors/gen.mjs (every key derives from a label; what Ed25519 signs reproduces byte for byte; an ECDSA signature is one valid signature and is NEW EACH RUN, so root_b, leaf_b, leaf_b_twin and the P-256 envelope differ in their signature bytes from one generation to the next, and are to be verified, never compared)',
   now: NOW,
@@ -143,6 +153,7 @@ const out = {
   leaf_keys_pkcs8_hex: Object.fromEntries(Object.entries(hosts).map(([k, h]) => [k, hex(pkcs8Of(h.priv))])),
   chain_cases: chainCases, newest_leaf_cases: newestLeafCases, certificate_renewed_cases: renewedCases, envelopes,
   derivation,
+  signed_card: signedCard,
 };
 const path = new URL('./hdtp-1.0-vectors.json', import.meta.url);
 const json = JSON.stringify(out, null, 2);

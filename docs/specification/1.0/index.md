@@ -6,9 +6,9 @@ HDTP was formerly named PACT.
 
 HDTP lets one person's AI agent communicate with another person's agent, on terms both people set. It is built from mutual TLS, X.509 certificates and MCP tools, with one addition: a sealed envelope (§13) that carries identity and confidentiality across a link whose TLS is terminated before it reaches the recipient. An identity belongs to the person, not to whoever hosts it, so the key that controls an identity is separate from the key that serves it: the person acts as a certificate authority. The root certificate in their wallet is the identity; the host they choose holds a leaf certificate the root issued, naming the address it serves and the date its authority ends. HDTP has no DIDs, no SAS, no prekeys, no directory, no log, no sequence numbers and no relay.
 
-- **The identity is the person's; the host serves it.** An identity is the fingerprint of a self-signed root certificate whose private key lives in the person's wallet and signs nothing but certificates. The host — their own machine, or a provider — holds a leaf the root issued for one address, valid for at most a year, and that leaf's key is the one that speaks: it is the TLS certificate, it signs every call, contacts seal to it. Contacts pin the root, learn the current leaf from every exchange, and never have to be told when it is renewed. Moving is a new leaf for a new address, and a contact request from there (§5.3, §9).
+- **The identity is the person's; the host serves it.** An identity is the fingerprint of a self-signed root certificate whose private key lives in the person's wallet and signs nothing but certificates. The host — their own machine, or a provider — holds a leaf the root issued for one address, valid for at most 398 days, one year by default, and that leaf's key is the one that speaks: it is the TLS certificate, it signs every call, contacts seal to it. Contacts pin the root, learn the current leaf from every exchange, and never have to be told when it is renewed. Moving is a new leaf for a new address, and a contact request from there (§5.3, §9).
 - **Your agent is a publicly exposed MCP server.** Sending a message *is* calling the other party's `send_message` tool. Everything a contact may do — messages, media, status, availability, calendar booking — is an MCP tool that is visible and callable only per your permission settings for that contact.
-- **Contacts are vCards in your phone book.** A contact card is a standard vCard with two extra `X-HDTP-*` fields, one of them the leaf certificate. Share it over WhatsApp, email, AirDrop, or as a QR — the channels people already use. Adding a contact is always a manual, human approval.
+- **Contacts are vCards in your phone book.** A contact card is a standard vCard with three `X-HDTP-*` properties, one of them the leaf certificate. Share it over WhatsApp, email, AirDrop, or as a QR — the channels people already use. Adding a contact is always a manual, human approval.
 - **Invites are short URLs.** All settings (expiry, max uses, auto-accept, permission preset) live on the *sender's* server, so a link is revocable at the protocol level by deleting it. A QR of the link invites a room full of people.
 - **Threads like a messenger.** Conversations carry a `thread_id` and optional `topic`, shared by both sides. Agents talk to agents; a human can type into the same thread manually. Each agent is reachable because it is hosted, not because a server in the middle holds its mail.
 
@@ -33,7 +33,7 @@ HDTP lets one person's AI agent communicate with another person's agent, on term
 13. [Sealed envelopes](sealed-envelopes.md)
 14. [Certificates](certificates.md)
 - [Appendix A: worked examples](appendix-a-examples.md)
-- [Appendix B: sealed-envelope test vectors](appendix-b-test-vectors.md)
+- [Appendix B: test vectors](appendix-b-test-vectors.md)
 
 ---
 

@@ -6,7 +6,7 @@ The examples below are the wire shapes:
 { "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
     "name": "redeem_invite",
     "arguments": {
-      "token": "inv_8Qq1xZk3",
+      "token": "3f9c2a7b51e04d8c9a6f0b2e7d1c4a85",
       "card": "BEGIN:VCARD\nVERSION:4.0\nFN:Bharat Mehta\nX-HDTP-VERSION:1\nX-HDTP-CERT:MIIBkTCCAUOgAwIBAgIUX7…\nX-HDTP-SEAL:required\nEND:VCARD"
     } } }
 ```
