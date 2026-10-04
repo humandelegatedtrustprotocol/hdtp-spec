@@ -5,7 +5,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
 import { open, verifyDetached, suiteForLeaf, suiteForKey, sealDeterministic, signDetached } from './lib/hpke.mjs';
 import { validateChain, compareLeaves, parse, profileError, buildRoot, buildLeaf, fingerprintOf, OID } from './lib/x509.mjs';
-import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, p256FromSeed, spkiOf, seed, p256Uncompressed } from './lib/keys.mjs';
+import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, p256FromSeed, spkiOf, seed, p256Uncompressed, strictB64url } from './lib/keys.mjs';
+import { decodeCard } from './lib/card.mjs';
 import { canonical } from './lib/canonical.mjs';
 import { makeNode, pin, receive } from './lib/envelope.mjs';
 import { appendixB } from './lib/appendix.mjs';
@@ -145,6 +146,23 @@ if (!vec) {
     console.log(`  ${d.label} (${d.info}): ${d.fingerprint ?? 'seed only'}`);
   }
   ok((vec.derivation ?? []).length >= 3, 'all three info strings are covered');
+
+  // §3. The signed card, verified as a receiver verifies one: its certificate is the leaf it names, and
+  // card_sig verifies under that leaf's key over the card text's UTF-8 bytes as written here. The
+  // control: the same card with one character changed must not verify.
+  console.log('a signed card (§3)');
+  const sc = vec.signed_card;
+  ok(sc && typeof sc.card === 'string' && typeof sc.card_sig === 'string', 'Appendix B carries a signed card');
+  if (sc) {
+    const decoded = decodeCard(sc.card);
+    ok(!decoded.error && Buffer.from(decoded.cert).equals(der[sc.leaf]), `the card's X-HDTP-CERT is ${sc.leaf}`);
+    ok(strictB64url(sc.card_sig) !== null && b64url(strictB64url(sc.card_sig)) === sc.card_sig, 'card_sig is base64url without padding, in its one spelling');
+    const leafKey = new X509Certificate(der[sc.leaf]).publicKey;
+    const sig = fromB64url(sc.card_sig);
+    ok(verifyDetached(leafKey, Buffer.from(sc.card, 'utf8'), sig), 'card_sig verifies under the leaf key over the card\'s UTF-8 bytes');
+    ok(!verifyDetached(leafKey, Buffer.from(sc.card.replace('Alina', 'Alinb'), 'utf8'), sig), 'and not over a card with one character changed (the control)');
+    ok(sc.card.endsWith('\r\n') && !/[^\r]\n/.test(sc.card), 'the card\'s lines end in CRLF');
+  }
 }
 
 // The receiving node reads a header and a body as JSON exactly when every port does

@@ -1,4 +1,4 @@
-# HDTP Enhancement Proposals
+# Specification Enhancement Proposals (SEPs)
 
 A SEP proposes a change to what an implementation of HDTP must do: a new tool, a new or changed
 rule, a change on the wire. It is where the reasoning is written down before the text changes, so
