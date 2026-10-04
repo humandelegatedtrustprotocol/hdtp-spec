@@ -16,10 +16,18 @@ export function encodeCard({ fn, cert, seal, extra = [] }) {
   lines.push('END:VCARD');
   return lines.map(fold).join('\r\n') + '\r\n';
 }
+// RFC 6350 §3.2: a line is at most 75 octets, a continuation a space and at most 74 more, and a
+// break never falls inside a UTF-8 sequence — it moves back to the start of the character.
 function fold(line) {
-  if (line.length <= 75) return line;
-  const parts = [line.slice(0, 75)];
-  for (let i = 75; i < line.length; i += 74) parts.push(' ' + line.slice(i, i + 74));
+  const b = Buffer.from(line, 'utf8');
+  if (b.length <= 75) return line;
+  const start = (i) => { while (i > 0 && i < b.length && (b[i] & 0xc0) === 0x80) i--; return i; };
+  const parts = [];
+  for (let i = 0, width = 75; i < b.length; width = 74) {
+    const end = Math.min(b.length, start(i + width));
+    parts.push((i ? ' ' : '') + b.subarray(i, end).toString('utf8'));
+    i = end;
+  }
   return parts.join('\r\n');
 }
 
