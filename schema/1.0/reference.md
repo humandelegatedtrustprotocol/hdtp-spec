@@ -28,7 +28,7 @@ No other members are allowed.
 
 ## `B64url`
 
-Bytes, as base64url without padding, in exactly this alphabet. Every answer spells them this way, and every wire object of the specification is read this strictly: an envelope's members, an export's certificates, a signing request. A library argument outside those objects is also read with padding or the standard alphabet, and never with whitespace (CONTRACT §0).
+Bytes, as base64url without padding, in exactly this alphabet. Every answer spells them this way, and every wire object of the specification is read this strictly: an envelope's members, an export's certificates, a signing request. A library argument outside those objects is also read with padding or the standard alphabet, and never with whitespace (CONTRACT §0); a card's certificate loses its spaces, tabs, CRs and LFs before it is read (`card_decode`).
 
 Type: `string`; pattern `^[A-Za-z0-9_-]*$`.
 
