@@ -11,6 +11,14 @@ it does.
 The versions published before the rename, 1.0.0 of 2026-08-23 to 2.2.5 of 2026-09-30, are recorded
 as they were written in `docs/release/changes-before-hdtp.md`, a dated record kept byte for byte.
 
+## 1.1.0 · not yet released
+
+The lines the draft carries for its release. A reader takes every line after `X-HDTP-CERT` that
+starts no property into its value, blank lines included, and removes every space, tab, CR and LF from
+it (§3, *Reading a card*; SEP-0001), so a card whose folding a chat or a mail client damaged reads.
+Writers do not change. A reader of this version accepts every card a reader of 1.0 accepts, read the
+same, and also a certificate with a space or a tab inside it, which 1.0 refuses.
+
 ## 1.0.0 · 2026-10-03
 
 The first release. An identity is the fingerprint of a self-signed root certificate the person
