@@ -41,4 +41,6 @@ When the draft is released as a new `docs/specification/<X.Y>/`, every SEP it ca
 
 ## Index
 
-None yet.
+| SEP | Title | Status |
+|---|---|---|
+| [0001](0001-reading-a-pasted-card.md) | Reading a card whose folding was damaged in transit | Draft |
