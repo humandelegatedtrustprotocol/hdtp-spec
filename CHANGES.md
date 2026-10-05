@@ -29,3 +29,9 @@ chain whose root is past its end date, and a leaf whose `notAfter` is after its 
 a wallet signs nothing under such a root and ends a leaf no later than its root (§2.2). Appendix B
 gained a root with an end date, three leaves under it and five chain cases. An implementation of
 this version from before the amendment refuses, by rule 1, every chain whose root has an end date.
+
+Amended again on 2026-10-05, before HDTP went live, in this version: a reader takes every line after
+`X-HDTP-CERT` that starts no property into its value, blank lines included, and removes every space,
+tab, CR and LF from it (§3, *Reading a card*; SEP-0001), so a card whose folding a chat or a mail
+client damaged reads. Writers do not change. An implementation of this version from before the
+amendment refuses such a card, and a certificate with a space or a tab inside it.
