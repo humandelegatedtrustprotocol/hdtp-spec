@@ -322,8 +322,9 @@ console.log('a SubjectPublicKeyInfo as the ports read it (§2, §14.1)');
 }
 
 // Bytes this library did not write are read as both hdtp-identity ports read them (its CONTRACT §0):
-// base64url, forgiving the padding and the standard alphabet, and nothing else — a card's certificate,
-// and the chain in a peer's plaintext. Buffer.from skipped a stray character, so a card carrying one was
+// base64url, forgiving the padding and the standard alphabet, and nothing else — a card's certificate
+// (once its spaces, tabs and line breaks are removed: §3, Reading a card), and the chain in a peer's
+// plaintext. Buffer.from skipped a stray character, so a card carrying one was
 // taken here and by the Go port and a chain carrying one validated, where the Rust core refused each
 // (the port-parity audit of 2026-09-29: R24, T11, C7, T10). An empty X-HDTP-VERSION names no version.
 // The controls — padded, and in the standard alphabet — read.
@@ -353,7 +354,11 @@ console.log('bytes this library did not write (§3, §13.3)');
   for (const [what, value, want] of [
     ['a stray character', stray, 'certificate does not parse: not base64url'],
     ['a no-break space', leafText.slice(0, 8) + ' ' + leafText.slice(8), 'certificate does not parse: not base64url'],
-    ['a space', leafText.slice(0, 8) + ' ' + leafText.slice(8), 'certificate does not parse: not base64url'],
+    ['a vertical tab', leafText.slice(0, 8) + '\u000b' + leafText.slice(8), 'certificate does not parse: not base64url'],
+    // A space or a tab is removed from a card's certificate before it is read (§3, Reading a card), as
+    // a paste puts them there and base64url has neither: both read.
+    ['a space', leafText.slice(0, 8) + ' ' + leafText.slice(8), 'read'],
+    ['a tab', leafText.slice(0, 8) + '\t' + leafText.slice(8), 'read'],
     ['padding inside', leafText.slice(0, 8) + '=' + leafText.slice(8), 'certificate does not parse: not base64url'],
     ['nothing wrong with it (the control)', leafText, 'read'],
     ['padding at the end (the control)', leafText + pad, 'read'],
@@ -386,6 +391,74 @@ console.log('bytes this library did not write (§3, §13.3)');
     ok(got === want, `a chain in the plaintext whose leaf has ${what}: ${want}, not ${got}`);
     console.log(`  a chain in the plaintext whose leaf has ${what}: ${got}`);
   }
+}
+
+// A card as a chat delivers it (§3, Reading a card; SEP-0001). Observed 2026-10-05: a card pasted into
+// a chat came back with X-HDTP-CERT's continuations without their leading space, blank lines between
+// some, and one continuation with its space kept; every reader dropped those lines and refused the
+// card. Each case is the seed's card for one leaf, damaged one way. A cut certificate is still refused,
+// by the DER parse. A changed character either fails to parse or is not found by reading (a card
+// carries no root to check its leaf against): one changed in the signature reads, as a certificate its
+// root did not sign, which validateChain shows.
+console.log('a card as a chat delivers it (§3)');
+{
+  const { decodeCard, encodeCard } = await import('./lib/card.mjs');
+  const at = (iso) => new Date(iso), now = at('2026-09-13T12:00:00Z');
+  const rootKey = ed25519FromSeed(seed('check/paste/root')), hostKey = ed25519FromSeed(seed('check/paste/host'));
+  const whole = { notBefore: at('2026-09-01T00:00:00Z'), notAfter: at('2027-09-01T00:00:00Z') };
+  const ROOT = buildRoot({ cn: 'A', key: rootKey, notBefore: whole.notBefore, label: 'check/paste/root' });
+  const LEAF = buildLeaf({ cn: 'A', rootCn: 'A', root: rootKey, hostKey, endpoint: 'https://a.example/mcp', ...whole, label: 'check/paste/leaf' });
+  const card = encodeCard({ fn: 'Alina Rao', cert: LEAF, seal: 'required' });
+  const lines = card.split('\r\n');
+  const first = lines.findIndex((l) => l.startsWith('X-HDTP-CERT:'));
+  const conts = lines.slice(first + 1).filter((l) => l.startsWith(' ')).length;
+  ok(conts >= 4, `the card's certificate is folded over ${conts + 1} lines, enough to damage`);
+  // The owner's shape: every continuation loses its space but the third, blank lines after the first
+  // and the fourth, LF line ends.
+  const pasted = lines.map((l, i) => {
+    const k = i - first;
+    if (k < 1 || k > conts) return l;
+    const body = k === 3 ? l : l.slice(1);
+    return k === 1 || k === 4 ? body + '\n' : body;
+  }).join('\n');
+  const unfolded = lines.join('\r\n').replace(/\r\n /g, '');
+  const said = (text) => { const c = decodeCard(text); return c.error ? c.why : c.cert.equals(LEAF) ? 'read' : 'another certificate'; };
+  for (const [what, text, want] of [
+    ['as the owner pasted it: spaces lost, blank lines, one space kept', pasted, 'read'],
+    ['folded correctly (the control)', card, 'read'],
+    ['not folded at all', unfolded, 'read'],
+    ['with its continuations indented by a tab and CR LF kept', lines.map((l, i) => (i > first && i <= first + conts ? '\t' + l.slice(1) : l)).join('\r\n'), 'read'],
+    ['with a space and a tab inside a continuation', card.replace(lines[first + 2], lines[first + 2].slice(0, 9) + ' \t' + lines[first + 2].slice(9)), 'read'],
+    // Cut at 120 characters, a multiple of four, so what is refused is the DER and not the base64url.
+    ['cut short', card.replace(/X-HDTP-CERT:[^]*?(?=\r\nX-HDTP-SEAL)/, () => 'X-HDTP-CERT:' + b64url(LEAF).slice(0, 120)), 'certificate does not parse: DER length overruns the buffer'],
+  ]) {
+    const got = said(text);
+    ok(got === want, `a card ${what}: ${want}, not ${got}`);
+    console.log(`  a card ${what}: ${got}`);
+  }
+  // A line that starts a property is never taken into the certificate: an X-HDTP-SEAL after it, with
+  // and without a group prefix, stays a property when the continuations before it lost their spaces.
+  for (const [what, prop, seal] of [['X-HDTP-SEAL:none', 'X-HDTP-SEAL:none', 'none'], ['a group-prefixed EMAIL, then the seal', 'item1.EMAIL;type=INTERNET:a@example.com\nX-HDTP-SEAL:optional', 'optional']]) {
+    const text = pasted.replace('X-HDTP-SEAL:required', prop);
+    const c = decodeCard(text);
+    const got = c.error ? c.why : `${c.cert.equals(LEAF) ? 'read' : 'another certificate'}, seal ${c.seal}`;
+    ok(got === `read, seal ${seal}`, `a pasted card with ${what} after the certificate: read, seal ${seal}, not ${got}`);
+    console.log(`  a pasted card with ${what} after the certificate: ${got}`);
+  }
+  // One character changed in the middle of the signature: the card reads, its certificate is not the
+  // leaf the root signed, and the chain does not validate. The character is replaced, not added, and
+  // inside the value, so no spare bit and no length moves.
+  const b64 = b64url(LEAF), mid = b64.length - 30, swap = b64[mid] === 'A' ? 'B' : 'A';
+  const changed = card.replace(/X-HDTP-CERT:[^]*?(?=\r\nX-HDTP-SEAL)/, () => {
+    const v = b64.slice(0, mid) + swap + b64.slice(mid + 1);
+    return 'X-HDTP-CERT:' + v.match(/.{1,60}/g).join('\n');
+  });
+  const c = decodeCard(changed);
+  const chain = c.error ? null : validateChain([c.cert, ROOT], { now });
+  const got = c.error ? c.why : c.cert.equals(LEAF) ? 'the writer\'s leaf' : chain.ok ? 'another leaf, and its chain validates' : `another leaf, chain refused by rule ${chain.rule}`;
+  ok(got === 'another leaf, chain refused by rule 3', `a card with one character of its signature changed: another leaf, chain refused by rule 3, not ${got}`);
+  ok(validateChain([LEAF, ROOT], { now }).ok, 'the unchanged leaf validates under its root (the control)');
+  console.log(`  a card with one character of its signature changed: ${got}`);
 }
 
 // Certificates the three readers answered three ways (the port-parity audit of 2026-09-29, R33): an

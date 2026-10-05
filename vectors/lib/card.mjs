@@ -31,16 +31,40 @@ function fold(line) {
   return parts.join('\r\n');
 }
 
+// Reading a card (§3, "Reading a card"), in three steps:
+//   1. RFC 6350 §3.2 unfolding: a line break (CRLF or LF) followed by ONE space or tab is removed;
+//   2. the text is split into lines at CRLF or LF, and a line STARTS A PROPERTY when it begins
+//      `[group.]NAME[;params]:` — NAME and group of letters, digits and `-` (PROPERTY below);
+//   3. a base64url-valued property (B64URL: X-HDTP-CERT) also takes every following line that does
+//      not start a property, blank ones included, and its value loses every space, tab, CR and LF.
+// Step 3 reads a card whose folding was damaged in transit — pasted through a chat, which drops a
+// continuation's leading space or adds blank lines. Base64url has none of those four characters, so
+// removing them gives back the writer's bytes whenever nothing else was damaged. Other damage is
+// what it was before: a certificate cut short fails the DER parse below; a changed character is not
+// found by reading, since a card carries no root to check its leaf against — the certificate either
+// fails to parse or parses as one its root did not sign, which is the position of a card altered in transit (§3: trust in a card
+// is trust in the channel that carried it).
+// Any other line that starts no property is ignored.
+const PROPERTY = /^(?:[A-Za-z0-9-]+\.)?[A-Za-z0-9-]+(?:;[^:]*)?:/;
+const B64URL = ['X-HDTP-CERT'];
+
 // Intake per §3: refuses what has no root to pin or no address to reach; an expired leaf is not a refusal.
 export function decodeCard(text) {
-  const unfolded = text.replace(/\r?\n[ \t]/g, '').split(/\r?\n/).filter(Boolean);
+  const lines = text.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
   const props = new Map();
-  for (const line of unfolded) {
-    const i = line.indexOf(':'); if (i < 0) continue;
+  let joining = null; // [name, index] of the base64url value later lines join, while they start no property
+  for (const line of lines) {
+    if (!PROPERTY.test(line)) {
+      if (joining) props.get(joining[0])[joining[1]] += line;
+      continue;
+    }
+    const i = line.indexOf(':');
     const name = line.slice(0, i).split(';')[0].toUpperCase();
     if (!props.has(name)) props.set(name, []);
     props.get(name).push(line.slice(i + 1));
+    joining = B64URL.includes(name) ? [name, props.get(name).length - 1] : null;
   }
+  for (const name of B64URL) if (props.has(name)) props.set(name, props.get(name).map((v) => v.replace(/[ \t\r\n]/g, '')));
   const bad = (why) => ({ error: 'bad_request', why });
   const version = props.get('X-HDTP-VERSION')?.[0];
   if (version !== '1') return bad(version ? 'version not implemented' : 'no X-HDTP-VERSION');
