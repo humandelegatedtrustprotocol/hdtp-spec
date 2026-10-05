@@ -396,9 +396,9 @@ console.log('bytes this library did not write (§3, §13.3)');
 // A card as a chat delivers it (§3, Reading a card; SEP-0001). Observed 2026-10-05: a card pasted into
 // a chat came back with X-HDTP-CERT's continuations without their leading space, blank lines between
 // some, and one continuation with its space kept; every reader dropped those lines and refused the
-// card. Each case is the seed's card for one leaf, damaged one way. What must still be refused is
-// refused by the step that always refused it: a cut certificate by the DER parse, a changed character
-// by chain validation (a card carries no root to check its leaf against).
+// card. Each case is the seed's card for one leaf, damaged one way. A cut certificate is still refused,
+// by the DER parse. A changed character is not found by reading (a card carries no root to check its
+// leaf against): the card reads, as a certificate its root did not sign, which validateChain shows.
 console.log('a card as a chat delivers it (§3)');
 {
   const { decodeCard, encodeCard } = await import('./lib/card.mjs');
