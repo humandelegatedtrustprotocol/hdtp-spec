@@ -39,9 +39,11 @@ function fold(line) {
 //      not start a property, blank ones included, and its value loses every space, tab, CR and LF.
 // Step 3 reads a card whose folding was damaged in transit — pasted through a chat, which drops a
 // continuation's leading space or adds blank lines. Base64url has none of those four characters, so
-// removing them gives back the writer's bytes whenever nothing else was damaged; a character that was
-// changed or lost still is, and is caught where it always was: by the DER parse below, or by chain
-// validation (§14.2) and the first exchange, since a card carries no root to check its leaf against.
+// removing them gives back the writer's bytes whenever nothing else was damaged. Other damage is
+// what it was before: a certificate cut short fails the DER parse below; a changed character is not
+// found by reading, since a card carries no root to check its leaf against — the certificate parses as
+// one its root did not sign, which is the position of a card altered in transit (§3: trust in a card
+// is trust in the channel that carried it).
 // Any other line that starts no property is ignored.
 const PROPERTY = /^(?:[A-Za-z0-9-]+\.)?[A-Za-z0-9-]+(?:;[^:]*)?:/;
 const B64URL = ['X-HDTP-CERT'];
