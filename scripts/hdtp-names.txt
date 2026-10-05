@@ -114,10 +114,6 @@ allow batondeck terraform/legacy-redirects.tf pact.contact
 allow batondeck terraform/legacy-redirects.tf pact-protocol.com
 allow batondeck terraform/legacy-redirects.tf pact-gateway.com
 
-# BatonDeck's terraform for the identity zones beside batondeck.com: the identities' earlier zone is
-# an identity domain again (the owner's order of 2026-10-05), and its rate limit is named by zone.
-allow batondeck terraform/identity-zones.tf pact.contact
-
 # Dated records, each true of its date: the specification's own (its revision history before the
 # rename, the drafts and studies it superseded, its audits), the node's, and BatonDeck's review
 # findings, captured run logs and designs.
