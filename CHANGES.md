@@ -35,3 +35,9 @@ Amended again on 2026-10-05, before HDTP went live, in this version: a reader ta
 tab, CR and LF from it (§3, *Reading a card*; SEP-0001), so a card whose folding a chat or a mail
 client damaged reads. Writers do not change. An implementation of this version from before the
 amendment refuses such a card, and a certificate with a space or a tab inside it.
+
+Amended on 2026-10-06, in this version: an address belongs to the hosting, not to the identity
+(§9; SEP-0002). Whenever an identity leaves an address, deleted or moved, the host keeps the address
+for the person for 24 hours, for any identity of theirs, and then frees it; it was held until the
+last leaf issued for it expired. The root is the person's and is not touched. The MUST only
+relaxes: a host of this version from before the amendment conforms to it.
