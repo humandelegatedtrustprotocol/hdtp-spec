@@ -72,6 +72,6 @@ Because identity is a certificate chain, an implementation also:
 
 A wallet is an HDTP wallet if it holds a root and nothing a host holds, signs a certificate only from an explicit user action, and shows the endpoint before signing while letting the person set the validity — any span up to the 398-day ceiling of §14.1, which is the receiver's rule: a wallet that offers a longer validity issues leaves every contact refuses (§14.2).
 
-**The record.** Each sentence of this document that states an absolute requirement or prohibition, in the obligatory keywords of BCP 14, has an identifier: its section's number and its place among those sentences of that section, as in `14.3#1`. `PROOFS.md` in the hdtp-identity repository lists every one beside the test, intrusion scenario or named external artefact that holds it.
+**The record.** Each sentence of this document that states an absolute requirement or prohibition, in the obligatory keywords of BCP 14, has an identifier: its section's number as the section's heading writes it and its place among those sentences of that section, as in `14.3#1` or `9.#4`. `PROOFS.md` in the hdtp-identity repository lists every one beside the test, intrusion scenario or named external artefact that holds it, or the implementation role that does.
 
 ---
