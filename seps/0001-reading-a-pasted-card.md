@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted (2026-10-05, the owner's decision: "accept but it goes in version 1.0.0 only") |
+| Status | Accepted (2026-10-05) |
 | Author | Sumit Agrawal <mr.sumitagrawal.17@gmail.com> |
 | Created | 2026-10-05 |
 | Target | 1.0, amending 1.0.0 in place, as the amendment of 2026-10-04 was |
