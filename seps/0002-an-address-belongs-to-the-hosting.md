@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted (2026-10-06, the owner's order: "certificate valid but identity is deleted. so free it on delete."; "association to an address is limited to hosting but not with identity"; "address is kept for the user for 24 hours as courtasy"; "moving and deleting is not different") |
+| Status | Accepted (2026-10-06) |
 | Author | Sumit Agrawal <mr.sumitagrawal.17@gmail.com> |
 | Created | 2026-10-06 |
 | Target | 1.0, amending 1.0.0 in place, as SEP-0001 did |
