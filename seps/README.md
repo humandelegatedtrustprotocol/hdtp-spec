@@ -43,5 +43,5 @@ When the draft is released as a new `docs/specification/<X.Y>/`, every SEP it ca
 
 | SEP | Title | Status |
 |---|---|---|
-| [0001](0001-reading-a-pasted-card.md) | Reading a card whose folding was damaged in transit | Accepted; written into 1.0.0 in place |
-| [0002](0002-an-address-belongs-to-the-hosting.md) | An address belongs to the hosting | Accepted; written into 1.0.0 in place |
+| [0001](0001-reading-a-pasted-card.md) | Reading a card whose folding was damaged in transit | Final; in 1.0.0 |
+| [0002](0002-an-address-belongs-to-the-hosting.md) | An address belongs to the hosting | Final; in 1.0.0 |
