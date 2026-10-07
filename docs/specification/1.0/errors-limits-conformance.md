@@ -6,7 +6,7 @@
 |---|---|
 | `unknown_contact` | The call needs a contact or a request the receiver does not hold for the caller — for example, `contact_accepted` from a caller the receiver sent no request to |
 | `pending_approval` | The caller is at the pending tier and the call is not one of its tools (§6.1); a `request_contact` repeated while the first still waits; a contact at a new address under `ask` (§5.3) |
-| `permission_denied` | At the pending or contact tier, a tool the caller may not use, or one that does not exist (§6.2, §8) |
+| `permission_denied` | At the contact tier, a tool the caller may not use, or one that does not exist (§6.2, §8) |
 | `invite_invalid` | An invite token that is unknown, expired, revoked or used up (§4) |
 | `blocked_or_unknown` | At the guest tier, a tool the caller may not use, or one that does not exist: one answer for every case, so that a guest cannot tell them apart |
 | `too_large` | A string or a decoded `data` past its bound (§6.2) |
