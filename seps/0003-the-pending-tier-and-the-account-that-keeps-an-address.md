@@ -11,7 +11,7 @@
 
 Two sentences of 1.0.0 disagree with the rule they sit beside or with the hosts that hold them. A
 caller at the pending tier that calls anything but `contact_accepted` or `contact_rejected` is refused
-`pending_approval`, as §6.1 requires; §6.2 and §12 say `permission_denied`, and both hosts answer it.
+`pending_approval`, as §6.1 requires; §6.2 and §12 say `permission_denied`, and the node's plain door answers it.
 A host keeps a left address for 24 hours for the account that held it, which a host may give to
 several people, not for the person alone.
 
@@ -20,7 +20,8 @@ several people, not for the person alone.
 §6.1: every other call from a caller at the pending tier **MUST** answer `pending_approval`. §6.2's
 *Results* and §12's `permission_denied` row give that tier `permission_denied` for a tool it cannot
 see. The seed (`vectors/lib/envelope.mjs`) and the intrusion scenario "a contact still pending_out
-cannot message before accepting" follow §6.1; the node's and BatonDeck's plain doors follow §6.2.
+cannot message before accepting" follow §6.1, and so does BatonDeck on the wire, where its core answers
+a pending caller's other calls before dispatch; the node's plain door follows §6.2.
 A caller that is told `pending_approval` knows its request still waits; `permission_denied` tells it
 nothing it can act on.
 
@@ -77,6 +78,7 @@ contact of the identity that left, as it does after the 24 hours.
 
 ## Evidence
 
-The seed answers `pending_approval` at the pending tier today. The node and BatonDeck each gain a test
-of a pending-tier call to a contact-tier tool on the plain door. hdtp-identity's MUST registry moves
+The seed answers `pending_approval` at the pending tier today. The node gains a test of a pending-tier
+call to a contact-tier tool on the plain door, and BatonDeck one of its dispatcher's refusal, which
+the wire does not reach. hdtp-identity's MUST registry moves
 9.#4's hash and names the host; BatonDeck's `docs/must-holders.json` names `address-hold.test.ts`.
