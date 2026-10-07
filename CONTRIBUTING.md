@@ -83,8 +83,7 @@ will be none. This repository has no git hooks.
 
 Without hdtp-identity, `schema:check` stops at once and `spec:check` fails its three tests of the
 MUST registry. They fail rather than skip, so that `make check` cannot pass with the sibling
-missing. Run the first three before opening a pull request and say in it that you did; the
-maintainer runs all five before merging.
+missing. Outside contributors run the first three and say so in the pull request.
 
 ## Sending a change
 
