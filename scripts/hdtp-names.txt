@@ -79,6 +79,8 @@ retired DeliveryRelay|SplitRecipients|JoinRecipients|relay fetch
 retired sync_contacts|SyncContacts|syncContacts
 # Bundles that carried a key.
 retired StripKeys|StripLeafKeys|StripAccountKeys|backup identity|restore-identity
+# The old name's expansion, which the name lines above do not see.
+retired Personal Agent Communication
 
 # The one sentence that says what HDTP was called, in the specification's first page.
 once hdtp-spec docs/specification/1.0/index.md HDTP was formerly named PACT.
