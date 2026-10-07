@@ -37,8 +37,7 @@ licence (its section 3).
   `CHANGES.md`. A dated public disclosure can be cited against a later patent application
   that claims what it discloses. Whether it defeats a particular application is decided by the
   patent office or the court that examines that application, not by this file. This repository
-  is private as of 2026-09-30, so a version that exists only here is not a public disclosure until
-  it is published.
+  has been public since 2026-10-07.
 
 ## Contributions
 
@@ -55,7 +54,8 @@ fetched 2026-09-30. The page's HTML had SHA-256
 page's text with the HTML removed. The only edits are to the form at the end, and they fill in its
 blanks: the individual block for Sumit Agrawal, and the Bound Entity block for Shailka Systems
 Private Limited. The company's name, CIN and address, and Sumit Agrawal's title, are as the legal
-pages of BatonDeck state them (the batondeck repository, `docs/legal/privacy.md`).
+pages of BatonDeck state them (`docs/legal/privacy.md` in the batondeck repository, which is not
+public).
 
 OWF publishes two OWFa 1.0 agreements, and this is the Patent Only one. OWF's own page describes
 the Patent Only version as "appropriate for uses where the copyright is already covered by another

@@ -2,7 +2,7 @@
 
 Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your friends' and colleagues' assistants across the open internet: contacts live in your phone book as vCards, your identity is a certificate you hold, and sending a message is calling a `send_message` tool on the other person's publicly exposed MCP server. Humans approve every contact and control what each contact may do.
 
-**Status: 1.0.0 (2026-10-03), released. `CHANGES.md` is the revision history. This repository is private.**
+**Status: 1.0.0 (2026-10-03), released. `CHANGES.md` is the revision history.**
 
 ## Repository map
 
@@ -30,7 +30,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 
 ## Implementations
 
-Two exist, both by this project and neither public yet: a self-hosted node, HDTP Gateway ([hdtp.dev](https://hdtp.dev)), and a hosted platform, BatonDeck ([batondeck.com](https://batondeck.com)). Both are built on one identity library, `hdtp-identity` (a Rust core compiled to WebAssembly, a second port in Go, and the `hdtp` CLI), which runs the vectors of Appendix B and the scenarios of `vectors/intrude.mjs` through both of its ports. There is no independent implementation yet.
+Two exist, both by this project and neither public yet: a self-hosted node, HDTP Gateway ([hdtp.dev](https://hdtp.dev)), and a hosted platform, BatonDeck ([batondeck.com](https://batondeck.com)). Both are built on one identity library, `hdtp-identity` (a Rust core compiled to WebAssembly, a second port in Go, and the `hdtp` CLI; not public yet either), which runs the vectors of Appendix B and the scenarios of `vectors/intrude.mjs` through both of its ports. There is no independent implementation yet.
 
 ## Gates
 
@@ -39,11 +39,11 @@ npm ci
 npm run vectors:check     # the vectors against the specification, then the name guard (its self-test first)
 npm run docs:check        # every section reference and link resolves; the schema's reference page and examples hold to schema.json
 npm run spec:check        # the web renderer and the open-fonts rule; needs hdtp-identity beside this checkout
-npm run schema:check      # schema/*/schema.json is what hdtp-identity's contract generates
+npm run schema:check      # schema/*/schema.json is what hdtp-identity's contract generates; needs hdtp-identity too
 npm run build             # the whitepaper; the build is also a gate
 ```
 
-`make check` runs the first four, `make build` the fifth. The name guard (`scripts/check-names.mjs`) fails on any tracked path or text carrying a name `scripts/hdtp-names.txt` forbids: the old name in the three spellings its `name` lines give (lower-case, capitalised, upper-case), anywhere except right after `im` or `com`, and the names of behaviours HDTP does not have. The file also lists what is allowed, one exact text in one file of one repository per line: this repository's one entry is the sentence that says what HDTP was called, and the others are the sites' redirect configs, the specification site's vendored copies of that sentence and BatonDeck's terraform for the old domains. A `frozen` line names a repository's manifest of dated records (one `<sha256>  <path>` per line): the guard reads neither the text nor the path of a file the manifest lists, for as long as the file is the bytes its line names; a changed record, a listed path that is gone and a manifest holding any other line each fail.
+`make check` runs the first four, `make build` the fifth. hdtp-identity is not public, so outside the project only `vectors:check`, `docs:check` and the build can run (`CONTRIBUTING.md`, "Gates and where they run"). The name guard (`scripts/check-names.mjs`) fails on any tracked path or text carrying a name `scripts/hdtp-names.txt` forbids: the old name in the three spellings its `name` lines give (lower-case, capitalised, upper-case), anywhere except right after `im` or `com`, and the names of behaviours HDTP does not have. The file also lists what is allowed, one exact text in one file of one repository per line: this repository's one entry is the sentence that says what HDTP was called, and the others are the sites' redirect configs, the specification site's vendored copies of that sentence and BatonDeck's terraform for the old domains. A `frozen` line names a repository's manifest of dated records (one `<sha256>  <path>` per line): the guard reads neither the text nor the path of a file the manifest lists, for as long as the file is the bytes its line names; a changed record, a listed path that is gone and a manifest holding any other line each fail.
 
 ## Building the whitepaper
 
