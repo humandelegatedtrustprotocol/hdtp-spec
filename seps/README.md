@@ -45,3 +45,4 @@ When the draft is released as a new `docs/specification/<X.Y>/`, every SEP it ca
 |---|---|---|
 | [0001](0001-reading-a-pasted-card.md) | Reading a card whose folding was damaged in transit | Final; in 1.0.0 |
 | [0002](0002-an-address-belongs-to-the-hosting.md) | An address belongs to the hosting | Final; in 1.0.0 |
+| [0003](0003-the-pending-tier-and-the-account-that-keeps-an-address.md) | The pending tier's refusal, and the account that keeps a left address | Accepted |
