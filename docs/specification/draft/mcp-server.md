@@ -24,7 +24,7 @@ A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way
 
 ### 6.2 Core tools
 
-**Results.** Every tool answers with an MCP `CallToolResult` holding one `text` content item, whose text is a JSON object: the tool's result. A result that succeeds carries no `isError`, or `isError: false`. A refusal is a result with `isError: true` whose text is a JSON object holding `code`, one of the codes of §12, and, where §12 says so, `retry_after` or `data`. A call to a tool the caller cannot see, or to one that does not exist, is answered as a refusal: `blocked_or_unknown` at the guest tier, `permission_denied` at the pending and contact tiers. Appendix A shows each shape on the wire.
+**Results.** Every tool answers with an MCP `CallToolResult` holding one `text` content item, whose text is a JSON object: the tool's result. A result that succeeds carries no `isError`, or `isError: false`. A refusal is a result with `isError: true` whose text is a JSON object holding `code`, one of the codes of §12, and, where §12 says so, `retry_after` or `data`. A call to a tool the caller cannot see, or to one that does not exist, is answered as a refusal: `blocked_or_unknown` at the guest tier, `pending_approval` at the pending tier (§6.1), `permission_denied` at the contact tier. Appendix A shows each shape on the wire.
 
 ```json
 { "jsonrpc": "2.0", "id": 7, "result": {
