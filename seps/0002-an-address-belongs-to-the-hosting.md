@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| Status | Accepted (2026-10-06) |
-| Author | Sumit Agrawal <mr.sumitagrawal.17@gmail.com> |
+| Status | Final (2026-10-07) |
+| Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-06 |
 | Target | 1.0, amending 1.0.0 in place, as SEP-0001 did |
 
