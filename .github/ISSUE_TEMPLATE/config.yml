@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/humandelegatedtrustprotocol/hdtp-spec/security/advisories/new
+    about: Report a weakness privately, never in a public issue (SECURITY.md).
+  - name: Propose a change (SEP)
+    url: https://github.com/humandelegatedtrustprotocol/hdtp-spec/blob/main/seps/README.md
+    about: A change to what an implementation must do is a SEP, opened as a pull request.

@@ -1,0 +1,25 @@
+name: Specification defect
+description: A contradiction, an ambiguity, a requirement no implementation could meet, or a vector that disagrees with its text.
+labels: [bug]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Version and section
+      placeholder: 1.0 §14.2 rule 4
+    validations:
+      required: true
+  - type: textarea
+    id: text
+    attributes:
+      label: What the text says
+      description: Quote it.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: The case it gets wrong, the sentence it contradicts, or the vector that disagrees; a reproduction against `vectors/` if you have one.
+    validations:
+      required: true

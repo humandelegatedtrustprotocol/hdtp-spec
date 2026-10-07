@@ -6,6 +6,20 @@ This repository holds the HDTP specification (`docs/specification/`), its revisi
 requests and are reviewed by the maintainers (`MAINTAINERS.md`). How decisions are made is
 `GOVERNANCE.md`.
 
+## Where to start
+
+- **A defect in the text** — a contradiction, an ambiguity, a MUST no implementation could meet, a
+  vector that disagrees with its prose: open an issue ("Specification defect"), naming the version
+  and section (`1.0 §14.2`).
+- **A question or an idea:** open an issue ("Question or idea").
+- **A change to what an implementation must do:** write a SEP. Copy `seps/TEMPLATE.md` to
+  `seps/NNNN-short-title.md` with the next free number, fill in every section, and open a pull
+  request with the SEP alone, status `Draft`. `seps/README.md` is the whole process, from review
+  to text.
+- **A correction that changes no requirement** (a typo, a broken reference, a clearer sentence): a
+  pull request against the text, with its `CHANGES.md` line.
+- **A security weakness:** never an issue. `SECURITY.md` says how to report it privately.
+
 ## Ground rules
 
 - A released version's text (`docs/specification/1.0/`) changes only by a correction that changes
