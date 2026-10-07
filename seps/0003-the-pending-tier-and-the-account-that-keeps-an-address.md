@@ -79,6 +79,6 @@ contact of the identity that left, as it does after the 24 hours.
 ## Evidence
 
 The seed answers `pending_approval` at the pending tier today. The node gains a test of a pending-tier
-call to a contact-tier tool on the plain door, and BatonDeck one of its dispatcher's refusal, which
-the wire does not reach. hdtp-identity's MUST registry moves
+call to a contact-tier tool on the plain door, and BatonDeck one on the wire that holds the answer
+its core already gives. hdtp-identity's MUST registry moves
 9.#4's hash and names the host; BatonDeck's `docs/must-holders.json` names `address-hold.test.ts`.
