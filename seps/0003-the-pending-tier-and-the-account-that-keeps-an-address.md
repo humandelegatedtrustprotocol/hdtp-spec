@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted (2026-10-07) |
+| Status | Final (2026-10-07) |
 | Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-07 |
 | Target | 1.0, amending 1.0.0 in place, as SEP-0002 did |
