@@ -3,10 +3,8 @@
 This repository holds the HDTP specification (`docs/specification/`), its revision history
 (`CHANGES.md`), the JSON Schema of its wire objects (`schema/`), the enhancement-proposal process
 (`seps/`), the test vectors of its Appendix B and the build of its whitepaper. Changes come as pull
-requests and are reviewed by the maintainers (`MAINTAINERS.md`). The workflow's `build` job
-(`.github/workflows/whitepaper.yml`) runs on every pull request, and the reviewer reads its result
-before merging; merging does not require it to pass. How decisions are
-made is `GOVERNANCE.md`.
+requests and are reviewed by the maintainers (`MAINTAINERS.md`). How decisions are made is
+`GOVERNANCE.md`.
 
 ## Ground rules
 
@@ -40,7 +38,7 @@ made is `GOVERNANCE.md`.
 
 ## Getting set up
 
-Node 22 (what the workflow uses) and `npm ci`. The whitepaper build needs a Chrome, which
+Node 22 and `npm ci`. The whitepaper build needs a Chrome, which
 `puppeteer` downloads on install; `PUPPETEER_EXECUTABLE_PATH` points it at one already on the
 machine. `npm run spec:check` and `npm run schema:check` need the `hdtp-identity` checkout beside
 this one (or `HDTP_IDENTITY_DIR`).
@@ -61,11 +59,18 @@ read from a local file and from nowhere else.
 
 ## Gates and where they run
 
-There is no CI credential and there will be none. The workflow runs `npm run vectors:check`, `npm run docs:check`
-and `npm run build` on every push to `main` and on every pull request, with `permissions: contents:
-read`; it publishes nothing and keeps no artifact. `spec:check` and `schema:check` read the private
-sibling `hdtp-identity`, so they run locally. This repository has no git hooks. Run every gate
-locally before opening a pull request.
+Every gate runs locally. Nothing runs on GitHub: there is no CI and no CI credential, and there
+will be none. This repository has no git hooks.
+
+| Gate | Needs |
+|---|---|
+| `npm run vectors:check`, `npm run docs:check`, `npm run build` | this checkout |
+| `npm run spec:check`, `npm run schema:check` | the `hdtp-identity` checkout beside this one, or `HDTP_IDENTITY_DIR`; hdtp-identity is not public |
+
+Without hdtp-identity, `schema:check` stops at once and `spec:check` fails its three tests of the
+MUST registry. They fail rather than skip, so that `make check` cannot pass with the sibling
+missing. Run the first three before opening a pull request and say in it that you did; the
+maintainer runs all five before merging.
 
 ## Sending a change
 

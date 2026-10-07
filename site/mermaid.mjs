@@ -25,10 +25,6 @@ export function launch() {
     // The page is a file:// URL loading file:// fonts and stylesheets.
     args: [
       '--allow-file-access-from-files', '--font-render-hinting=none',
-      // GitHub's Ubuntu 24.04 runners restrict unprivileged user namespaces (AppArmor), so
-      // Chrome aborts with "No usable sandbox!". The page rendered here is our own build
-      // output, never remote content, so running unsandboxed in CI gives up nothing.
-      ...(process.env.CI ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : []),
     ],
   })
 }
