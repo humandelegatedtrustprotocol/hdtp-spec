@@ -41,3 +41,10 @@ Amended on 2026-10-06, in this version: an address belongs to the hosting, not t
 for the person for 24 hours, for any identity of theirs, and then frees it; it was held until the
 last leaf issued for it expired. The root is the person's and is not touched. The MUST only
 relaxes: a host of this version from before the amendment conforms to it.
+
+Amended on 2026-10-07, in this version (SEP-0003): a caller at the pending tier is refused
+`pending_approval` for a tool it cannot call, as §6.1 required; §6.2 and §12 had said
+`permission_denied`. A host keeps a left address for the account that held it, which may be one the
+person shares at the host, rather than for the person (§9). A host of this version from before the
+amendment that answered `permission_denied` there does not conform to it; one that kept an address
+for the person conforms where all of the person's identities at it are in one account.
