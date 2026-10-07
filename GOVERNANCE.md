@@ -30,17 +30,16 @@ down as a SEP before it becomes text.
 - **Enhancement proposals.** A change to what an implementation must do — a new tool, a new rule, a
   change on the wire — starts as a SEP. `seps/README.md` is the process: how a SEP is written,
   reviewed, accepted or rejected, and how an accepted one becomes text in `draft/`.
-- **Evidence.** The text is held by gates, and where each runs is part of the claim
-  (`CONTRIBUTING.md`):
-  - the workflow (`.github/workflows/whitepaper.yml`), on every push to `main` and every pull
-    request, runs three things and nothing else: `npm run vectors:check` (the vectors of Appendix B
+- **Evidence.** The text is held by gates, all run locally; nothing runs on GitHub
+  (`CONTRIBUTING.md`, "Gates and where they run"):
+  - in this repository, `make check` runs `npm run vectors:check` (the vectors of Appendix B
     against the text, then the name guard), `npm run docs:check` (every section reference and link
-    resolves, and the schema's reference page and examples hold to `schema.json`) and the whitepaper
-    build;
-  - locally, in this repository, `make check` adds the web renderer's tests (`npm run spec:check`)
-    and the schema held to the identity library's contract (`npm run schema:check`); both read the
-    private sibling `hdtp-identity`, which the workflow has no credential for. The intrusion
-    battery (`npm run vectors:intrude`) is run by hand here: no gate of this repository runs it;
+    resolves, and the schema's reference page and examples hold to `schema.json`), the web
+    renderer's tests (`npm run spec:check`) and the schema held to the identity library's contract
+    (`npm run schema:check`); the last two read the sibling `hdtp-identity`, which is not public.
+    The whitepaper build (`npm run build`) is a gate too. The maintainer runs all of them before
+    merging a pull request. The intrusion battery (`npm run vectors:intrude`) is run by hand here:
+    no gate of this repository runs it;
   - locally, in `hdtp-identity`, that library's gate (`sh gate.sh`, its pre-push hook) runs this
     repository's vector check and intrusion battery again, and holds the MUST registry: every
     normative sentence of the text names the test or scenario that holds it.
