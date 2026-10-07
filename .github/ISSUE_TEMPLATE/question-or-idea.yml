@@ -1,0 +1,11 @@
+name: Question or idea
+description: Something the text leaves unclear, or an idea that is not yet a SEP.
+labels: [question]
+body:
+  - type: textarea
+    id: body
+    attributes:
+      label: Question or idea
+      description: Name the version and section it concerns, if any.
+    validations:
+      required: true

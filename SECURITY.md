@@ -7,7 +7,9 @@ certificate the §14.1 profile should refuse and does not — report it privatel
 
 **Do not open a public issue for security reports.**
 
-Email: security@hdtp.io with subject `[hdtp-spec security]`. Say which section
+Report it through GitHub's private vulnerability reporting
+(<https://github.com/humandelegatedtrustprotocol/hdtp-spec/security/advisories/new>), or by email to
+security@hdtp.io with subject `[hdtp-spec security]`. Say which section
 you read against and include a reproduction if you can; a scenario in the shape of those in
 `vectors/intrude.mjs` is the most useful form, because it runs against the in-memory node in
 `vectors/lib` as it stands. You will get an acknowledgment within 72 hours and a status update
