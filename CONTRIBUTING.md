@@ -79,7 +79,7 @@ will be none. This repository has no git hooks.
 | Gate | Needs |
 |---|---|
 | `npm run vectors:check`, `npm run docs:check`, `npm run build` | this checkout |
-| `npm run spec:check`, `npm run schema:check` | the `hdtp-identity` checkout beside this one, or `HDTP_IDENTITY_DIR`; hdtp-identity is not public |
+| `npm run spec:check`, `npm run schema:check` | the `hdtp-identity` checkout beside this one, or `HDTP_IDENTITY_DIR` (public since 2026-10-08) |
 
 Without hdtp-identity, `schema:check` stops at once and `spec:check` fails its three tests of the
 MUST registry. They fail rather than skip, so that `make check` cannot pass with the sibling

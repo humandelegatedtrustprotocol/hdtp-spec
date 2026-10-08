@@ -36,7 +36,7 @@ down as a SEP before it becomes text.
     against the text, then the name guard), `npm run docs:check` (every section reference and link
     resolves, and the schema's reference page and examples hold to `schema.json`), the web
     renderer's tests (`npm run spec:check`) and the schema held to the identity library's contract
-    (`npm run schema:check`); the last two read the sibling `hdtp-identity`, which is not public.
+    (`npm run schema:check`); the last two read the sibling `hdtp-identity` (public since 2026-10-08).
     The whitepaper build (`npm run build`) is a gate too. The intrusion battery (`npm run vectors:intrude`) is run by hand here:
     no gate of this repository runs it;
   - locally, in `hdtp-identity`, that library's gate (`sh gate.sh`, its pre-push hook) runs this
