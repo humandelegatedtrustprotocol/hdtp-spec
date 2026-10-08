@@ -11,6 +11,17 @@ it does.
 The versions published before the rename, 1.0.0 of 2026-08-23 to 2.2.5 of 2026-09-30, are recorded
 as they were written in `docs/release/changes-before-hdtp.md`, a dated record kept byte for byte.
 
+## 1.1.0-draft
+
+In §14.5, the row for a stolen leaf key said the key "speaks only from its one address". It is
+*reached* only there: a receiver verifies a chain against the endpoint it pinned, never against where
+a call came from, so until the renewal reaches a contact the thief calls that contact as the person
+from anywhere, in either form of §13.2, and opens what the contact still seals to the key. The row now
+says so, in both columns; no requirement changes. `vectors/intrude.mjs` gained the six scenarios that
+measure it: the stolen key in the small form, before and after the renewal is learned; an envelope
+sealed to the superseded key opening at the host (§2) and for whoever holds that key; and what a
+contact seals to once the renewal has reached it, with the thief replaying the superseded chain.
+
 ## 1.0.0 · 2026-10-03
 
 The first release. An identity is the fingerprint of a self-signed root certificate the person
