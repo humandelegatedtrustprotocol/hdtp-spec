@@ -6,6 +6,8 @@ An identity is a **root certificate**: self-signed X.509, its private key held b
 fingerprint = "sha256:" + base64url( SHA-256( SubjectPublicKeyInfo ) )
 ```
 
+A fingerprint has one spelling. Its 43 characters carry 258 bits for the digest's 256, and the last character's two spare bits are zero (RFC 4648 §3.5), so that character is one of `AEIMQUYcgkosw048`. A reader **MUST** refuse a fingerprint whose last character is any other: it spells the same 32 bytes again, a second name for one root.
+
 A **host** — the person's own machine, or a provider — serves the identity under a **leaf certificate** the root issued. The leaf carries the host's own key, the one address the identity answers at, and the dates between which the host's authority runs. The leaf's key does three jobs: it is the TLS certificate, it signs every envelope, and contacts seal to it (§13). Contacts pin the root above it and learn the leaf beneath. §14 gives both certificates' profile and the validation rules; this section is what they mean.
 
 | Certificate | Key held by | Algorithm | Names | Lives |

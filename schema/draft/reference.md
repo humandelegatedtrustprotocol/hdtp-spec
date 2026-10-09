@@ -89,9 +89,9 @@ No other members are allowed.
 
 ## `Fingerprint`
 
-`"sha256:" + b64url(SHA-256(SPKI))`.
+`"sha256:" + b64url(SHA-256(SPKI))`, in its one spelling: the last character's two spare bits are zero (RFC 4648 §3.5).
 
-Type: `string`; pattern `^sha256:[A-Za-z0-9_-]{43}$`.
+Type: `string`; pattern `^sha256:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$`.
 
 ## `InstantIn`
 
