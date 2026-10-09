@@ -165,8 +165,10 @@ GOVERNANCE moves `hdtp_export` only with X, and a bump would refuse every file, 
 
 A 1.1 importer accepts every file a 1.0 writer writes.
 
-Moving into a host that implements only 1.0 is refused whole when the file carries a removed thread.
-**Accepted residual, pending the maintainer's decision.**
+An export carries exactly the conversations the identity holds, with no choice at export time. A
+person controls what travels by deleting a conversation beforehand. A host that implements only 1.0
+refuses a file that carries a removed thread: that is the accepted residual, and a person who must
+move to such a host deletes those conversations first.
 
 ## Privacy
 
