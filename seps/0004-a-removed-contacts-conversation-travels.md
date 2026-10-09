@@ -33,7 +33,18 @@ removed.
 ## Specification changes
 
 The text is quoted where the wording is new; otherwise the change is described. Sections touched:
-§9 and §9.2 (`hosting.md`), §14.5 (`certificates.md`) and §3 (`contact-cards.md`).
+§2 (`identity.md`), §9 and §9.2 (`hosting.md`), §14.5 (`certificates.md`) and §3 (`contact-cards.md`).
+
+**§2, the fingerprint** (new, after its formula):
+
+> A fingerprint has one spelling. Its 43 characters carry 258 bits for the digest's 256, and the last
+> character's two spare bits are zero (RFC 4648 §3.5), so that character is one of
+> `AEIMQUYcgkosw048`. A reader **MUST** refuse a fingerprint whose last character is any other: it
+> spells the same 32 bytes again, a second name for one root.
+
+Without it, one root has four spellings. In an export, a contact's root spelled another way would
+read as a removed thread's root, the owner's would pass the rule that a removed thread's root is never
+the owner, and two rows of `contacts.csv` would be two roots.
 
 **§9, Moving.** "The archive is the export of §9.2: the person's contacts and their conversations,
 including those with former contacts, with the media in them, …"
@@ -65,22 +76,23 @@ of a removed thread.
 
 **§9.2, which conversations travel** (new, after the `contacts.csv` table):
 
-> A writer **MUST** carry every thread it holds whose root is a row of `contacts.csv`, or whose root
-> was ever active and is not; a thread of the second kind is a removed thread. A writer **MUST** list
-> each thread it holds and does not carry in the report it gives the person, by its `id` and the
-> reason.
+> A writer of a full export **MUST** carry every thread it holds, except a thread whose root was never
+> active and is not a row of `contacts.csv`, and **MUST** list each thread it leaves out in the report
+> it gives the person, by its `id` and the reason. A thread it carries whose root is not a row of
+> `contacts.csv` is a removed thread.
 
-"Ever active" is what `was_active` records for a contact: whether the root was ever a contact. A
-root held as a request received and not yet decided is not a row of `contacts.csv`: its thread
-travels as a removed thread if the root was ever active, and otherwise stays. A blocked root is a row
-of `contacts.csv`, whatever its `was_active`, and its thread travels with that row.
+"Ever active" is what `was_active` records for a contact: whether the root was ever a contact. A root
+that a removed thread brought in by an import was ever active (step 3). A blocked root is a row of
+`contacts.csv`, whatever its `was_active`, and its thread travels with that row. A root held as a
+request received and not yet decided is not a row: its thread travels as a removed thread if the root
+was ever active, and otherwise stays. A book has no threads, and this rule does not reach it.
 
 **§9.2, Validation.** These rows change.
 
 | Check | Changes to |
 |---|---|
-| Rows | `threads.csv`'s header is one of the two shown, and the longer one only when at least one thread is a removed thread; a removed thread's `contact` is a fingerprint and not `owner`; on a thread that is not removed, `contact_name` and `contact_display_name` are empty; on a removed thread, each is at most 200 characters, and every removed thread of one root carries the same two |
-| References | "a thread whose `contact` names nothing in the file" is replaced by the rule above; a message's `contact` names a root of `contacts.csv` or of a removed thread |
+| Rows | adds: "`threads.csv`'s header is one of the two shown, and the longer one only when a thread is a removed thread; a removed thread's `contact` is a fingerprint and not `owner`; a thread that is not removed has an empty `contact_name` and `contact_display_name`; a removed thread's are each at most 200 characters, and every removed thread of one root carries the same two" |
+| References | "a thread whose `contact` names nothing in the file" becomes "a thread, under the shorter header, whose `contact` is no root of `contacts.csv`"; a message's `contact` names a root of `contacts.csv` or the `contact` of a removed thread |
 
 The key-material check and the spreadsheet-formula rule already reach "any cell", so they reach the
 two new columns unchanged. The manifest does not change: `counts.threads` counts every thread.
@@ -90,11 +102,12 @@ two new columns unchanged. The manifest does not change: `counts.threads` counts
 - Step 1 adds: "and the root and the names of each removed thread".
 - Step 3 becomes: "It writes the contacts, which are recognised at once in the status their rows give,
   then the threads, the messages and the files. A removed thread belongs to the importer's contact
-  with that root if it holds one, and is otherwise kept as a removed contact's conversation, labelled
-  with its names. An importer **MUST NOT** write a removed thread's root as a contact. A host
-  **MUST NOT** send a message it imported, whatever its `status`: retries belonged to the host that
-  exported it."
-  A contact the importer "holds" is a row of any status, a request received or a block included.
+  with that root if it holds one, of any status, and is otherwise kept as a removed thread, labelled
+  with its names; either way its root was ever active. An importer **MUST NOT** write a removed
+  thread's root as a contact. A host **MUST NOT** send a message it imported, whatever its `status`:
+  retries belonged to the host that exported it."
+  A contact of any status includes a request received and a block. "Its root was ever active" is what
+  lets the conversation travel again in the next export, on a second move.
 - Step 5 adds: "An importer **MUST NOT** call a removed thread's root, and does not report it
   unreached."
 
@@ -105,15 +118,18 @@ now covers `contact_display_name` too.
 `display_name` or `contact_display_name` an export carries (§9.2), is untrusted display input: a
 receiver **MUST** strip control and bidirectional-format characters from it before rendering it, …"
 
-**§14.5, "A planted row".** The residual column adds: "a former contact's conversation the person
-never had, shown with its root and labelled removed; it never becomes a contact".
+**§14.5, "A planted row".** The residual column adds: "a removed thread the person never had, shown
+with its root and labelled removed, which never becomes a contact; and a writer's bug that files a
+contact's thread as a removed thread under a root it misspells, shown with that root".
 
 ### The MUSTs this adds
 
-1. §9.2: a writer carries every thread whose root is a contact or was ever active.
-2. §9.2: a writer lists each thread it does not carry, by its `id` and the reason.
+1. §9.2: a writer of a full export carries every thread but one whose root was never active and is
+   not a contact.
+2. §9.2: a writer lists each thread it leaves out, by its `id` and the reason.
 3. §9.2 step 3: an importer does not write a removed thread's root as a contact.
 4. §9.2 step 5: an importer does not call a removed thread's root.
+5. §2: a reader refuses a fingerprint whose last character is not one of `AEIMQUYcgkosw048`.
 
 The Rows and References rows above, the contact-control truncation and §3's stripping rule are
 existing MUSTs whose reach changes.
@@ -134,11 +150,12 @@ Two columns on `threads.csv`, present only when a thread needs them:
   root.
 - **Why the names agree per root.** One former contact is one identity in the review and in the
   conversation list. Two threads of one root naming it differently would leave the importer to choose.
-- **What it costs.** The check that a thread's `contact` names a row of `contacts.csv` becomes, for
-  the longer header, the check that a root not in `contacts.csv` is a well-formed fingerprint that is
-  not the owner's. A mistyped root in a file that also carries a removed thread would read as a
-  removed thread. A writer writes canonical rows, the manifest's hash binds them, and the review
-  shows the root. So such a file is what its writer wrote.
+- **What it costs.** Under the longer header, the check that a thread's `contact` names a row of
+  `contacts.csv` becomes the check that a root not in `contacts.csv` is a fingerprint in its one
+  spelling (§2) and not the owner's. A root the writer got wrong, if it is still a well-formed
+  fingerprint, reads as a removed thread rather than as a dangling reference: the manifest's hash
+  binds what the writer wrote, not whether it was right. The review shows the root, and §14.5 names
+  the residual.
 
 The member's size is bounded as before: `threads.csv` at 16 MiB. The new columns add at most 1608
 bytes to a row: two names of at most 200 characters of at most 4 bytes each, a guard `'` and two
@@ -150,8 +167,9 @@ hdtp-identity's `contract/contract.json`, and through `npm run schema` this repo
 `schema/draft/`, change:
 
 - `$defs.ThreadRow` gains the optional strings `contact_name` and `contact_display_name`.
-- `export_read` answers both on every thread, empty on a thread that is not removed.
-- `export_write` takes them on a removed thread and refuses them on any other.
+- `export_read` answers both on a removed thread, and neither on any other.
+- `export_write` takes them on a removed thread, and refuses them, when not empty, on any other.
+- `$defs.Fingerprint`'s pattern takes the one spelling (§2).
 - `export_read_messages` is handed, as `contacts`, the roots of `contacts.csv` and of the removed
   threads.
 
@@ -165,8 +183,9 @@ GOVERNANCE moves `hdtp_export` only with X, and a bump would refuse every file, 
 
 A 1.1 importer accepts every file a 1.0 writer writes.
 
-An export carries exactly the conversations the identity holds, with no choice at export time. A
-person controls what travels by deleting a conversation beforehand. A host that implements only 1.0
+An export carries every conversation the identity holds but those with a root that was never a
+contact, with no choice at export time. A person controls what travels by deleting a conversation
+beforehand. A host that implements only 1.0
 refuses a file that carries a removed thread: that is the accepted residual, and a person who must
 move to such a host deletes those conversations first.
 
@@ -208,19 +227,27 @@ No key material can enter. The key-material check covers every cell. A removed t
 
 ## Evidence
 
-hdtp-identity's export corpus gains one accepted file carrying a removed thread with a message and a
-file in it, and refusals for each of these:
+hdtp-identity's export corpus gains two accepted files, a removed thread with a message and a file in
+it (`valid-export-with-removed-thread.zip`) and the same with both names empty
+(`valid-export-with-a-nameless-removed-thread.zip`), and a refusal for each of these:
 
-- a removed thread whose root is the owner;
-- a removed thread whose root is not a fingerprint;
-- names on a thread that is not removed;
-- a name over 200 characters;
-- two removed threads of one root with different names;
-- the longer header with no removed thread;
-- the shorter header with a thread whose root is not in `contacts.csv`;
-- a header that is neither;
-- a key in a name;
-- a message whose `contact` is a root of neither kind.
+- a removed thread whose root is the owner (`removed-thread-is-owner.zip`);
+- a removed thread whose root is not a fingerprint (`removed-thread-not-a-fingerprint.zip`);
+- names on a thread that is not removed (`names-on-a-live-thread.zip`);
+- a `contact_name` over 200 characters (`removed-thread-name-over-200.zip`);
+- a `contact_display_name` over 200 characters (`removed-thread-display-name-over-200.zip`);
+- two removed threads of one root with different names (`removed-thread-names-disagree.zip`);
+- the longer header with no removed thread (`named-header-without-a-removed-thread.zip`);
+- a header that is neither (`threads-bad-header.zip`);
+- a key in a name (`key-in-a-thread-name.zip`);
+- six fields under the longer header (`removed-thread-six-fields.zip`);
+- a message whose `contact` is no contact's root and no removed thread's (`message-names-no-contact.zip`);
+- a contact's root misspelt, as a removed thread's (`removed-thread-alias-of-a-contact.zip`);
+- the owner's root misspelt, as a removed thread's (`removed-thread-alias-of-the-owner.zip`);
+- a contacts.csv root that is another row's misspelt (`contact-root-alias.zip`).
+
+The shorter header with a thread whose root is not in `contacts.csv` is the existing
+`dangling-thread-contact.zip`.
 
 Both ports and `js/parity.mjs` are held to the corpus. The existing valid export and book stay byte for
 byte what they are, which holds the omission rule.
@@ -229,8 +256,9 @@ Holders of the MUSTs, for hdtp-identity's `js/musts.json` when the draft is rele
 
 | MUST | Holder |
 |---|---|
-| 1 and 2 (the writer) | the node's `internal/portable` export tests and the cloud's export test, each over a removed contact, a stranger never accepted and a former contact asking again |
+| 1 and 2 (the writer) | the node's `internal/portable` export tests and the cloud's export test, each over a removed contact, a stranger never accepted and a former contact asking again, and a conversation exported again after an import (the second move) |
 | 3 (no contact written) | the node's and the cloud's import tests, and the round trip each way |
+| 5 (one spelling) | both ports' `is_fingerprint`, and the three alias cases of the corpus |
 | 4 (no call) | the same import tests, asserting no `update_contact` and no `request_contact` to a removed thread's root |
 | The changed Rows and References rows, and the truncation | the corpus cases above, on both ports |
 | §3's stripping of a `contact_display_name` | the node's and the cloud's label tests |
