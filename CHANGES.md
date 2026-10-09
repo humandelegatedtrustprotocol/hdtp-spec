@@ -13,14 +13,15 @@ as they were written in `docs/release/changes-before-hdtp.md`, a dated record ke
 
 ## 1.1.0-draft
 
-An export carries the conversations a person had with former contacts (§9.2, SEP-0004). A new
-optional member, `removed.csv` (`root,name,display_name`), names each root that was ever active and
-is no longer a contact, by its root and the two names last known for it; a thread's and a message's
-`contact` may be one of its roots. A removed row is not a contact: an importer never writes it as one
-and never calls it. `counts.removed` and `files`' `removed.csv` are present with the member and only
-with it: a 1.1 importer accepts every file a 1.0 writer writes, and a 1.0 importer refuses a file that has one. This
-changes what an implementation writes and accepts. §3's stripping of `FN` reaches a row's
-`display_name`, and §14.5's planted row names a former contact's conversation as its residual.
+An export carries the conversations a person had with former contacts (§9.2, SEP-0004): a removed
+thread is a row of `threads.csv` whose `contact` is not a root of `contacts.csv`, and it carries the
+names the contact is known by in two new columns, `contact_name` and `contact_display_name`, empty on
+every other thread. `threads.csv` takes the longer header only when a removed thread exists, and the
+manifest does not change: a 1.1 importer accepts every file a 1.0 writer writes, and a 1.0 importer
+refuses a file with a removed thread. A removed thread's root is never written as a contact or
+called. This changes what an implementation writes and accepts. §3's stripping of `FN` reaches an
+exported `display_name` and `contact_display_name`, and §14.5's planted row names a former contact's
+conversation as its residual.
 
 In §14.5, the row for a stolen leaf key said the key "speaks only from its one address". It is
 *reached* only there: a receiver verifies a chain against the endpoint it pinned, never against where
