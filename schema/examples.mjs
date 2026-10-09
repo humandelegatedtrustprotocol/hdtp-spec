@@ -26,9 +26,11 @@ for (const version of versions) {
   ajv.addSchema(schema)
   const dir = join(root, 'schema', version, 'examples')
   const defs = existsSync(dir) ? readdirSync(dir) : []
-  for (const name of OBJECTS) if (!defs.includes(name)) problems.push(`schema/${version}: ${name} has no example in examples/${name}/`)
+  // The objects of THIS version's schema: a released one is frozen and may define fewer than gen.mjs takes now.
+  const objects = OBJECTS.filter((name) => schema.$defs[name])
+  for (const name of objects) if (!defs.includes(name)) problems.push(`schema/${version}: ${name} has no example in examples/${name}/`)
   for (const def of defs) {
-    if (!OBJECTS.includes(def)) { problems.push(`schema/${version}/examples/${def}: not an object of the schema (${OBJECTS.join(', ')})`); continue }
+    if (!objects.includes(def)) { problems.push(`schema/${version}/examples/${def}: not an object of the schema (${objects.join(', ')})`); continue }
     const validate = ajv.getSchema(`${schema.$id}#/$defs/${def}`)
     for (const file of readdirSync(join(dir, def)).filter((f) => f.endsWith('.json'))) {
       const where = `schema/${version}/examples/${def}/${file}`

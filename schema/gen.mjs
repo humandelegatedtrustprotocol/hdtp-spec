@@ -25,7 +25,7 @@ import { pathToFileURL } from 'node:url'
 import { identityDir } from '../site/siblings.mjs'
 import { root, versions } from '../site/spec-source.mjs'
 
-export const OBJECTS = ['Envelope', 'SigningRequest', 'ExportManifest', 'ContactRow', 'ThreadRow', 'MessageRow']
+export const OBJECTS = ['Envelope', 'SigningRequest', 'ExportManifest', 'ContactRow', 'RemovedRow', 'ThreadRow', 'MessageRow']
 
 const refsOf = (node, out = new Set()) => {
   if (node && typeof node === 'object') {
