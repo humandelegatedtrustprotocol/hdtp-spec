@@ -38,8 +38,9 @@ requests and are reviewed by the maintainers (`MAINTAINERS.md`). How decisions a
   repository), each entry naming the test or scenario that holds it. Editing a MUST changes its
   hash and fails that library's gate until the entry is re-verified in both of its ports, so say in
   the pull request which MUSTs you touched.
-- `schema/*/schema.json` is generated from hdtp-identity's contract (`npm run schema`), never
-  edited by hand; `npm run schema:check` fails when it differs. The same command writes
+- `schema/draft/schema.json` is generated from hdtp-identity's contract (`npm run schema`), never
+  edited by hand; `npm run schema:check` fails when it differs, and when a released version's
+  `schema.json` or `reference.md` is not the bytes `schema/released.sha256` names. The same command writes
   `schema/*/reference.md` from it; `npm run docs:check` fails when that page differs from what
   `schema.json` generates, or when an example in `schema/*/examples/` does not validate against it.
 - Mermaid blocks must render, and a heading stays under 120 characters. The whitepaper build fails
