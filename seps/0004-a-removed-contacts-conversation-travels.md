@@ -12,7 +12,7 @@
 An export (§9.2) carries the conversations a person had with former contacts: roots that were ever
 active and are no longer contacts. Each former contact is named in a new optional member,
 `removed.csv`, by its root and the two names last known for it. A **removed row** is one row of that
-member. It is not a contact, and an importer never writes it as one or calls it. `hdtp_export` stays `1`.
+member. It is not a contact (Import, steps 3 and 5). `hdtp_export` stays `1`.
 
 ## Motivation
 
@@ -40,7 +40,7 @@ removed.csv        one row per former contact a thread names; present only when 
 
 **§9.2, `manifest.json`.** `counts` gains the optional `removed`, a whole number of at least 1, and
 `files` gains the optional `removed.csv`. Absent, `removed.csv`, `counts.removed` and
-`files["removed.csv"]` mean no removed conversation.
+`files["removed.csv"]` mean no removed row.
 
 **§9.2, `contacts.csv`, `status`.** The cell's last clause becomes: "a request received and not yet
 decided stays with the host that received it; the request stays, and a conversation from when its root
@@ -70,14 +70,16 @@ was active travels with a removed row."
 > its `id` and the reason.
 
 "Ever active" is what `was_active` records for a contact: whether the root was ever a contact. A
-stranger whose request was never accepted, blocked or not, was never active, and its thread stays.
+root held as a request received and not yet decided is not a row of `contacts.csv`: its thread
+travels with a removed row if the root was ever active, and otherwise stays. A blocked root is a row
+of `contacts.csv`, whatever its `was_active`, and its thread travels with that row.
 
 **§9.2, Validation.** These rows change.
 
 | Check | Changes to |
 |---|---|
 | Names | adds `removed.csv` |
-| Members | adds: "An importer **MUST** refuse a file that holds `removed.csv` without both `counts.removed` and `files["removed.csv"]`, or holds either of those without the other or without the member, and a `counts.removed` of 0." |
+| Members | adds: "An importer **MUST** refuse a file in which `removed.csv`, `counts.removed` and `files["removed.csv"]` are not all present or all absent, or whose `counts.removed` is 0." |
 | Sizes | adds "a `removed.csv` over 16 MiB" (see Grammar below) |
 | Hashes | `removed.csv` is a text member, listed in `files` |
 | Owner | adds "a removed row whose `root` is `owner`" |
@@ -154,16 +156,14 @@ example, `schema/draft/examples/ExportManifest/with-removed.json`, holds a manif
 
 ## Wire
 
-A 1.1 writer's file interoperates with a 1.0 importer only when it carries no removed conversation.
+A 1.1 writer's file interoperates with a 1.0 importer only when it carries no removed row.
 One that does is refused whole, naming the entry (§9.2, Names). No version moves: GOVERNANCE moves
 `hdtp_export` only with X, and a bump would refuse every file, not only these.
 
 A 1.1 importer accepts every file a 1.0 writer writes.
 
-Hosts deploy the reader before any writer emits the member.
-
-Moving into a host that implements only 1.0 is refused whole when the file carries a removed
-conversation. **Accepted residual, pending the maintainer's decision.**
+Moving into a host that implements only 1.0 is refused whole when the file carries a removed row.
+**Accepted residual, pending the maintainer's decision.**
 
 ## Privacy
 
@@ -180,8 +180,8 @@ files".
 
 ## Security
 
-A removed row cannot become a contact. It carries no endpoint and no certificate, and the importer
-never writes it as one or calls it. A planted removed row yields at most a conversation the person did
+A removed row cannot become a contact: it carries no endpoint and no certificate (Import, steps 3
+and 5). A planted removed row yields at most a conversation the person did
 not have, shown with its root, labelled removed, in the review the person must approve (step 1).
 
 No key material can enter. The key-material check covers every cell, and a removed row has no
@@ -202,8 +202,8 @@ characters, stripped as `FN` is (§3), and shown with its root when it matches a
 
 ## Evidence
 
-hdtp-identity's export corpus gains one accepted file carrying a removed conversation with a file in
-it, and refusals for each of these:
+hdtp-identity's export corpus gains one accepted file carrying a removed row, its thread and a
+message with a file in it, and refusals for each of these:
 
 - a removed root that is also a contact;
 - a removed root that is the owner;
