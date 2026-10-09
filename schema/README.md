@@ -27,7 +27,7 @@ Beside each schema:
 | `Envelope` | a sealed envelope, its four members as a writer produces them | §13.1 |
 | `SigningRequest` | a host's signing request, the members of its form | §9.1 |
 | `ExportManifest` | an export's `manifest.json` | §9.2 |
-| `ContactRow`, `ThreadRow`, `MessageRow` | a row of `contacts.csv` and `threads.csv`, and a line of `messages.jsonl`, as JSON | §9.2 |
+| `ContactRow`, `RemovedRow`, `ThreadRow`, `MessageRow` | a row of `contacts.csv`, `removed.csv` and `threads.csv`, and a line of `messages.jsonl`, as JSON | §9.2 |
 
 With them, every definition they reference: `Attachment`, `B64url`, `CertDer`, `Fingerprint`,
 `InstantIn`, `Sha256Hex`. The descriptions are the contract's, and speak of "this library" and of
