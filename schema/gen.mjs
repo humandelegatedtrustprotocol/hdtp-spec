@@ -2,15 +2,24 @@
 // of its ports are validated against on every gate run (its js/parity.mjs). A schema written here by
 // hand would be a second copy nothing holds; this one is the contract's definitions, copied.
 //
-//   node schema/gen.mjs           write schema/<version>/schema.json for every version directory
-//   node schema/gen.mjs --check   regenerate and fail if a committed file differs (npm run schema:check)
+//   node schema/gen.mjs              write schema/draft/schema.json
+//   node schema/gen.mjs --check      regenerate draft and fail if the committed file differs, and fail if
+//                                    a released schema is not the bytes schema/released.sha256 names
+//   node schema/gen.mjs --selftest   show that check refusing an edited released schema, and a write
+//                                    leaving the released ones as they are
+//
+// Only the draft follows the contract. A released version's schema.json and reference.md are what
+// they were when it was released, held by sha256 in schema/released.sha256: the contract moves on
+// with the library, and a released version's schema must not claim what the library does since.
 //
 // The contract is hdtp-identity's contract/contract.json, found as site/siblings.mjs finds it
 // (HDTP_IDENTITY_DIR, else ../hdtp-identity). The objects are the ones the specification defines as
 // JSON and the contract defines as a schema: the sealed envelope (§13.1), the signing request
 // (§9.1), and the export's manifest and rows (§9.2), with every definition they reference.
 // schema/README.md names what is left out and why.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { identityDir } from '../site/siblings.mjs'
@@ -52,6 +61,62 @@ export function schemaFor(contract, version) {
   }
 }
 
+const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
+
+// Each released version's schema.json and reference.md against schema/released.sha256 under base: a
+// file whose bytes differ, a listed file that is gone, and a released version with a file unlisted.
+export function releasedProblems(base = root) {
+  const list = join(base, 'schema', 'released.sha256')
+  const named = new Map()
+  for (const line of existsSync(list) ? readFileSync(list, 'utf8').split('\n') : []) {
+    const m = /^([0-9a-f]{64}) {2}(\S+)$/.exec(line)
+    if (m) named.set(m[2], m[1])
+  }
+  const problems = []
+  for (const version of versions(base)) {
+    for (const file of ['schema.json', 'reference.md']) {
+      const rel = `schema/${version}/${file}`
+      if (!named.has(rel)) problems.push(`${rel} is released and schema/released.sha256 does not name it`)
+    }
+  }
+  for (const [rel, hash] of named) {
+    const path = join(base, rel)
+    if (!existsSync(path)) problems.push(`${rel} is named in schema/released.sha256 and is gone`)
+    else if (sha256(path) !== hash) problems.push(`${rel} is not the bytes it was released as (schema/released.sha256)`)
+  }
+  return problems
+}
+
+// The draft's schema.json under base, written, or compared when check: the one file the contract makes.
+function draft(base, contract, check) {
+  const file = join(base, 'schema', 'draft', 'schema.json')
+  const text = JSON.stringify(schemaFor(contract, 'draft'), null, 2) + '\n'
+  if (check) return !existsSync(file) || readFileSync(file, 'utf8') !== text ? ['schema/draft/schema.json is not what the contract generates: run node schema/gen.mjs'] : []
+  mkdirSync(join(base, 'schema', 'draft'), { recursive: true })
+  writeFileSync(file, text)
+  return []
+}
+
+// The two things the freeze must do, shown on a copy of this repository's schema/ and its version list.
+function selftest(contract) {
+  const base = mkdtempSync(join(tmpdir(), 'hdtp-schema-'))
+  try {
+    cpSync(join(root, 'schema'), join(base, 'schema'), { recursive: true })
+    for (const v of versions(root)) mkdirSync(join(base, 'docs', 'specification', v), { recursive: true })
+    if (releasedProblems(base).length) throw new Error('the copy is refused before anything is changed')
+    const released = versions(root).map((v) => join(base, 'schema', v, 'schema.json'))
+    if (!released.length) throw new Error('no released version to freeze')
+    const before = released.map(sha256)
+    draft(base, contract, false)
+    if (released.map(sha256).join() !== before.join()) throw new Error('writing the draft changed a released schema')
+    writeFileSync(released[0], readFileSync(released[0], 'utf8').replace('"$schema"', '"$schema" '))
+    if (!releasedProblems(base).some((p) => p.includes('is not the bytes it was released as'))) throw new Error('an edited released schema passed the check')
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+  console.log('schema selftest: an edited released schema is refused, and writing the draft leaves the released ones as they are')
+}
+
 function main() {
   const dir = identityDir()
   const path = join(dir, 'contract', 'contract.json')
@@ -60,19 +125,10 @@ function main() {
     process.exit(2)
   }
   const contract = JSON.parse(readFileSync(path, 'utf8'))
+  if (process.argv.includes('--selftest')) return selftest(contract)
   const check = process.argv.includes('--check')
-  const problems = []
-  for (const version of [...versions(root), 'draft']) {
-    const file = join(root, 'schema', version, 'schema.json')
-    const text = JSON.stringify(schemaFor(contract, version), null, 2) + '\n'
-    if (check) {
-      if (!existsSync(file) || readFileSync(file, 'utf8') !== text) problems.push(`schema/${version}/schema.json is not what the contract generates: run node schema/gen.mjs`)
-    } else {
-      mkdirSync(join(root, 'schema', version), { recursive: true })
-      writeFileSync(file, text)
-      console.log(`wrote schema/${version}/schema.json`)
-    }
-  }
+  const problems = [...draft(root, contract, check), ...releasedProblems(root)]
+  if (!check && !problems.length) console.log('wrote schema/draft/schema.json')
   if (problems.length) {
     console.error('schema:\n  ' + problems.join('\n  '))
     process.exit(1)
