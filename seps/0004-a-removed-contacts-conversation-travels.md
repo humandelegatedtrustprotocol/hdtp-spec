@@ -91,11 +91,12 @@ The key-material check and the spreadsheet-formula rule already reach "any cell"
 
 - Step 1 adds: "and each removed row, with its names and its root".
 - Step 3 becomes: "It writes the contacts, which are recognised at once in the status their rows give,
-  then the threads, the messages and the files. A thread whose `contact` is a removed row's root is
-  the conversation of a former contact, named by that row, unless the host holds a contact with that
-  root, whose conversation it then is. An importer **MUST NOT** write a removed row as a contact. A
+  then the threads, the messages and the files. A thread whose root is a removed row belongs to the
+  importer's contact with that root if it holds one, and is otherwise kept as a removed contact's
+  conversation, labelled with the row's names. An importer **MUST NOT** write a removed row as a contact. A
   host **MUST NOT** send a message it imported, whatever its `status`: retries belonged to the host
   that exported it."
+  A contact the importer "holds" is a row of any status, a request received or a block included.
 - Step 5 adds: "An importer **MUST NOT** call a removed row's root, and does not report it unreached."
 
 **§9.2, What a contact controls.** "A writer **MUST** truncate `display_name` to 200 characters" now
