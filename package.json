@@ -11,7 +11,7 @@
     "spec:html": "node site/spec-html.mjs",
     "spec:check": "node --test site/spec-html.test.mjs site/fonts.test.mjs",
     "schema": "node schema/gen.mjs && node schema/reference.mjs",
-    "schema:check": "node schema/gen.mjs --check",
+    "schema:check": "node schema/gen.mjs --selftest && node schema/gen.mjs --check",
     "docs:check": "node scripts/check-refs.mjs --selftest && node schema/reference.mjs --check && node schema/examples.mjs",
     "publish": "wrangler r2 object put hdtp-private/hdtp-whitepaper.pdf --file dist/hdtp-whitepaper.pdf --remote && wrangler r2 object put hdtp-private/hdtp-whitepaper.meta.json --file dist/hdtp-whitepaper.meta.json --content-type application/json --remote"
   },
