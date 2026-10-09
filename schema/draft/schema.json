@@ -216,8 +216,8 @@
     },
     "Fingerprint": {
       "type": "string",
-      "pattern": "^sha256:[A-Za-z0-9_-]{43}$",
-      "description": "`\"sha256:\" + b64url(SHA-256(SPKI))`."
+      "pattern": "^sha256:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+      "description": "`\"sha256:\" + b64url(SHA-256(SPKI))`, in its one spelling: the last character's two spare bits are zero (RFC 4648 §3.5)."
     },
     "InstantIn": {
       "type": "string",

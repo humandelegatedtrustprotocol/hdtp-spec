@@ -18,8 +18,11 @@ thread is a row of `threads.csv` whose `contact` is not a root of `contacts.csv`
 names the contact is known by in two new columns, `contact_name` and `contact_display_name`, empty on
 every other thread. `threads.csv` takes the longer header only when a removed thread exists, and the
 manifest does not change: a 1.1 importer accepts every file a 1.0 writer writes, and a 1.0 importer
-refuses a file with a removed thread. A removed thread's root is never written as a contact or
-called. This changes what an implementation writes and accepts. §3's stripping of `FN` reaches an
+refuses a file with a removed thread. A full export carries every thread but one whose root was
+never a contact, and names each it leaves out; a removed thread's root is never written as a contact
+or called, and counts as once a contact, so the conversation travels again on a second move. A
+fingerprint has one spelling: its last character is one of `AEIMQUYcgkosw048`, and a reader refuses
+any other (§2). This changes what an implementation writes and accepts. §3's stripping of `FN` reaches an
 exported `display_name` and `contact_display_name`, and §14.5's planted row names a former contact's
 conversation as its residual.
 
