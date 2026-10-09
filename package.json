@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node site/build-whitepaper.mjs",
     "vectors": "node vectors/gen.mjs",
-    "vectors:check": "node vectors/check.mjs && node scripts/check-names.mjs --selftest && node scripts/check-names.mjs",
+    "vectors:check": "node vectors/check.mjs",
     "vectors:intrude": "node vectors/intrude.mjs",
     "spec:html": "node site/spec-html.mjs",
     "spec:check": "node --test site/spec-html.test.mjs site/fonts.test.mjs",

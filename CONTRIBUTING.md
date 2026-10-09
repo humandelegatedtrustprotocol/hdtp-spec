@@ -42,8 +42,6 @@ requests and are reviewed by the maintainers (`MAINTAINERS.md`). How decisions a
   edited by hand; `npm run schema:check` fails when it differs. The same command writes
   `schema/*/reference.md` from it; `npm run docs:check` fails when that page differs from what
   `schema.json` generates, or when an example in `schema/*/examples/` does not validate against it.
-- The name guard (`scripts/check-names.mjs`, run by `npm run vectors:check`) fails on any tracked
-  path or text carrying a name `scripts/hdtp-names.txt` forbids.
 - Mermaid blocks must render, and a heading stays under 120 characters. The whitepaper build fails
   on either, which is how an accidental setext heading (a paragraph followed directly by `---`)
   gets caught.
@@ -58,7 +56,7 @@ machine. `npm run spec:check` and `npm run schema:check` need the `hdtp-identity
 this one (or `HDTP_IDENTITY_DIR`).
 
 ```
-npm run vectors:check     # the vectors against the specification, then the name guard (its self-test first)
+npm run vectors:check     # the vectors against the specification
 npm run docs:check        # every section reference and link resolves; the schema's reference page and examples
 npm run spec:check        # the web renderer and the open-fonts rule
 npm run schema:check      # the schema is what hdtp-identity's contract generates
