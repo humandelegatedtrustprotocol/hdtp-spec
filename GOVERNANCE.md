@@ -33,7 +33,7 @@ down as a SEP before it becomes text.
 - **Evidence.** The text is held by gates, all run locally; nothing runs on GitHub
   (`CONTRIBUTING.md`, "Gates and where they run"):
   - in this repository, `make check` runs `npm run vectors:check` (the vectors of Appendix B
-    against the text, then the name guard), `npm run docs:check` (every section reference and link
+    against the text), `npm run docs:check` (every section reference and link
     resolves, and the schema's reference page and examples hold to `schema.json`), the web
     renderer's tests (`npm run spec:check`) and the schema held to the identity library's contract
     (`npm run schema:check`); the last two read the sibling `hdtp-identity` (public since 2026-10-08).
