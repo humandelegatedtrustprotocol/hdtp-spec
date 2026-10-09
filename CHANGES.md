@@ -13,6 +13,15 @@ as they were written in `docs/release/changes-before-hdtp.md`, a dated record ke
 
 ## 1.1.0-draft
 
+An export carries the conversations a person had with former contacts (§9.2, SEP-0004). A new
+optional member, `removed.csv` (`root,name,display_name`), names each root that was ever active and
+is no longer a contact, by its root and the two names last known for it; a thread's and a message's
+`contact` may be one of its roots. A removed row is not a contact: an importer never writes it as one
+and never calls it. `counts.removed` and `files`' `removed.csv` are present with the member and only
+with it, so a file without one is a 1.0 file; a 1.0 importer refuses a file that has one. This
+changes what an implementation writes and accepts. §3's stripping of `FN` reaches a row's
+`display_name`, and §14.5's planted row names the removed conversation as its residual.
+
 In §14.5, the row for a stolen leaf key said the key "speaks only from its one address". It is
 *reached* only there: a receiver verifies a chain against the endpoint it pinned, never against where
 a call came from, so until the renewal reaches a contact the thief calls that contact as the person

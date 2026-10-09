@@ -36,7 +36,7 @@ identity: where two pinned contacts render alike, show the fingerprint alongside
 Implementations **SHOULD** also let the owner assign their own local name for a
 contact, which is the only name no peer can influence.
 
-`FN` is untrusted display input: a receiver **MUST** strip control and bidirectional-format characters from it before rendering it, **SHOULD** cap its length, and **SHOULD** fold confusable scripts when deciding whether two names collide. None of this is wire-visible — a card is accepted or rejected on its certificate, never on its name.
+`FN`, and the `display_name` of a row of `contacts.csv` or `removed.csv` (§9.2), is untrusted display input: a receiver **MUST** strip control and bidirectional-format characters from it before rendering it, **SHOULD** cap its length, and **SHOULD** fold confusable scripts when deciding whether two names collide. None of this is wire-visible — a card is accepted or rejected on its certificate, never on its name.
 
 Intake is strict exactly where identity or reachability is at stake. A receiver **MUST** reject a card without `X-HDTP-CERT`, one whose certificate does not parse as §14.1 describes — no issuer key identifier or one that is not the 32 bytes a key identifier is, no endpoint or several, a validity longer than 398 days — and a card whose `X-HDTP-VERSION` names a major version it does not implement, each with `bad_request`. There is no root to pin, no address to reach, or no version in common; accepting such a card only defers the failure to a worse moment. An *expired* leaf is not a reason to reject: the root and the endpoint are what the card is for. Unknown `X-HDTP-*` properties are preserved and ignored, which is how minor versions stay compatible.
 
