@@ -59,7 +59,7 @@ this one too (or `HDTP_WEB_KIT_DIR`).
 
 ```
 npm run vectors:check     # the vectors against the specification
-npm run docs:check        # every section reference and link resolves; the schema's reference page and examples
+npm run docs:check        # every section reference and link resolves; no local machine path in the text; the schema's reference page and examples
 npm run spec:check        # the web renderer and the open-fonts rule
 npm run schema:check      # the schema is what hdtp-identity's contract generates
 npm run build             # the newest released version -> dist/hdtp-whitepaper.pdf; the build is also a gate
@@ -74,7 +74,8 @@ read from a local file and from nowhere else.
 ## Gates and where they run
 
 Every gate runs locally. Nothing runs on GitHub: there is no CI and no CI credential, and there
-will be none. This repository has no git hooks.
+will be none. This repository has no git hooks: the rule below on commit messages is held by whoever
+writes one.
 
 | Gate | Needs |
 |---|---|
@@ -91,7 +92,9 @@ three and say so in the pull request.
 ## Sending a change
 
 - One logical change per commit. The message says what changed and why; if it fixes a defect,
-  say how the defect was shown.
+  say how the defect was shown. Neither the message nor any tracked file carries a path from the
+  machine that wrote it (a path under `/Users` or `/home`): `npm run docs:check` refuses one in
+  the text, and nothing can refuse one in a message, so say "the worktree" or "the sibling checkout".
 - A change to the text comes with its `CHANGES.md` entry in the same commit, and with regenerated
   vectors when it touched the wire.
 - Inbound is outbound. A contribution is accepted only under the terms the repository gives out:

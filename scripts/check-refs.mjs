@@ -12,11 +12,11 @@
 // A relative link `[text](path)` must name a file that exists, from the file it is written in.
 //
 // The dated records listed in docs/records.sha256 are not living text and are not read: they are
-// true of their date and keep the references of their day.
-import { execFileSync } from 'node:child_process'
+// true of their date and keep the references of their day (scripts/tracked.mjs says which files are read).
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { current, root, SPEC_DIR } from '../site/spec-source.mjs'
+import { records, tracked } from './tracked.mjs'
 
 // The numbered headings of one version's pages: `## 2. Identity…`, `### 2.1 Deriving…`.
 export function headingsOf(files) {
@@ -47,22 +47,6 @@ export function unresolved(text, headings, exists) {
     }
   })
   return bad
-}
-
-function tracked() {
-  try {
-    return execFileSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\0').filter(Boolean)
-  } catch {
-    const walk = (dir) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) =>
-      e.name === '.git' || e.name === 'node_modules' ? [] : e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)])
-    return walk('.')
-  }
-}
-
-function records() {
-  const path = join(root, 'docs', 'records.sha256')
-  if (!existsSync(path)) return new Set()
-  return new Set(readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => l.split(/\s+/)[1]))
 }
 
 export function check() {
