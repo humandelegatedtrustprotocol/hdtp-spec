@@ -30,7 +30,7 @@ Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your frien
 
 ## Implementations
 
-Two exist, both by this project and neither public yet: a self-hosted node, HDTP Gateway ([hdtp.dev](https://hdtp.dev)), and a hosted platform, BatonDeck ([batondeck.com](https://batondeck.com)). Both are built on one identity library, `hdtp-identity` (a Rust core compiled to WebAssembly, a second port in Go, and the `hdtp` CLI; not public yet either), which runs the vectors of Appendix B and the scenarios of `vectors/intrude.mjs` through both of its ports. There is no independent implementation yet.
+Two exist, both by this project: a self-hosted node, HDTP Gateway ([hdtp.dev](https://hdtp.dev); the [hdtp-gateway](https://github.com/humandelegatedtrustprotocol/hdtp-gateway) repository, public since 2026-10-09 and [released](https://github.com/humandelegatedtrustprotocol/hdtp-gateway/releases) since v0.1.0), and a hosted platform, BatonDeck ([batondeck.com](https://batondeck.com)). Both are built on one identity library, [`hdtp-identity`](https://github.com/humandelegatedtrustprotocol/hdtp-identity) (a Rust core compiled to WebAssembly, a second port in Go, and the `hdtp` CLI; public since 2026-10-08, [released](https://github.com/humandelegatedtrustprotocol/hdtp-identity/releases) by version), which runs the vectors of Appendix B and the scenarios of `vectors/intrude.mjs` through both of its ports. There is no independent implementation yet.
 
 ## Gates
 
