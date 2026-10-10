@@ -114,9 +114,10 @@ two new columns unchanged. The manifest does not change: `counts.threads` counts
 **§9.2, What a contact controls.** "A writer **MUST** truncate `display_name` to 200 characters, since
 it is the contact's own claim." becomes "A writer **MUST** truncate `display_name` and
 `contact_display_name` to 200 characters, since each is the contact's own claim." It is followed by:
-"A writer **MUST** drop from a `display_name`, a `contact_display_name` and a thread's `topic` every
-character below U+0020 but tab, line feed and carriage return, since each is text a contact sets and
-an importer may bound those characters by a ceiling of its own (Ceilings)."
+"A writer **MUST** drop from every `name`, `display_name`, `contact_name` and `contact_display_name`,
+and from a thread's `topic`, every character below U+0020 but tab, line feed and carriage return,
+before it checks a name's length: a contact can set the topic and their own name, and an importer
+may bound those characters by a ceiling of its own (Ceilings)."
 
 **§9.2, Ceilings.** "on counts — contacts, threads, lines of `messages.jsonl`, the characters of an
 `id` —" becomes "on counts — contacts, threads, lines of `messages.jsonl`, the characters of an `id`,
@@ -139,8 +140,8 @@ shown with that root".
 3. §9.2 step 3: an importer does not write a removed thread's root as a contact.
 4. §9.2 step 5: an importer does not call a removed thread's root.
 5. §2: a reader refuses a fingerprint whose last character is not one of `AEIMQUYcgkosw048`.
-6. §9.2: a writer drops control characters but tab, line feed and carriage return from a
-   `display_name`, a `contact_display_name` and a thread's `topic`.
+6. §9.2: a writer drops control characters but tab, line feed and carriage return from every name
+   and a thread's `topic`.
 
 The Rows and References rows above, the contact-control truncation and §3's stripping rule are
 existing MUSTs whose reach changes. The Ceilings sentence names one more count a host may bound; its
@@ -228,8 +229,11 @@ A reader that answers a member as JSON writes each character below U+0020 but ta
 carriage return as six bytes. A `threads.csv` of removed threads whose names were 200 such characters
 each is a legal file of 16 MiB that grew hdtp-identity's Wasm instance by 413.9 MB, measured
 2026-10-10. A host bounds them by a ceiling of its own (hdtp-identity takes at most 65,536 in one
-member and names that ceiling when it refuses), and a writer drops them from the text a contact sets
-(MUST 6), so what a contact sent never makes the owner's export one a host refuses.
+member and names that ceiling when it refuses), and a writer drops them from every name and topic
+(MUST 6). An `id` is written as given, because messages refer to it. A thread's `id` can be a
+`thread_id` a contact chose (§7), which no rule bounds, so a contact can still fill a `threads.csv`
+with these characters through its ids. That is an open question for this SEP: bound `thread_id` where
+it enters (§7), or leave such a file to a host's ceiling.
 
 ## Alternatives
 
