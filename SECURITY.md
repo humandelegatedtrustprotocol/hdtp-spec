@@ -22,9 +22,12 @@ Please give us reasonable time to ship a fix before public disclosure. Credit is
 
 - The protocol's accepted trade-offs — no forward secrecy at the envelope layer, metadata
   visible to an edge or a tunnel, a lost root is a new identity — are stated in the specification's
-  "Non-goals" paragraph of its introduction (`index.md`), in §11 and in §13.5, and are not vulnerabilities by themselves.
+  "Non-goals" paragraph of its introduction (`docs/specification/1.0/index.md`), in §11 and in §13.5, and are not vulnerabilities by themselves.
 - `vectors/intrude.mjs` is the list of compromise cases the specification already answers; the
   ones it reports as residual by decision are named as such. A scenario that reproduces against
   `vectors/lib` is a specification finding, not a test to relax.
-- Reports about the implementations — HDTP Gateway, the self-hosted node, and BatonDeck, the hosted
-  platform, neither public yet — go to the same address.
+- Reports about the implementations — HDTP Gateway, the self-hosted node
+  ([hdtp-gateway](https://github.com/humandelegatedtrustprotocol/hdtp-gateway), whose
+  [`SECURITY.md`](https://github.com/humandelegatedtrustprotocol/hdtp-gateway/blob/main/SECURITY.md)
+  adopts this policy), and BatonDeck, the hosted platform at [batondeck.com](https://batondeck.com) —
+  go to the same address.
