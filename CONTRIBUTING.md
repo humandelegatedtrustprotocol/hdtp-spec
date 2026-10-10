@@ -104,9 +104,7 @@ three and say so in the pull request.
     states.
 
   The README's "Licensing" section says which file falls under which licence.
-- Every commit carries a sign-off: a `Signed-off-by: Your Name <you@example.com>` line, which
-  `git commit -s` adds. It certifies the Developer Certificate of Origin 1.1
-  (<https://developercertificate.org/>): that you wrote the contribution or otherwise have the
-  right to submit it under the terms above. A pull request with a commit that has no sign-off is
-  not merged.
+- There is no sign-off and no CLA; for code and data, section 5 of the Apache License 2.0 places a
+  contribution you intentionally submit for inclusion under that licence unless you explicitly
+  state otherwise.
 - Conduct is `CODE_OF_CONDUCT.md`, the Contributor Covenant 2.1.

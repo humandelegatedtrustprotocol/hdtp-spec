@@ -4,6 +4,5 @@
 
 **MUSTs added, changed or removed:** <!-- each by section, or none -->
 
-- [ ] Every commit carries `Signed-off-by` (`git commit -s`; the DCO, `CONTRIBUTING.md`).
 - [ ] A change to the text carries its `CHANGES.md` line; a change on the wire, regenerated vectors (`npm run vectors`).
 - [ ] `npm run vectors:check`, `npm run docs:check` and `npm run build` pass.

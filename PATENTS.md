@@ -43,8 +43,7 @@ licence (its section 3).
 
 Contributions to the specification are accepted only on the same terms. A contributor licenses their text
 under CC BY 4.0 and makes the same OWFa 1.0 (Patent Only) commitment for the specification that
-includes their contribution. `CONTRIBUTING.md` sets out how, with the sign-off every commit
-carries.
+includes their contribution. `CONTRIBUTING.md` sets out how.
 
 ## The agreement
 
