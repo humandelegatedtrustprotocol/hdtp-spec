@@ -7,10 +7,10 @@
 // The MUST extractor here is a copy of hdtp-identity's; the copy is held to the original
 // whenever the sibling checkout is beside this repository (HDTP_IDENTITY_DIR overrides the
 // place), and the run fails without it: a copy nothing compares drifts the day it is written.
-// The diagram contract is a copy of hdtp-web-kit's kit/diagram-classes.json; with the kit
-// beside this repository (HDTP_WEB_KIT_DIR overrides the place) the copy is held to the
-// kit's file byte for byte and the drawings are audited against the kit's; without it the
-// audit holds to the committed copy, and the run says so on stderr and as a skipped test.
+// The diagram contract is a copy of hdtp-web-kit's kit/diagram-classes.json, held to the kit's
+// file byte for byte with the kit beside this repository (HDTP_WEB_KIT_DIR overrides the place),
+// and the drawings are audited against the kit's. Without the kit that test fails, and the audits
+// hold to the committed copy.
 //
 // The licence: the fragment of the current text ends in the attribution line for its version,
 // the fixture's (a tree without LICENSE-docs) carries none, and the whitepaper is built once (site/build-whitepaper.mjs
@@ -30,16 +30,15 @@ import { licence, pdfProblems, typefaces } from './licence.mjs'
 import { slugify, splitSpec } from './markdown.mjs'
 import { info, text as pdfText, withInfo } from './pdf.mjs'
 import { auditFragment, auditText, build, CONTRACT, CONTRACT_PATH, extractMusts, loadRegistry, sectionId } from './spec-html.mjs'
-import { identityDir } from './siblings.mjs'
+import { identityDir, webKitDir } from './siblings.mjs'
 import { current, readSpec, readSpecAt } from './spec-source.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
 const identity = identityDir()
-const kit = process.env.HDTP_WEB_KIT_DIR ?? resolve(root, '..', 'hdtp-web-kit')
+const kit = webKitDir()
 const kitContract = join(kit, 'kit', 'diagram-classes.json')
 const sibling = existsSync(kitContract)
-if (!sibling) console.error(`spec-html.test: hdtp-web-kit is not at ${kit} (set HDTP_WEB_KIT_DIR): the drawings are audited against the committed copy site/diagram-classes.json, which this run cannot compare with the kit's`)
 // The contract the drawings are audited against: the kit's when it is here, the copy otherwise.
 const contract = sibling ? JSON.parse(readFileSync(kitContract, 'utf8')) : CONTRACT
 const PRIMITIVE = /<(rect|circle|ellipse|line|path|polygon|polyline|text)\b[^>]*class="([^"]*)"/g
@@ -153,8 +152,10 @@ describe('headings', () => {
 })
 
 describe('diagrams', () => {
-  it("carry hdtp-web-kit's diagram contract: site/diagram-classes.json is the kit's kit/diagram-classes.json byte for byte", (t) => {
-    if (!sibling) return t.skip(`hdtp-web-kit is not at ${kit}: the copy was not compared with the kit's; the audits below hold to the copy`)
+  it("carry hdtp-web-kit's diagram contract: site/diagram-classes.json is the kit's kit/diagram-classes.json byte for byte", () => {
+    assert.equal(webKitDir({ HDTP_WEB_KIT_DIR: '/elsewhere' }), '/elsewhere', 'the kit HDTP_WEB_KIT_DIR names')
+    assert.equal(webKitDir({}), resolve(root, '..', 'hdtp-web-kit'), 'without the variable, the sibling checkout')
+    assert.ok(sibling, `hdtp-web-kit is not at ${kit}: set HDTP_WEB_KIT_DIR`)
     assert.ok(readFileSync(CONTRACT_PATH).equals(readFileSync(kitContract)), `site/diagram-classes.json differs from ${kitContract}: copy the kit's file over it`)
     assert.deepEqual(CONTRACT, contract)
   })

@@ -54,7 +54,8 @@ requests and are reviewed by the maintainers (`MAINTAINERS.md`). How decisions a
 Node 22 and `npm ci`. The whitepaper build needs a Chrome, which
 `puppeteer` downloads on install; `PUPPETEER_EXECUTABLE_PATH` points it at one already on the
 machine. `npm run spec:check` and `npm run schema:check` need the `hdtp-identity` checkout beside
-this one (or `HDTP_IDENTITY_DIR`).
+this one (or `HDTP_IDENTITY_DIR`); `npm run spec:check` needs the `hdtp-web-kit` checkout beside
+this one too (or `HDTP_WEB_KIT_DIR`).
 
 ```
 npm run vectors:check     # the vectors against the specification
@@ -79,10 +80,13 @@ will be none. This repository has no git hooks.
 |---|---|
 | `npm run vectors:check`, `npm run docs:check`, `npm run build` | this checkout |
 | `npm run spec:check`, `npm run schema:check` | the `hdtp-identity` checkout beside this one, or `HDTP_IDENTITY_DIR` (public since 2026-10-08) |
+| `npm run spec:check` | the `hdtp-web-kit` checkout beside this one, or `HDTP_WEB_KIT_DIR` (private) |
 
 Without hdtp-identity, `schema:check` stops at once and `spec:check` fails its three tests of the
-MUST registry. They fail rather than skip, so that `make check` cannot pass with the sibling
-missing. Outside contributors run the first three and say so in the pull request.
+MUST registry. Without hdtp-web-kit, `spec:check` fails its two tests that hold the copies of the
+kit's files (the diagram contract, the fonts list and scanner) to the kit's. They fail rather than
+skip, so that `make check` cannot pass with a sibling missing. Outside contributors run the first
+three and say so in the pull request.
 
 ## Sending a change
 
