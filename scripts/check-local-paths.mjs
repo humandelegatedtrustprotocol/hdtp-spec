@@ -8,16 +8,20 @@
 // directory layout. Every tracked file is read, whatever its extension, except what git itself would
 // call binary (a NUL byte in its first 8000 bytes).
 //
-// The dated records listed in docs/records.sha256 are not living text and are not read: they are
+// The dated records listed in docs/records.sha256 are not living text and are not read while their
+// bytes are the ones it pins: they are
 // true of their date and keep the words of their day. Whether one of them is redacted, and its hash
 // pinned again, is the maintainer's decision, not this check's. This repository has no git hooks, so
 // a commit message is held to the same rule by whoever writes it (CONTRIBUTING.md, "Sending a change").
 import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { root } from '../site/spec-source.mjs'
-import { records, tracked } from './tracked.mjs'
+import { frozenRecords, tracked } from './tracked.mjs'
 
-const LOCAL = /\/Users\/|\/home\/[A-Za-z0-9._-]+\//
+// A /home path counts where it begins a path (not inside one, as in a route like a/home/x) and names
+// someone, whatever follows the name.
+const LOCAL = /\/Users\/|(^|[^A-Za-z0-9_\/-])\/home\/[A-Za-z0-9._-]+([\/"'`]|\s|$)/
 
 // The lines of `text` that carry a local path, as `line: what`.
 export function localPaths(text) {
@@ -32,7 +36,7 @@ export function localPaths(text) {
 const binary = (bytes) => bytes.subarray(0, 8000).includes(0)
 
 export function check() {
-  const frozen = records()
+  const frozen = frozenRecords()
   const problems = []
   let files = 0
   for (const f of tracked()) {
@@ -55,10 +59,22 @@ function selftest() {
     [`see ${mac}\nand ${linux}`, 2],
     ['/usr/local/bin, /var/lib/hdtp and the worktree', 0],
     ['a path under /Users or /home, whatever the name', 0],
+    [`cd ${linux.split('/').slice(0, 3).join('/')}`, 1],
+    ['the route /a/home/mcp', 0],
+    ["concat('/home/', parameters('name'))", 0],
   ]
   for (const [text, want] of cases) {
     const got = localPaths(text).length
     if (got !== want) { console.error(`check-local-paths: the self-test failed on ${JSON.stringify(text)}: ${got} problems, wanted ${want}`); process.exit(1) }
+  }
+  // A record is skipped only while its bytes are the ones the manifest pins: a listed file whose bytes
+  // moved, or a line added for a file the manifest never pinned, exempts nothing.
+  const sha = (t) => createHash('sha256').update(t).digest('hex')
+  const read = (f) => Buffer.from(f === 'moved.md' ? 'the record, edited' : 'the record')
+  const manifest = new Map([['kept.md', sha('the record')], ['moved.md', sha('the record')], ['gone.md', sha('the record')]])
+  const frozen = frozenRecords(manifest, (f) => { if (f === 'gone.md') throw new Error('absent'); return read(f) })
+  if (!frozen.has('kept.md') || frozen.has('moved.md') || frozen.has('gone.md')) {
+    console.error(`check-local-paths: the self-test failed on the records: frozen ${JSON.stringify([...frozen])}, wanted only kept.md`); process.exit(1)
   }
 }
 

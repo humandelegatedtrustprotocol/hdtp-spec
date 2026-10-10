@@ -11,12 +11,13 @@
 // ours, and both are skipped.
 // A relative link `[text](path)` must name a file that exists, from the file it is written in.
 //
-// The dated records listed in docs/records.sha256 are not living text and are not read: they are
+// The dated records listed in docs/records.sha256 are not living text and are not read while their
+// bytes are the ones it pins: they are
 // true of their date and keep the references of their day (scripts/tracked.mjs says which files are read).
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { current, root, SPEC_DIR } from '../site/spec-source.mjs'
-import { records, tracked } from './tracked.mjs'
+import { frozenRecords, tracked } from './tracked.mjs'
 
 // The numbered headings of one version's pages: `## 2. Identity…`, `### 2.1 Deriving…`.
 export function headingsOf(files) {
@@ -50,7 +51,7 @@ export function unresolved(text, headings, exists) {
 }
 
 export function check() {
-  const frozen = records()
+  const frozen = frozenRecords()
   const files = tracked().filter((f) => f.endsWith('.md') && !frozen.has(f))
   const all = readdirSync(join(root, SPEC_DIR), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
   const byVersion = new Map(all.map((v) => {
