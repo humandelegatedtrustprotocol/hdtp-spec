@@ -117,7 +117,12 @@ it is the contact's own claim." becomes "A writer **MUST** truncate `display_nam
 "A writer **MUST** drop from every `name`, `display_name`, `contact_name` and `contact_display_name`,
 and from a thread's `topic`, every character below U+0020 but tab, line feed and carriage return,
 before it checks a name's length: a contact can set the topic and their own name, and an importer
-may bound those characters by a ceiling of its own (Ceilings)."
+may bound those characters by a ceiling of its own (Ceilings)." The paragraph's last sentence,
+"The importer's checks are unchanged, so a file that breaks any of these was not written by a
+conforming writer, and is refused as hostile.", becomes "The importer's checks are unchanged, so a
+file that breaks any of these but the dropping of characters below U+0020 was not written by a
+conforming writer, and is refused as hostile; an importer does not refuse those characters, and a host
+may bound them by a ceiling of its own (Ceilings)."
 
 **§9.2, Ceilings.** "on counts — contacts, threads, lines of `messages.jsonl`, the characters of an
 `id` —" becomes "on counts — contacts, threads, lines of `messages.jsonl`, the characters of an `id`,
@@ -225,8 +230,9 @@ No key material can enter. The key-material check covers every cell. A removed t
 `contact_display_name` is the contact's own claim: it is cut to 200 characters, stripped as `FN` is
 (§3), and shown with its root when it matches another name.
 
-A reader that answers a member as JSON writes each character below U+0020 but tab, line feed and
-carriage return as six bytes. A `threads.csv` of removed threads whose names were 200 such characters
+A reader that answers a member as JSON writes U+0001 as six bytes (`\u0001`), as it does every
+character below U+0020 but tab, line feed, carriage return, U+0008 and U+000C, which take two. A
+`threads.csv` of removed threads whose names were 200 U+0001 characters
 each is a legal file of 16 MiB that grew hdtp-identity's Wasm instance by 413.9 MB, measured
 2026-10-10. A host bounds them by a ceiling of its own (hdtp-identity takes at most 65,536 in one
 member and names that ceiling when it refuses), and a writer drops them from every name and topic
