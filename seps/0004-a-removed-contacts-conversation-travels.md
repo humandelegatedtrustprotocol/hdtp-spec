@@ -91,8 +91,8 @@ was ever active, and otherwise stays. A book has no threads, and this rule does 
 
 | Check | Changes to |
 |---|---|
-| Rows | adds: "`threads.csv`'s header is one of the two shown, and the longer one only when a thread is a removed thread; a removed thread's `contact` is a fingerprint and not `owner`; a thread that is not removed has an empty `contact_name` and `contact_display_name`; a removed thread's are each at most 200 characters, and every removed thread of one root carries the same two" |
-| References | "a thread whose `contact` names nothing in the file" becomes "a thread, under the shorter header, whose `contact` is no root of `contacts.csv`"; a message's `contact` names a root of `contacts.csv` or the `contact` of a removed thread |
+| Rows | "a header that is not exactly the one shown" becomes "a header that is not exactly the one shown — for `threads.csv`, one of the two, and the longer one only when a thread is a removed thread — a removed thread whose `contact` is not a fingerprint or is `owner`, a thread that is not removed with a `contact_name` or `contact_display_name` that is not empty, a removed thread with either over 200 characters, two removed threads of one root that carry different names" |
+| References | "a thread whose `contact`, a message whose" becomes "a thread, under the shorter header, whose `contact` names no row of `contacts.csv`, a message whose"; a message's `contact` is checked against the `messages.jsonl` table, which reads "`contact` is a `root` from `contacts.csv` or the `contact` of a removed thread" |
 
 The key-material check and the spreadsheet-formula rule already reach "any cell", so they reach the
 two new columns unchanged. The manifest does not change: `counts.threads` counts every thread.
@@ -111,8 +111,16 @@ two new columns unchanged. The manifest does not change: `counts.threads` counts
 - Step 5 adds: "An importer **MUST NOT** call a removed thread's root, and does not report it
   unreached."
 
-**§9.2, What a contact controls.** "A writer **MUST** truncate `display_name` to 200 characters"
-now covers `contact_display_name` too.
+**§9.2, What a contact controls.** "A writer **MUST** truncate `display_name` to 200 characters, since
+it is the contact's own claim." becomes "A writer **MUST** truncate `display_name` and
+`contact_display_name` to 200 characters, since each is the contact's own claim." It is followed by:
+"A writer **MUST** drop from a `display_name`, a `contact_display_name` and a thread's `topic` every
+character below U+0020 but tab, line feed and carriage return, since each is text a contact sets and
+an importer may bound those characters by a ceiling of its own (Ceilings)."
+
+**§9.2, Ceilings.** "on counts — contacts, threads, lines of `messages.jsonl`, the characters of an
+`id` —" becomes "on counts — contacts, threads, lines of `messages.jsonl`, the characters of an `id`,
+the characters below U+0020 but tab, line feed and carriage return in one member —".
 
 **§3, Reading a card.** The `FN` rule widens to the names an export carries: "`FN`, and a
 `display_name` or `contact_display_name` an export carries (§9.2), is untrusted display input: a
@@ -120,7 +128,8 @@ receiver **MUST** strip control and bidirectional-format characters from it befo
 
 **§14.5, "A planted row".** The residual column adds: "a removed thread the person never had, shown
 with its root and labelled removed, which never becomes a contact; and a writer's bug that files a
-contact's thread as a removed thread under a root it misspells, shown with that root".
+contact's thread as a removed thread under a wrong root that is still a well-formed fingerprint,
+shown with that root".
 
 ### The MUSTs this adds
 
@@ -130,9 +139,12 @@ contact's thread as a removed thread under a root it misspells, shown with that 
 3. §9.2 step 3: an importer does not write a removed thread's root as a contact.
 4. §9.2 step 5: an importer does not call a removed thread's root.
 5. §2: a reader refuses a fingerprint whose last character is not one of `AEIMQUYcgkosw048`.
+6. §9.2: a writer drops control characters but tab, line feed and carriage return from a
+   `display_name`, a `contact_display_name` and a thread's `topic`.
 
 The Rows and References rows above, the contact-control truncation and §3's stripping rule are
-existing MUSTs whose reach changes.
+existing MUSTs whose reach changes. The Ceilings sentence names one more count a host may bound; its
+MUST, to name the ceiling in the refusal, is unchanged.
 
 ## Grammar
 
@@ -212,6 +224,13 @@ No key material can enter. The key-material check covers every cell. A removed t
 `contact_display_name` is the contact's own claim: it is cut to 200 characters, stripped as `FN` is
 (§3), and shown with its root when it matches another name.
 
+A reader that answers a member as JSON writes each character below U+0020 but tab, line feed and
+carriage return as six bytes. A `threads.csv` of removed threads whose names were 200 such characters
+each is a legal file of 16 MiB that grew hdtp-identity's Wasm instance by 413.9 MB, measured
+2026-10-10. A host bounds them by a ceiling of its own (hdtp-identity takes at most 65,536 in one
+member and names that ceiling when it refuses), and a writer drops them from the text a contact sets
+(MUST 6), so what a contact sent never makes the owner's export one a host refuses.
+
 ## Alternatives
 
 - **A separate member listing former contacts** (`removed.csv`, this SEP's first draft). This is a
@@ -261,4 +280,6 @@ Holders of the MUSTs, for hdtp-identity's `js/musts.json` when the draft is rele
 | 5 (one spelling) | both ports' `is_fingerprint`, and the three alias cases of the corpus |
 | 4 (no call) | the same import tests, asserting no `update_contact` and no `request_contact` to a removed thread's root |
 | The changed Rows and References rows, and the truncation | the corpus cases above, on both ports |
+| 6 (control characters dropped) | hdtp-identity's parity case `export_write: control characters in what a contact controls, dropped`, which holds both ports to the file written without them |
+| The ceiling named in its refusal | hdtp-identity's parity cases `export_read: threads.csv with one control character over the ceiling` (refused, naming it) and `export_read: threads.csv with as many control characters as the ceiling` (read), and the three memory tests |
 | §3's stripping of a `contact_display_name` | the node's and the cloud's label tests |
