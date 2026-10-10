@@ -20,8 +20,8 @@ import { root } from '../site/spec-source.mjs'
 import { frozenRecords, tracked } from './tracked.mjs'
 
 // A /home path counts where it begins a path (not inside one, as in a route like a/home/x) and names
-// someone, whatever follows the name.
-const LOCAL = /\/Users\/|(^|[^A-Za-z0-9_\/-])\/home\/[A-Za-z0-9._-]+([\/"'`]|\s|$)/
+// someone, whatever follows the name (a slash, a space, punctuation or the end of the line).
+const LOCAL = /\/Users\/|(^|[^A-Za-z0-9_\/-])\/home\/[A-Za-z0-9._-]+/
 
 // The lines of `text` that carry a local path, as `line: what`.
 export function localPaths(text) {
@@ -60,6 +60,7 @@ function selftest() {
     ['/usr/local/bin, /var/lib/hdtp and the worktree', 0],
     ['a path under /Users or /home, whatever the name', 0],
     [`cd ${linux.split('/').slice(0, 3).join('/')}`, 1],
+    [`(see ${linux.split('/').slice(0, 3).join('/')})`, 1],
     ['the route /a/home/mcp', 0],
     ["concat('/home/', parameters('name'))", 0],
   ]
