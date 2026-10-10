@@ -22,7 +22,10 @@ refuses a file with a removed thread. A full export carries every thread but one
 never a contact, and names each it leaves out; a removed thread's root is never written as a contact
 or called, and counts as once a contact, so the conversation travels again on a second move. A
 fingerprint has one spelling: its last character is one of `AEIMQUYcgkosw048`, and a reader refuses
-any other (§2). This changes what an implementation writes and accepts. §3's stripping of `FN` reaches an
+any other (§2). A writer drops every character below U+0020 but tab, line feed and carriage return
+from a `display_name`, a `contact_display_name` and a thread's `topic`, the text a contact sets, and
+§9.2's Ceilings name those characters in one member as a count a host may bound. This changes what an
+implementation writes and accepts. §3's stripping of `FN` reaches an
 exported `display_name` and `contact_display_name`, and §14.5's planted row names a former contact's
 conversation as its residual.
 
