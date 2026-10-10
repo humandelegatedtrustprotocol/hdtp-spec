@@ -34,7 +34,8 @@ down as a SEP before it becomes text.
   (`CONTRIBUTING.md`, "Gates and where they run"):
   - in this repository, `make check` runs `npm run vectors:check` (the vectors of Appendix B
     against the text), `npm run docs:check` (every section reference and link
-    resolves, and the schema's reference page and examples hold to `schema.json`), the web
+    resolves, no tracked text carries a path from the machine that wrote it, and the schema's
+    reference page and examples hold to `schema.json`), the web
     renderer's tests (`npm run spec:check`) and the schema held to the identity library's contract
     (`npm run schema:check`); the last two read the sibling `hdtp-identity` (public since 2026-10-08).
     The whitepaper build (`npm run build`) is a gate too. The intrusion battery (`npm run vectors:intrude`) is run by hand here:
