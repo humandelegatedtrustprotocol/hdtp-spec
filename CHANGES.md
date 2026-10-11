@@ -32,8 +32,8 @@ conversation as its residual.
 A `thread_id` has one of two forms, 1 to 64 ASCII letters and digits or a lower-case UUID, and two
 are the same only when their bytes are (§7, SEP-0006). A receiver refuses one of more than 64 bytes
 with `too_large` and any other of neither form, the empty string included, with `bad_request`, at
-`send_message`, `send_media` and `book_slot`, before it records anything; a host sends and assigns
-only these forms, and never an id the caller chose. An importer leaves out a thread whose `id` is of
+`send_message`, `send_media` and `book_slot`, before it records anything; a host sends only these
+forms, and assigns one the caller did not choose. An importer leaves out a thread whose `id` is of
 neither form, with its messages and the files only they name, and shows the person each such `id`
 before it writes anything; the file is not refused for it. A writer writes a thread's `id`, and a
 message's `thread`, `msg_id` and `reply_to`, that reads as a private key or is already `r` and 62
