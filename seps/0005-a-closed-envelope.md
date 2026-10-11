@@ -51,7 +51,8 @@ before the form decides, in both ports, and refuses a `sig` not in its canonical
 `envelope_invalid` to that row (read from the code, not re-run). The seed does the same since
 hdtp-spec #61. The absent and `null` rows did not change in the node: Go's decoder leaves an absent or
 `null` member as the empty string, which is the canonical spelling of zero bytes, so it reaches the
-signature check and the small form answers `chain_required`.
+signature check and the small form answers `chain_required` (hdtp-identity v0.8.2,
+`go/envelope.go`, the port the node runs).
 
 ## Specification changes
 
@@ -148,7 +149,7 @@ inside `protected`, not on the text.
 block plus one member, `invalid_envelopes`, and 1.0's Appendix B does not move.
 
 The plan said `vectors/gen.mjs` would rewrite 1.0's block unchanged. It cannot: every run signs the
-P-256 vectors afresh, and a run on 2026-10-12 rewrote 16 lines of 1.0's Appendix B. So the draft's
+P-256 vectors afresh, and a run on 2026-10-12 changed 8 lines of 1.0's Appendix B. So the draft's
 block was spliced from the committed `vectors/hdtp-1.0-vectors.json`, and gen was not run.
 `vectors/lib/invalid-envelopes.mjs` builds the entries from the envelopes, and `gen.mjs` splices the
 draft through it, so the next regeneration keeps the draft and 1.0 in step. `check.mjs` holds the

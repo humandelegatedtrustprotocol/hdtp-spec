@@ -1,6 +1,6 @@
 // Proves Appendix B: checks every vector does what the spec says.
 // Reads the vectors from the specification itself (site/spec-source.mjs: the newest released
-// version), so the bytes in the document are the bytes proven.
+// version, and the draft's `invalid_envelopes`), so the bytes in the document are the bytes proven.
 import { readFileSync, existsSync } from 'node:fs';
 import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto';
 import { open, verifyDetached, suiteForLeaf, suiteForKey, sealDeterministic, signDetached } from './lib/hpke.mjs';
