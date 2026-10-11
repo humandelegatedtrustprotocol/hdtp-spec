@@ -128,13 +128,16 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   // length is what fixes the boundary: without it a byte moved from `enc` into `ct` leaves the signed
   // bytes identical.
   if (enc.length !== SUITES[header.suite].npk) return invalid("encapsulated key is not the suite's length");
+  // §13.1 holds `sig` to one spelling as it holds the other three. Read before the form decides, so a
+  // respelled signature is refused in the small form too, never answered `chain_required`.
+  const sig = wireB64url(envelope.sig);
+  if (sig === null) return invalid('sig is not base64url');
   let body;
   try { body = readJSON(open(header.suite, held.key.priv, held.key.pub, Buffer.from('HDTP-SEAL-v1'), aad, enc, ct)); } catch { return invalid('does not open'); }
   const members = body && typeof body === 'object' ? Object.keys(body).sort().join(',') : '';
   if (members !== 'chain,method,params' && members !== 'leaf,method,params') return invalid('plaintext members');
   if (!['tools/call', 'tools/list'].includes(body.method)) return invalid('plaintext shape');
-  // A signature that does not read is no signature: it fails below, in the words of the form it came in.
-  const signed = Buffer.concat([aad, enc, ct]), sig = wireB64url(envelope.sig) ?? Buffer.alloc(0);
+  const signed = Buffer.concat([aad, enc, ct]);
   const tool = body.params?.name;
   // What a `pending_out` pin may do (§6.1): call one of the pending tier's tools, or list them. A
   // listing names no tool, and `tools/list` answers what the caller's tier may use, so a pending
