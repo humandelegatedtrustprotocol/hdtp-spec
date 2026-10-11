@@ -465,7 +465,20 @@ const respelled = (s) => s.slice(0, -1) + 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk
 scenario('carrier', 'a real envelope whose protected carries a stray character', 'protected is not JSON', () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, protected: m.protected + '!' }).why; });
 scenario('carrier', 'a real envelope whose enc is padded', 'does not open', () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, enc: m.enc + '='.repeat((4 - (m.enc.length % 4)) % 4 || 4) }).why; });
 scenario('carrier', 'a real envelope whose ct has a line break in it', 'does not open', () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, ct: m.ct.slice(0, 8) + '\n' + m.ct.slice(8) }).why; });
-scenario('carrier', 'a real envelope whose signature is spelled with its spare bits set', "signature is not the chain's leaf key", () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, sig: respelled(m.sig) }).why; });
+scenario('carrier', 'a real envelope whose signature is spelled with its spare bits set', 'sig is not base64url', () => { const m = message(hostA, chainA, LEAF_B); return receive(bharat(), { ...m, sig: respelled(m.sig) }).why; });
+// The small form verifies `sig` under a leaf the receiver already holds, so a respelled signature from
+// a pinned contact is a second envelope that verifies unless it is refused before the form decides.
+scenario('carrier', 'a pinned contact\'s small-form envelope whose signature is respelled', blockedIf((got) => got === 'padded, standard alphabet, spare bits: all refused'), () => {
+  // The standard alphabet only respells a signature holding `-` or `_`, and the seal is random: seal
+  // again until one does, so every spelling below is the same signature written another way.
+  let m = message(hostA, chainA, LEAF_B, { reference: true });
+  for (let i = 0; i < 64 && !/[-_]/.test(m.sig); i++) m = message(hostA, chainA, LEAF_B, { reference: true });
+  const pad = '='.repeat((4 - (m.sig.length % 4)) % 4 || 4);
+  const spellings = [m.sig + pad, m.sig.replaceAll('-', '+').replaceAll('_', '/'), respelled(m.sig)];
+  if (spellings.some((s) => s === m.sig)) return 'a respelling equals the signature';
+  const answers = spellings.map((sig) => receive(bharat(), { ...m, sig }));
+  return answers.every((r) => r.code === 'envelope_invalid' && r.why === 'sig is not base64url') ? 'padded, standard alphabet, spare bits: all refused' : JSON.stringify(answers);
+});
 scenario('carrier', 'a card naming a major that is not 1', 'bad_request', () => decodeCard(card(chainA).replace('X-HDTP-VERSION:1', 'X-HDTP-VERSION:2')).error);
 // §3: any other X-HDTP-* property — an endpoint, a key, a gateway — is ignored. A carrier that
 // appends one to a card in flight must move nothing.
