@@ -508,8 +508,8 @@ scenario('carrier', 'a request reflected back at its own sender', 'unknown kid',
 // ── Threads: the two forms of a thread_id ──────────────────────────────────────
 // §7: a contact chooses a thread_id, and it reaches the owner's store, interface, export and
 // webhooks. It is 1 to 64 ASCII letters and digits, or a lower-case UUID; over 64 bytes is
-// too_large, checked first, and any other string is bad_request, at every tool that takes one and
-// before anything is recorded. Each call answers with its code, or the tier and whether the call was
+// too_large, checked first, and any other string is bad_request, at every tool that takes one, and
+// nothing of the call is recorded (its msg_id is not seen). Each call answers with its code, or the tier and whether the call was
 // recorded. The controls that must get through run last.
 const THREAD_ARGS = { send_message: { msg_id: 'm', text: 'hello' }, send_media: { msg_id: 'm', url: 'https://files.example/a.pdf' }, book_slot: { msg_id: 'm', slot: { start: '2026-09-14T09:00:00Z', end: '2026-09-14T09:30:00Z', tz: 'UTC' }, subject: 'Coffee' } };
 const threadCall = (threadId, tool = 'send_message', o = {}) => {

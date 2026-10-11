@@ -39,7 +39,7 @@ A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way
 
 **Idempotency.** `msg_id`-bearing calls are idempotent: the same `msg_id` re-sent is acknowledged, not re-executed. A `msg_id` **MUST** be a non-empty string — idempotency keyed on nothing protects nothing. The key is the caller's root and the `msg_id`: a host **MUST** answer a `msg_id` the same contact has used before with the original result, and **MUST NOT** execute the call again.
 
-**Arguments.** Every bound below is in bytes of UTF-8. A string past its bound is refused `too_large`; an argument of the wrong type, a required one that is absent, or a value not among those listed is refused `bad_request`. The bounds given are the defaults `get_card`'s `limits` advertises (§12); a host **MAY** bound the other strings, and does not advertise those bounds.
+**Arguments.** Every bound below is in bytes of UTF-8. A string past its bound is refused `too_large`; an argument of the wrong type, a required one that is absent, or a value not among those listed is refused `bad_request`. The bounds given are the defaults `get_card`'s `limits` advertises (§12), but for a `thread_id`'s, which §7 fixes; a host **MAY** bound the other strings, and does not advertise those bounds.
 
 **Guest tier**
 
@@ -62,8 +62,8 @@ A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way
 
 | Tool | Permission | Arguments | Result |
 |---|---|---|---|
-| `send_message` | `message.text` | `msg_id` (string); `text` (string, at most 16384 bytes); `topic`, `reply_to` (strings, optional); `thread_id` (string, optional: at most 64 bytes, of a form of §7); `sender` (`"agent"` or `"human"`, optional) | `thread_id`; `status`: `"delivered"` |
-| `send_media` | `message.media` | `msg_id` (string); `data` (string: standard base64 with padding, RFC 4648, Section 4, of at most 5242880 bytes once decoded) or `url` (string); `filename`, `mime` (strings, optional); `thread_id` (string, optional: at most 64 bytes, of a form of §7); `sender` (`"agent"` or `"human"`, optional) | `thread_id`; `status`: `"delivered"` |
+| `send_message` | `message.text` | `msg_id` (string); `text` (string, at most 16384 bytes); `topic`, `reply_to` (strings, optional); `thread_id` (string or `null`, optional: at most 64 bytes, fixed, of a form of §7); `sender` (`"agent"` or `"human"`, optional) | `thread_id`; `status`: `"delivered"` |
+| `send_media` | `message.media` | `msg_id` (string); `data` (string: standard base64 with padding, RFC 4648, Section 4, of at most 5242880 bytes once decoded) or `url` (string); `filename`, `mime` (strings, optional); `thread_id` (string or `null`, optional: at most 64 bytes, fixed, of a form of §7); `sender` (`"agent"` or `"human"`, optional) | `thread_id`; `status`: `"delivered"` |
 | `get_status` | `status.view` | none | `status`: `"available"`, `"busy"`, `"dnd"` or `"offline"` |
 | `update_contact` | (always) | `card` (string: the caller's new card) | `{"status": "ok"}` — a card refresh, or `{"status": "pending"}` from a new address under `ask` (§5.3). The caller's chain is the authority: the card's certificate **MUST** equal the chain's leaf, and a card that names another root or carries a certificate that is not that leaf **MUST** be refused `bad_request`, the card-intake code of §3 |
 | `remove_contact` | (always) | none | `{"status": "ok"}` |
@@ -78,7 +78,7 @@ A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way
 | Tool | Permission | Arguments | Result |
 |---|---|---|---|
 | `check_availability` | `calendar.availability` | `window` (object: `from`, `to`, `tz`), `duration_min` (integer) | `slots`: at most 5 objects of `start`, `end`, `tz` — candidate slots filtered by the owner's policy, never raw free/busy |
-| `book_slot` | `calendar.book` | `msg_id` (string), `slot` (object: `start`, `end`, `tz`), `subject` (string), `thread_id` (string, optional: at most 64 bytes, of a form of §7) | `booking_id`; `ics`: the booking as iCalendar text (RFC 5545) |
+| `book_slot` | `calendar.book` | `msg_id` (string), `slot` (object: `start`, `end`, `tz`), `subject` (string), `thread_id` (string or `null`, optional: at most 64 bytes, fixed, of a form of §7) | `booking_id`; `ics`: the booking as iCalendar text (RFC 5545) |
 | `cancel_booking` | `calendar.book` | `booking_id` (string), `reason` (string, optional) | `{"status": "ok"}` |
 
 ---

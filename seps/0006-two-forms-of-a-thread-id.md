@@ -11,8 +11,8 @@
 
 A `thread_id` is 1 to 64 ASCII letters and digits, or a UUID in lower case, and nothing else. A
 receiver refuses one of more than 64 bytes with `too_large` and any other of neither form with
-`bad_request`, at every tool that takes one, before it records anything. A host sends and assigns
-only these forms. A host deletes every thread it holds outside them, with its messages, when it
+`bad_request`, at every tool that takes one, and records nothing of the call. A host sends only these
+forms, and assigns one not taken from the call's arguments. A host deletes every thread it holds outside them, with its messages, when it
 adopts this SEP; an importer leaves such a thread out of an import. A writer re-issues an id that
 reads as a private key as `r` and 62 hex digits, which is of the first form.
 
@@ -60,20 +60,22 @@ Sections touched: §6.2 (`mcp-server.md`), §7 (`messaging.md`), §9.2 (`hosting
 
 > A `thread_id` has one of two forms: 1 to 64 ASCII letters and digits, `^[A-Za-z0-9]{1,64}$`; or a
 > UUID in the textual form of RFC 9562, Section 4, in lower case,
-> `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, whatever its version and variant.
-> Two `thread_id`s are the same only when their bytes are. A receiver **MUST** refuse, at every tool
-> that takes a `thread_id` and before it records anything, a `thread_id` of more than 64 bytes with
-> `too_large`, and any other `thread_id` of neither form, the empty string included, with
-> `bad_request`. A `thread_id` of `null` is no `thread_id`. A host **MUST NOT** send a `thread_id` of
-> neither form. A host that assigns a `thread_id` **MUST** assign one of the two forms, and one the
-> caller did not choose.
+> `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, whatever its version and
+> variant. Two `thread_id`s are the same only when their bytes are. A receiver **MUST** refuse, at
+> every tool that takes a `thread_id`, a `thread_id` of more than 64 bytes with `too_large`, and any
+> other `thread_id` of neither form, the empty string included, with `bad_request`, and record
+> nothing of the call: not the message, its thread, nor its `msg_id` as seen. A `thread_id` of
+> `null` is no `thread_id`. A host **MUST NOT** send a `thread_id` of neither form. A host that
+> assigns a `thread_id` **MUST** assign one of the two forms, and one not taken from the call's
+> arguments.
 
 `too_large` comes first, so a 2000-byte id of any characters is `too_large`, as both implementations
 answer an over-long id today. The empty string is `bad_request`; both implementations read it today as
 no `thread_id`.
 
-**§6.2, Contact tier.** `send_message`, `send_media` and `book_slot` list `thread_id` as "string,
-optional: at most 64 bytes, of a form of §7".
+**§6.2, Contact tier.** `send_message`, `send_media` and `book_slot` list `thread_id` as "string or
+`null`, optional: at most 64 bytes, fixed, of a form of §7". §6.1 says the bounds of §6.2 are
+`limits` defaults "but for a `thread_id`'s, which §7 fixes".
 
 **§9.2, Import.** Step 1 shows the person "the `id` of each thread it leaves out (step 3)". Step 3
 adds:
@@ -82,15 +84,17 @@ adds:
 > media file that only those messages name, and writes `null` as the `reply_to` of a message it writes
 > that names one it left out; such an `id` is not a reason to refuse the file.
 
-**§9.2, What a contact controls**, a new last sentence:
+**§9.2, What a contact controls**, new last sentences:
 
-> A writer **MUST** write a thread's `id`, and a message's `thread`, `msg_id` and `reply_to`, that the
-> key-material check above would refuse, but for the `msg_id` of a message that went out (The owner's
-> own strings), or that is already `r` followed by 62 lowercase hex digits, as
-> `r` followed by the first 62 lowercase hex digits of the sha256 of its UTF-8 bytes, and every other
-> as it is: a contact can choose a thread's `id` (§7) and the `msg_id` of a message it sends, and an id
-> is written alike wherever it appears, so the file's references hold and no two ids are written as
-> one.
+> To re-issue an id is to write it as `r` followed by the first 62 lowercase hex digits of the
+> sha256 of its UTF-8 bytes. A writer **MUST** re-issue every id that is already `r` followed by 62
+> lowercase hex digits, wherever it appears: a thread's `id`, or a message's `thread`, `msg_id` or
+> `reply_to`. A writer **MUST** re-issue a thread's `id`, a message's `thread` and `reply_to`, and
+> the `msg_id` of a message that came in, that the key-material check above would refuse; the
+> `msg_id` of a message that went out that the check would refuse is refused (The owner's own
+> strings). Every other id is written as it is. A contact can choose a thread's `id` (§7) and the
+> `msg_id` of a message it sends, and an id is written alike wherever it appears, so the file's
+> references hold and no two ids are written as one.
 
 **§9.2, The owner's own strings** adds "a message that went out whose `msg_id` that check would
 refuse, naming the message".
@@ -101,14 +105,16 @@ file with an `id` of neither form is still read and validated whole.
 ### The MUSTs this adds or changes
 
 1. §7: a receiver refuses a `thread_id` of neither form: `too_large` over 64 bytes, `bad_request`
-   otherwise, before it records anything.
+   otherwise, recording nothing of the call (a renewal or new address learned from its envelope,
+   §14.3 and §5.3, is still learned).
 2. §7: a host does not send a `thread_id` of neither form.
-3. §7: a host that assigns a `thread_id` assigns one of the two forms that the caller did not choose.
+3. §7: a host that assigns a `thread_id` assigns one of the two forms, not taken from the call's arguments.
 4. §9.2 Import, step 3: an importer does not write a thread of neither form, its messages or the files
    only they name.
 5. §9.2 Import, step 1 (changed): the importer shows the `id` of each thread it leaves out.
-6. §9.2 What a contact controls: a writer re-issues an id that reads as a key, or is already of the
-   re-issued form, as `r` and 62 hex digits.
+6. §9.2 What a contact controls: a writer re-issues every id already of the re-issued form, outgoing
+   `msg_id`s included, as hdtp-identity 0.8.1's `reissued_id` does; and a thread id, a `thread`, a
+   `reply_to` and an incoming `msg_id` that read as a key.
 7. §9.2 The owner's own strings (changed): a writer refuses a message that went out whose `msg_id`
    reads as a key.
 
@@ -201,12 +207,12 @@ part of that is written into §9.2 here.
 
 | MUST | Holder |
 |---|---|
-| 1 | the seed's 22 `thread` scenarios: 65 letters and digits, 65 bytes of neither form and 33 two-byte characters refused `too_large`; `.`, `..`, `a/b`, `a-b`, `r-` and 62 hex digits, an upper-case UUID, 32 hex digits with one hyphen, the empty string, U+0001, a trailing line break, `é` and a number refused `bad_request`, nothing recorded; the same at `send_media`, `book_slot` and in the small form; the controls, run last: `null`, `r` and 62 hex digits, a lower-case UUID, and 64 letters and digits at all three tools. Each was shown red on a mutated `receive()`, the controls included. Then the node's and the cloud's tool tests, and the cloud's conformance battery, with the same cases |
-| 2 | the owner surfaces' tests in each implementation: an owner-chosen id of neither form is refused `bad_request` before anything is sent |
-| 3 | a `send_message` with no `thread_id` answers an id of a form that is not the call's `msg_id` |
-| 4, 5 | hdtp-identity's import tests on both ports over a corpus file with a thread of neither form, and each implementation's import test |
-| 6, 7 | hdtp-identity's export tests on both ports: `MAoCAQAwAwYBAAQA` and `r` with 62 hex digits as thread ids and `msg_id`s re-issued alike in `threads.csv` and `messages.jsonl`; an outgoing key-shaped `msg_id` refused |
-| The migration | each implementation's migration test: a stored thread of neither form, with messages, a read marker and a change row, is gone with all of them, and a thread of a form is untouched (the control) |
+| 1 | the seed's 22 `thread` scenarios: 65 letters and digits, 65 bytes of neither form and 33 two-byte characters refused `too_large`; `.`, `..`, `a/b`, `a-b`, `r-` and 62 hex digits, an upper-case UUID, 32 hex digits with one hyphen, the empty string, U+0001, a trailing line break, `é` and a number refused `bad_request`, nothing recorded; the same at `send_media`, `book_slot` and in the small form; the controls, run last: `null`, `r` and 62 hex digits, a lower-case UUID, and 64 letters and digits at all three tools. Each was shown red on a mutated `receive()`, the controls included. Then (planned) the node's and the cloud's tool tests, and the cloud's conformance battery, with the same cases |
+| 2 | (planned) the owner surfaces' tests in each implementation: an owner-chosen id of neither form is refused `bad_request` before anything is sent |
+| 3 | (planned) a `send_message` with no `thread_id` answers an id of a form that is not the call's `msg_id` |
+| 4, 5 | (planned) hdtp-identity's import tests on both ports over a corpus file with a thread of neither form, and each implementation's import test |
+| 6, 7 | (planned, with the `r` prefix; 0.8.1's tests hold the `r-` one) hdtp-identity's export tests on both ports: `MAoCAQAwAwYBAAQA` and `r` with 62 hex digits as thread ids and `msg_id`s re-issued alike in `threads.csv` and `messages.jsonl`; an outgoing key-shaped `msg_id` refused |
+| The migration | (planned) each implementation's migration test: a stored thread of neither form, with messages, a read marker and a change row, is gone with all of them, and a thread of a form is untouched (the control) |
 
 The new MUSTs are in `docs/specification/draft/`. hdtp-identity's MUST registry reads the newest
 released version, 1.0.0, so it holds them when 1.1 is released, not before.
