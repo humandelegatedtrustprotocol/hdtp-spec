@@ -38,7 +38,8 @@ Measured 2026-10-11 against both implementations' code. What a contact can do wi
   `export_write_messages` the same way for the message's `thread` member. No rule lets a writer leave
   a thread out for its id, and an id cannot be rewritten in an export, because messages refer to it.
   One `send_message` from a contact fails the owner's export until the owner deletes that
-  conversation. §9 says a person can always leave with their data.
+  conversation. §9 says a person can always leave with their data. The id is not the only such
+  door (Security), but it is the one a writer cannot repair, because messages refer to it.
 - **Fill an export with what a reader expands.** An id may hold characters below U+0020, which a
   reader answering a member as JSON writes as six bytes each. SEP-0004 leaves this open: "bound
   `thread_id` where it enters (§7), or leave such a file to a host's ceiling."
@@ -56,7 +57,7 @@ Storage is not the motivation. The `text` beside a `thread_id` may already be 16
 
 The URL and expansion findings were measured on replicas: Go 1.26.9's `ServeMux` and Node's `URL`
 with the portals' escaping, and the JSON expansion from SEP-0004's measurement. The export refusals
-were measured on hdtp-identity 0.8.0's Wasm build.
+were measured on hdtp-identity 0.8.0's pinned Wasm release.
 
 ## Specification changes
 
@@ -72,7 +73,8 @@ first; …":
 > not match. A host that assigns a `thread_id` (a `send_message` that carries none) **MUST** assign
 > one that matches and that the caller did not choose.
 
-`too_large` comes first, so a 2000-byte id with upper-case letters is `too_large`, as both
+A `thread_id` of `null` is no `thread_id`, as both implementations read it today. `too_large`
+comes first, so a 2000-byte id with upper-case letters is `too_large`, as both
 implementations answer an over-long id today. An empty string does not match and is `bad_request`.
 Today both implementations read it as no `thread_id`, and the empty string is the one input whose
 answer this changes in both.
@@ -102,7 +104,11 @@ The rule of §9.2 Import, step 3, is an addition to an existing step, not a new 
 - **Lower-case letters, digits and `-`.** Every key-material reader decodes only a word that begins
   with `M`, which is how base64 of either alphabet writes a DER key's first byte, `0x30`. The armour
   test looks for `PRIVATE KEY-----`. A lower-case id can spell neither. Allowing upper case lets a
-  16-character id stop an export, as shown above. Lower case also gives one spelling per id: no two
+  16-character id stop an export, as shown above. The guarantee rests on those readers, not on a
+  MUST: §9.2's Key material row says a cell that "decodes as a private key" and names no encoding.
+  A key's DER in lower-case hex is a valid id (`300a02010030030601000400` is the PKCS #8 shape above),
+  and hdtp-identity 0.8.0 writes it. A reader that also decoded hex would refuse it. Naming the
+  encodings in §9.2 (PEM armour, a base64 or base64url word) is an open question for this SEP. Lower case also gives one spelling per id: no two
   ids differ only by case.
 - **No `.`, `/`, space, control or bidirectional character.** Each one breaks a URL path segment, a
   CSV cell, a log line or a display. `-` cannot begin an id, because a CSV cell that begins with `-`
@@ -150,13 +156,16 @@ moves. GOVERNANCE moves `X-HDTP-VERSION` only with X, and the break is narrow: a
 
 ## Security
 
-This closes three things a contact can do today without any compromise: block the owner's export
-with one message, expand an export's JSON reading, and hide a conversation from the owner's
-interface. It does not touch §14.5's cases.
+A contact can stop the owner's export through any string it chooses that the export carries.
+Measured on hdtp-identity 0.8.0, `x PRIVATE KEY----- y` refuses the whole write as a thread's `id`,
+as a thread's `topic`, as a contact's `display_name`, and as a message's `msg_id`. This SEP closes
+the first. A writer can repair a `topic` or a `display_name`, which it already cleans of control
+characters (§9.2, What a contact controls), and no message refers to either. `msg_id` needs a bound
+of its own, as the id does here. Neither is in this SEP.
 
-`msg_id` and `reply_to` are also chosen by the contact and also travel in an export
-(`messages.jsonl`). hdtp-identity 0.8.0 refuses `export_write_messages` for a `msg_id` that holds
-`PRIVATE KEY-----`, as it does for `thread`. This SEP does not bound them.
+What this SEP closes without any compromise: an id that blocks the export, an id that expands an
+export's JSON reading, and an id that hides a conversation from the owner's interface. It does not
+touch §14.5's cases.
 
 ## Alternatives
 
@@ -164,8 +173,9 @@ interface. It does not touch §14.5's cases.
   export.
 - **Base64url, `[A-Za-z0-9_-]`.** Its words can begin with `M` and decode to a key's shape.
 - **Let the writer leave out a thread whose id is key material.** This drops a conversation from the
-  person's export because of the contact's choice. It keeps the id unbounded everywhere else (logs,
-  URLs, events).
+  person's export because of the contact's choice, and keeps the id unbounded everywhere else (URLs,
+  events, the export's JSON reading). A writer rule is the right answer for `topic` and
+  `display_name`, which it can rewrite, and not for an id, which it cannot.
 - **Keep stored ids, bound only new ones.** The owner could then not reply in an old thread
   (MUST 2), and an old id would still block the export.
 - **A host-tunable bound in `limits`.** See Grammar.
@@ -174,7 +184,7 @@ interface. It does not touch §14.5's cases.
 
 | MUST | Holder |
 |---|---|
-| 1 | the node's `internal/public` tool tests and the cloud's tool tests, each over the three tools: 64 bytes accepted (the control), 65 refused `too_large`, `A`, `.`, `..`, `-a`, `a b`, `a/b`, U+0001 and the empty string refused `bad_request`, nothing recorded for a refusal; the cloud's conformance battery, which drives the node's answers and the cloud's on the wire, gains the same cases in its contact group, with the 64-byte control last |
+| 1 | the node's `internal/public` tool tests and the cloud's tool tests, each over the three tools: 64 bytes accepted (the control), 65 refused `too_large`, `A`, `.`, `..`, `-a`, `a b`, `a/b`, U+0001 and the empty string refused `bad_request`, nothing recorded for a refusal; the cloud's conformance battery, built from the node's Go code and run against a cloud host, gains the same cases in its contact group, with the 64-byte control last |
 | 2 | the owner surfaces' tests in each implementation: an owner-chosen id outside the grammar is refused `bad_request` before anything is sent |
 | 3 | a `send_message` with no `thread_id` answers an id that matches and is not the call's `msg_id` |
 | Import, step 3 | hdtp-identity's export corpus gains a file with a thread whose `id` is outside the grammar, imported by each implementation's import test, which asserts the thread and its messages arrive under one new id |
