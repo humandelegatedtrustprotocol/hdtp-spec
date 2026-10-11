@@ -73,7 +73,7 @@ answer an over-long id today. The empty string is `bad_request`; both implementa
 no `thread_id`.
 
 **§6.2, Contact tier.** `send_message`, `send_media` and `book_slot` list `thread_id` as "string,
-optional, of a form of §7".
+optional: at most 64 bytes, of a form of §7".
 
 **§9.2, Import.** Step 1 shows the person "the `id` of each thread it leaves out (step 3)". Step 3
 adds:
@@ -85,14 +85,15 @@ adds:
 **§9.2, What a contact controls**, a new last sentence:
 
 > A writer **MUST** write a thread's `id`, and a message's `thread`, `msg_id` and `reply_to`, that the
-> key-material check above would refuse, or that is already `r` followed by 62 lowercase hex digits, as
+> key-material check above would refuse, but for the `msg_id` of a message that went out (The owner's
+> own strings), or that is already `r` followed by 62 lowercase hex digits, as
 > `r` followed by the first 62 lowercase hex digits of the sha256 of its UTF-8 bytes, and every other
 > as it is: a contact can choose a thread's `id` (§7) and the `msg_id` of a message it sends, and an id
 > is written alike wherever it appears, so the file's references hold and no two ids are written as
 > one.
 
 **§9.2, The owner's own strings** adds "a message that went out whose `msg_id` that check would
-refuse, naming the message, rather than write a new id for it".
+refuse, naming the message".
 
 The export format does not change: `threads.csv`'s `id` and a message's `thread` stay strings, and a
 file with an `id` of neither form is still read and validated whole.
@@ -200,7 +201,7 @@ part of that is written into §9.2 here.
 
 | MUST | Holder |
 |---|---|
-| 1 | the seed's 22 `thread` scenarios: 65 letters and digits, 65 bytes of neither form and 33 two-byte characters refused `too_large`; `.`, `..`, `a/b`, `a-b`, `r-` and 62 hex digits, an upper-case UUID, 32 hex digits with one hyphen, the empty string, U+0001, a trailing line break, `é` and a number refused `bad_request`, nothing recorded; the same at `send_media`, `book_slot` and in the small form; the controls, run last: `null`, `r` and 62 hex digits, a lower-case UUID, and 64 letters and digits at all three tools. Each was shown red on a mutated `receive()`. Then the node's and the cloud's tool tests, and the cloud's conformance battery, with the same cases |
+| 1 | the seed's 22 `thread` scenarios: 65 letters and digits, 65 bytes of neither form and 33 two-byte characters refused `too_large`; `.`, `..`, `a/b`, `a-b`, `r-` and 62 hex digits, an upper-case UUID, 32 hex digits with one hyphen, the empty string, U+0001, a trailing line break, `é` and a number refused `bad_request`, nothing recorded; the same at `send_media`, `book_slot` and in the small form; the controls, run last: `null`, `r` and 62 hex digits, a lower-case UUID, and 64 letters and digits at all three tools. Each was shown red on a mutated `receive()`, the controls included. Then the node's and the cloud's tool tests, and the cloud's conformance battery, with the same cases |
 | 2 | the owner surfaces' tests in each implementation: an owner-chosen id of neither form is refused `bad_request` before anything is sent |
 | 3 | a `send_message` with no `thread_id` answers an id of a form that is not the call's `msg_id` |
 | 4, 5 | hdtp-identity's import tests on both ports over a corpus file with a thread of neither form, and each implementation's import test |
