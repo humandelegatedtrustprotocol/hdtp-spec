@@ -29,6 +29,20 @@ implementation writes and accepts. §3's stripping of `FN` reaches an
 exported `display_name` and `contact_display_name`, and §14.5's planted row names a former contact's
 conversation as its residual.
 
+A `thread_id` has one of two forms, 1 to 64 ASCII letters and digits or a lower-case UUID, and two
+are the same only when their bytes are (§7, SEP-0006). A receiver refuses one of more than 64 bytes
+with `too_large` and any other of neither form, the empty string included, with `bad_request`, at
+`send_message`, `send_media` and `book_slot`, before it records anything; a host sends and assigns
+only these forms, and never an id the caller chose. An importer leaves out a thread whose `id` is of
+neither form, with its messages and the files only they name, and shows the person each such `id`
+before it writes anything; the file is not refused for it. A writer writes a thread's `id`, and a
+message's `thread`, `msg_id` and `reply_to`, that reads as a private key or is already `r` and 62
+lowercase hex digits, as `r` and the first 62 hex digits of its sha256, and refuses a message that
+went out whose `msg_id` reads as a key (§9.2). This changes what an implementation accepts and
+writes: a 1.0 sender's `thread_id` of neither form is refused, and a thread of a 1.0 file whose `id`
+is of neither form does not arrive. `vectors/intrude.mjs` gained the 22 scenarios that hold the two
+forms at the seed's receiving side.
+
 In §14.5, the row for a stolen leaf key said the key "speaks only from its one address". It is
 *reached* only there: a receiver verifies a chain against the endpoint it pinned, never against where
 a call came from, so until the renewal reaches a contact the thief calls that contact as the person

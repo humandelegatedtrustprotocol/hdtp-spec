@@ -1,4 +1,5 @@
-// A node's receiving side: §13.3 in order, §6.1 tiers, §5.3 new addresses, §14.4 certificate_renewed.
+// A node's receiving side: §13.3 in order, §6.1 tiers, §5.3 new addresses, §14.4 certificate_renewed,
+// §7's two forms of a thread_id.
 // Small and in-memory, so intrusions can be replayed against it.
 import { seal, sealDeterministic, open, signDetached, verifyDetached, suiteForLeaf, recipientOf, SUITES } from './hpke.mjs';
 import { validateChain, compareLeaves, parse } from './x509.mjs';
@@ -59,6 +60,18 @@ export const CLAIM_WINDOW_MS = 30 * 86_400_000;
 export const TOMBSTONE_MS = 30 * 86_400_000;
 const GUEST_TOOLS = ['redeem_invite', 'request_contact'];
 const PENDING_TOOLS = ['contact_accepted', 'contact_rejected'];
+
+// §7: a thread_id is 1 to 64 ASCII letters and digits, or a lower-case UUID. Over 64 bytes is
+// too_large, checked first; any other string of neither form, the empty one included, is bad_request.
+const THREAD_TOOLS = ['send_message', 'send_media', 'book_slot'];
+const THREAD_ALNUM = /^[A-Za-z0-9]{1,64}$/, THREAD_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export function threadIdRefusal(tool, args) {
+  const t = THREAD_TOOLS.includes(tool) ? args?.thread_id : undefined;
+  if (t === undefined || t === null) return null;
+  if (typeof t !== 'string') return { code: 'bad_request', why: 'thread_id is not a string' };
+  if (Buffer.byteLength(t, 'utf8') > 64) return { code: 'too_large', why: 'thread_id over 64 bytes' };
+  return THREAD_ALNUM.test(t) || THREAD_UUID.test(t) ? null : { code: 'bad_request', why: 'thread_id of neither form' };
+}
 
 // Sender side, with every knob an attacker would turn. `recipientLeaf` is the DER of the leaf being sealed to.
 // `reference: true` names the sender's leaf by fingerprint instead of carrying the chain (§13.2): the small form,
@@ -167,7 +180,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
     const early = freshness(); if (early) return early;
     const result = (tier) => { node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint: p.endpoint, method: body.method, tool, form: 'leaf' }; };
     if (p.state === 'pending_out') return pendingAllows ? result('pending') : { code: 'pending_approval' };
-    return result('contact');
+    return threadIdRefusal(tool, body.params?.arguments) ?? result('contact');
   }
 
   // The full form: a chain is a proof from the root and the one way a held leaf is updated.
@@ -220,5 +233,5 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   } else if (cmp === 'newer') { p.leafDer = chain[0]; node.events.push({ event: 'renewal', root }); }
 
   if (p.state === 'pending_out') return pendingAllows ? result('pending') : { code: 'pending_approval' };
-  return result('contact');
+  return threadIdRefusal(tool, body.params?.arguments) ?? result('contact');
 }
