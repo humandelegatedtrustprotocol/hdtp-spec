@@ -47,5 +47,5 @@ When the draft is released as a new `docs/specification/<X.Y>/`, every SEP it ca
 | [0002](0002-an-address-belongs-to-the-hosting.md) | An address belongs to the hosting | Final; in 1.0.0 |
 | [0003](0003-the-pending-tier-and-the-account-that-keeps-an-address.md) | The pending tier's refusal, and the account that keeps a left address | Final; in 1.0.0 |
 | [0004](0004-a-removed-contacts-conversation-travels.md) | A removed contact's conversation travels in the export | Draft |
-| [0005](0005-a-closed-envelope.md) | A closed envelope | Draft |
+| [0005](0005-a-closed-envelope.md) | A closed envelope | Accepted |
 | [0006](0006-two-forms-of-a-thread-id.md) | Two forms of a `thread_id` | Accepted |

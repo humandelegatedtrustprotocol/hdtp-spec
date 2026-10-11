@@ -8,7 +8,8 @@ import { validateChain, compareLeaves, parse, profileError, buildRoot, buildLeaf
 import { fingerprint, fromB64url, b64url, sha256, PRF_SALT, deriveSeed, ed25519FromSeed, p256FromSeed, spkiOf, seed, p256Uncompressed, strictB64url } from './lib/keys.mjs';
 import { decodeCard } from './lib/card.mjs';
 import { canonical } from './lib/canonical.mjs';
-import { makeNode, pin, receive } from './lib/envelope.mjs';
+import { makeNode, pin, receive, receiveText } from './lib/envelope.mjs';
+import { draftVectors } from './lib/invalid-envelopes.mjs';
 import { appendixB } from './lib/appendix.mjs';
 import { ARTICLE, stated } from './lib/stated.mjs';
 import { execFileSync } from 'node:child_process';
@@ -34,10 +35,10 @@ if (!vec) {
   if (existsSync(file)) {
     const generated = JSON.stringify(JSON.parse(readFileSync(file, 'utf8')));
     ok(generated === JSON.stringify(vec), `${current()} carries the generated vectors unchanged`);
-    // The draft is written from the release and carries the same Appendix B until a change to the
-    // wire regenerates it (vectors/gen.mjs splices into both).
+    // The draft carries the release's block and the `invalid_envelopes` made from its envelopes
+    // (vectors/gen.mjs splices into both).
     if (existsSync(new URL('../docs/specification/draft/index.md', import.meta.url))) {
-      ok(JSON.stringify(appendixB(readSpec(root, 'draft')).blocks[0]?.value) === generated, 'the draft carries the generated vectors unchanged');
+      ok(JSON.stringify(appendixB(readSpec(root, 'draft')).blocks[0]?.value) === JSON.stringify(draftVectors(JSON.parse(generated))), 'the draft carries the generated vectors and their invalid_envelopes unchanged');
     }
   }
   const der = Object.fromEntries(Object.entries(vec.certificates).map(([k, c]) => [k, Buffer.from(c.der_hex, 'hex')]));
@@ -126,6 +127,35 @@ if (!vec) {
       }
     }
     console.log(`  ${v.name}: ${plaintext ? 'opened' : 'closed'}${v.form === 'leaf' ? ' (by reference)' : ''}`);
+  }
+
+  // §13.1 in the draft: an envelope is exactly its four members, each a string, and a repeated member
+  // is read at its last occurrence. Each entry is `sealed_call`'s arguments as text, read as they
+  // arrive by a receiver holding the recipient's leaf key with Alina pinned at her leaf, and each
+  // entry's envelope, written once with each member, opens there.
+  const draftVec = existsSync(new URL('../docs/specification/draft/index.md', import.meta.url)) ? appendixB(readSpec(root, 'draft')).blocks[0]?.value : null;
+  if (draftVec) {
+    console.log("a closed envelope (§13.1): the draft's invalid_envelopes");
+    const leafKey = (name) => { const priv = createPrivateKey({ key: Buffer.from(draftVec.leaf_keys_pkcs8_hex[name], 'hex'), format: 'der', type: 'pkcs8' }); return { priv, pub: createPublicKey(priv) }; };
+    const derD = (n) => Buffer.from(draftVec.certificates[n].der_hex, 'hex');
+    const receiver = (e) => {
+      const n = makeNode({ path: '/b', leafKey: leafKey(e.recipient_chain[0]), chain: e.recipient_chain.map(derD), now: Date.parse(draftVec.now) });
+      const sender = parse(derD(e.sender_chain[0]));
+      pin(n, fingerprintOf(parse(derD(e.sender_chain[1]))), { endpoint: sender.uris[0], leafDer: derD(e.sender_chain[0]) });
+      return n;
+    };
+    const byName = Object.fromEntries(draftVec.envelopes.map((e) => [e.name, e]));
+    const entries = draftVec.invalid_envelopes ?? [];
+    ok(entries.length >= 11 && entries.some((x) => x.answer === 'ok') && entries.some((x) => x.answer === 'envelope_invalid'), `the draft holds ${entries.length} invalid_envelopes, refusals and controls among them`);
+    for (const e of new Set(entries.map((x) => x.envelope))) {
+      const v = byName[e], r = v && receiveText(receiver(v), JSON.stringify({ protected: v.protected, enc: v.enc, ct: v.ct, sig: v.sig }));
+      ok(r?.code === 'ok', `${e}, each member once: ok, not ${r?.code} ${r?.why ?? ''}`);
+    }
+    for (const x of entries) {
+      const r = receiveText(receiver(byName[x.envelope]), x.arguments_text);
+      ok(r.code === x.answer, `${x.name}: ${x.answer}, not ${r.code} ${r.why ?? ''}`);
+      console.log(`  ${x.name}: ${r.code}${r.why ? ` (${r.why})` : ''}`);
+    }
   }
 
   // §2.1. Recomputed from the published `prf` alone, so what passes here is what a third
@@ -540,6 +570,7 @@ console.log('what the text states about versions and its vectors, against the by
   };
   for (const dir of [current(), 'draft']) {
     if (!existsSync(new URL(`../docs/specification/${dir}/index.md`, import.meta.url))) continue;
+    counts.invalidEnvelopes = appendixB(readSpec(root, dir)).blocks[0]?.value?.invalid_envelopes?.length ?? null;
     const said = stated(readSpec(root, dir));
     const schemaPath = new URL(`../schema/${dir}/schema.json`, import.meta.url);
     const exportV = existsSync(schemaPath) ? String(JSON.parse(readFileSync(schemaPath, 'utf8')).$defs.ExportManifest.properties.hdtp_export.const) : undefined;

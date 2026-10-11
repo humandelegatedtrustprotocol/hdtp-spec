@@ -1,4 +1,4 @@
-// A node's receiving side: §13.3 in order, §6.1 tiers, §5.3 new addresses, §14.4 certificate_renewed,
+// A node's receiving side: §13.1's four members, §13.3 in order, §6.1 tiers, §5.3 new addresses, §14.4 certificate_renewed,
 // §7's two forms of a thread_id.
 // Small and in-memory, so intrusions can be replayed against it.
 import { seal, sealDeterministic, open, signDetached, verifyDetached, suiteForLeaf, recipientOf, SUITES } from './hpke.mjs';
@@ -118,10 +118,30 @@ export function removeContact(node, root) {
 
 const invalid = (why) => ({ code: 'envelope_invalid', why });
 
+// §13.1: an envelope is an object of exactly these four members, each a string, names compared byte
+// for byte. A member read twice in the text is the last occurrence: `receiveText` parses with
+// JSON.parse, which keeps only that one.
+export const ENVELOPE_MEMBERS = 'ct,enc,protected,sig';
+
+/** `receive` for the envelope as it arrives: the JSON text of `sealed_call`'s arguments. */
+export function receiveText(node, text, options) {
+  let envelope;
+  try { envelope = readJSON(Buffer.from(text, 'utf8')); } catch { return invalid('envelope is not JSON'); }
+  return receive(node, envelope, options);
+}
+
 export function receive(node, envelope, { siblings = [] } = {}) {
-  let header;
+  if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope) || Object.keys(envelope).sort().join(',') !== ENVELOPE_MEMBERS) return invalid('envelope members');
+  if (Object.values(envelope).some((m) => typeof m !== 'string')) return invalid('envelope member types');
+  // Step 1 reads each member in its one spelling (§13.1) before anything is resolved, so a misspelled
+  // member is `envelope_invalid` whatever key it names.
   const aad = wireB64url(envelope.protected);
   if (!aad) return invalid('protected is not JSON');
+  const enc = wireB64url(envelope.enc), ct = wireB64url(envelope.ct);
+  if (!enc || !ct) return invalid('does not open');
+  const sig = wireB64url(envelope.sig);
+  if (sig === null) return invalid('sig is not base64url');
+  let header;
   try { header = readJSON(aad); } catch { return invalid('protected is not JSON'); }
   if (Object.keys(header).sort().join(',') !== HEADER_MEMBERS) return invalid('header members');
   if (!headerTypesOk(header, spellings(aad))) return invalid('header member types');
@@ -135,16 +155,10 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   }
   if (suiteForLeaf(parse(held.leafDer)) !== header.suite) return invalid('suite does not fit the leaf');
 
-  const enc = wireB64url(envelope.enc), ct = wireB64url(envelope.ct);
-  if (!enc || !ct) return invalid('does not open');
   // `sig` covers the three members concatenated with nothing between them, so the suite's own `enc`
   // length is what fixes the boundary: without it a byte moved from `enc` into `ct` leaves the signed
   // bytes identical.
   if (enc.length !== SUITES[header.suite].npk) return invalid("encapsulated key is not the suite's length");
-  // §13.1 holds `sig` to one spelling as it holds the other three. Read before the form decides, so a
-  // respelled signature is refused in the small form too, never answered `chain_required`.
-  const sig = wireB64url(envelope.sig);
-  if (sig === null) return invalid('sig is not base64url');
   let body;
   try { body = readJSON(open(header.suite, held.key.priv, held.key.pub, Buffer.from('HDTP-SEAL-v1'), aad, enc, ct)); } catch { return invalid('does not open'); }
   const members = body && typeof body === 'object' ? Object.keys(body).sort().join(',') : '';

@@ -9,6 +9,7 @@ import { signDetached, suiteForLeaf, recipientOf, sealDeterministic } from './li
 import { canonical } from './lib/canonical.mjs';
 import { appendixB } from './lib/appendix.mjs';
 import { encodeCard } from './lib/card.mjs';
+import { draftVectors } from './lib/invalid-envelopes.mjs';
 
 const at = (iso) => new Date(iso);
 const NOW = '2026-09-13T12:00:00Z';
@@ -182,10 +183,12 @@ const json = JSON.stringify(out, null, 2);
 writeFileSync(path, json + '\n');
 
 // And into Appendix B, because the document is what implementations read: of the newest released
-// version and of the draft, which carries the same vectors until the wire changes. `check.mjs`
-// asserts they agree; it used to be the only thing standing between a regenerated file and a spec
-// still carrying yesterday's bytes, which is a gate reporting a mistake rather than preventing one.
+// version, and of the draft, which carries the same vectors and the raw-text `invalid_envelopes` of
+// §13.1 made from them. `check.mjs` asserts both; it used to be the only thing standing between a
+// regenerated file and a spec still carrying yesterday's bytes, which is a gate reporting a mistake
+// rather than preventing one.
 for (const version of [current(), 'draft']) {
+  const block = version === 'draft' ? JSON.stringify(draftVectors(out), null, 2) : json;
   const dir = versionDir(root, version);
   if (!existsSync(join(dir, 'index.md'))) continue;
   // The page that holds the appendix, read by the one rule the checker reads it by
@@ -196,7 +199,7 @@ for (const version of [current(), 'draft']) {
   const { blocks } = appendixB(text);
   if (blocks.length !== 1) throw new Error(`${version}: Appendix B should hold one json block, found ${blocks.length}`);
   const [b] = blocks;
-  const spliced = text.slice(0, b.from) + '```json\n' + json + '\n```' + text.slice(b.to);
+  const spliced = text.slice(0, b.from) + '```json\n' + block + '\n```' + text.slice(b.to);
   if (spliced !== text) {
     writeFileSync(page, spliced);
     console.log(`spliced into ${version}'s Appendix B`);

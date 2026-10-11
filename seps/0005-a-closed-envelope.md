@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft |
+| Status | Accepted (by the owner, 2026-10-12) |
 | Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-11 |
 | Target | 1.1 |
@@ -19,9 +19,9 @@ occurrence. The rule holds for a request envelope and for a result envelope alik
 
 §13.1 says an envelope "is a JSON object of four members" and closes the header and the plaintext,
 but not the object itself. Nothing says what a receiver does with a fifth member, with `SIG`, or
-with `sig` absent, so readers differ:
+with `sig` absent, so readers differed:
 
-| Input to `sealed_call` | The node, before its fix | The node, today | The cloud's reader, today |
+| Input to `sealed_call` | The node, before its fix | The node, 2026-10-11 | The cloud's reader, 2026-10-11 |
 |---|---|---|---|
 | a fifth member, `note` | dropped unread | `envelope_invalid` | `envelope_invalid` |
 | `SIG` in place of `sig` | read as `sig` (Go matches names without regard to case) | `envelope_invalid` | `envelope_invalid` |
@@ -32,22 +32,30 @@ with `sig` absent, so readers differ:
 
 Measured 2026-10-11: the node through its `sealed_call` handler (`internal/public/sealed.go`), the
 cloud at the envelope reader its `sealed_call` calls first. The "before" column is what the node's
-own regression test records of the code it replaced. Both closed the request side recently: the node holds the member names before Go's
-decoder reads them, and the cloud refuses any key other than the four. Neither closes a result
+own regression test records of the code it replaced. Both had closed the request side: the node holds the member names before Go's
+decoder reads them, and the cloud refuses any key other than the four. Neither closed a result
 envelope: the node reads a result into a Go struct, which drops a fifth member and matches names
 without regard to case (`internal/outbound/seal.go`), and the cloud hands the result to
 hdtp-identity's `open_result`, which requires the four and ignores any other.
 
 Two rows are not about the object. A `sig` that is not canonical base64url is already refused by
 §13.1 ("a receiver **MUST** refuse (`envelope_invalid`) a member written any other way"). The node
-answers `chain_required` to it in the small form because hdtp-identity's `decide` (both ports) reads
-`sig` leniently and lets the failure surface at the signature check, which answers the small form's
+answered `chain_required` to it in the small form because hdtp-identity's `decide` (both ports) read
+`sig` leniently and let the failure surface at the signature check, which answers the small form's
 words. The cloud decodes all four members before it calls `decide`, and answers `envelope_invalid`.
-The text is right and the node is wrong. This SEP puts the decoding in step 1, where it is visible.
+The text was right and the node was wrong. This SEP puts the decoding in step 1, where it is visible.
+
+Since 2026-10-11, two things in that row changed. hdtp-identity 0.8.1 (#59) reads `sig` strictly
+before the form decides, in both ports, and refuses a `sig` not in its canonical base64url with
+`envelope_invalid`; the node requires 0.8.1 or later since hdtp-gateway d0e917e, so its code answers
+`envelope_invalid` to that row (read from the code, not re-run). The seed does the same since
+hdtp-spec #61. The absent and `null` rows did not change in the node: Go's decoder leaves an absent or
+`null` member as the empty string, which is the canonical spelling of zero bytes, so it reaches the
+signature check and the small form answers `chain_required`.
 
 ## Specification changes
 
-Sections touched: §13.1, §13.2 and §13.3 (`sealed-envelopes.md`).
+Sections touched: §13.1, §13.2 and §13.3 (`sealed-envelopes.md`), and the draft's Appendix B.
 
 **§13.1, Format.** "An envelope is a JSON object of four members:" becomes:
 
@@ -55,10 +63,11 @@ Sections touched: §13.1, §13.2 and §13.3 (`sealed-envelopes.md`).
 
 After the table's paragraph on base64url, a new paragraph:
 
-> A receiver **MUST** refuse (`envelope_invalid`) an envelope that is not a JSON object, that has a
-> member other than these four, or that lacks one of them, or one of whose members is not a JSON
-> string. Member names are compared byte for byte: `SIG` is not `sig`. A member that occurs more than
-> once is read at its last occurrence, and a receiver **MUST NOT** read or judge an earlier one.
+> A receiver **MUST** refuse (`envelope_invalid`) an envelope that is not a JSON object, that lacks
+> one of these four members or has any other, or one of whose members is not a JSON string. Member
+> names are compared byte for byte: `SIG` is not `sig`. A member that occurs more than once is read at
+> its last occurrence, and a receiver **MUST NOT** read or judge an earlier one. Both rules hold for a
+> result envelope as for a request.
 
 The rule is the receiver's so that it does not depend on whether an MCP library holds a call to the
 tool's input schema; the node's go-sdk does not hold a raw tool to it.
@@ -71,8 +80,10 @@ envelope as step 1 of §13.3 does, opens, …".
 > 1. Read the envelope (§13.1): exactly the four members, each a JSON string in its canonical
 >    base64url. Decode `protected`.
 
-A failure at step 1 is `envelope_invalid`, as today ("A failure at a step that names no other
-answer").
+A failure at step 1 is `envelope_invalid`, as before ("A failure at a step that names no other
+answer"). Step 1 reads all four members' spellings before step 3 resolves `kid`, so a misspelled
+member sealed to a key the receiver once held is `envelope_invalid`, where a receiver that resolved
+`kid` first answered `certificate_renewed`.
 
 ### The MUSTs this adds
 
@@ -83,7 +94,7 @@ answer").
 
 ### Duplicate members
 
-The two readers agree today on every case where each occurrence is a string: both read the last.
+The two readers agreed on 2026-10-11 on every case where each occurrence is a string: both read the last.
 The cloud parses the request body once with `JSON.parse`, which keeps the last occurrence and leaves
 no trace of the earlier ones. The node's go-sdk passes the arguments as raw bytes, and Go's
 `encoding/json` keeps the last occurrence in a map and in a struct. The two differ only when an
@@ -132,53 +143,68 @@ inside `protected`, not on the text.
 
 ## Evidence
 
-**Vectors.** Appendix B's block is shared today by 1.0 and the draft, and `vectors/check.mjs`
-asserts that the two carry the same bytes "until a change to the wire regenerates it". This SEP is
-that change, and 1.0's Appendix B does not move. The plan:
+**Vectors.** Until this SEP, Appendix B's block was shared by 1.0 and the draft, and
+`vectors/check.mjs` asserted that the two carried the same bytes. The draft's block is now the 1.0
+block plus one member, `invalid_envelopes`, and 1.0's Appendix B does not move.
 
-1. `vectors/gen.mjs` writes `vectors/hdtp-1.0-vectors.json` unchanged and a draft block that is the
-   1.0 block plus one member, `invalid_envelopes`. It splices the 1.0 block into 1.0's Appendix B
-   (a no-op) and the draft block into the draft's.
-2. Each entry of `invalid_envelopes` is `{name, envelope, arguments_text, answer}`:
-   `envelope` names one of `envelopes`, `arguments_text` is the raw JSON text of the `sealed_call`
-   arguments, and `answer` is the code a receiver at `now` holding that envelope's recipient key
-   gives. The vector is text, not parsed JSON, because a parsed fixture cannot hold a duplicate. The
-   entries, on `alina-to-bharat` unless named:
-   - a fifth member (`"note":"x"`), `envelope_invalid`;
-   - `SIG` in place of `sig`, `envelope_invalid`;
-   - `Protected` beside `protected`, `envelope_invalid`;
-   - `sig` absent, on `alina-to-bharat-by-reference` (the small form), `envelope_invalid`;
-   - `sig` `null`, on the same, `envelope_invalid`;
-   - `sig` a number, `envelope_invalid`;
-   - `sig` not base64url (`!!!!`), on the same small-form envelope, `envelope_invalid`;
-   - an array in place of the object, `envelope_invalid`;
-   - `sig` twice, `AAAA` then the real one, `ok`: the control for MUST 2;
-   - `sig` twice, the real one then `AAAA`, `envelope_invalid`;
-   - `sig` twice, `5` then the real one, `ok`.
-   Every entry but the controls is the unmodified text of a vector that opens with one change, so
-   each refusal is due to that change.
-3. `vectors/check.mjs` holds 1.0's Appendix B to the 1.0 file and the draft's to the draft block,
-   and runs every entry through `vectors/lib/envelope.mjs`. Its `receive` gains a reader for the
-   text (`receiveText`) that applies step 1 before the existing steps. Each entry is checked to
-   answer its `answer`, and the unmodified text of each referenced envelope is checked to answer
-   `ok`.
+The plan said `vectors/gen.mjs` would rewrite 1.0's block unchanged. It cannot: every run signs the
+P-256 vectors afresh, and a run on 2026-10-12 rewrote 16 lines of 1.0's Appendix B. So the draft's
+block was spliced from the committed `vectors/hdtp-1.0-vectors.json`, and gen was not run.
+`vectors/lib/invalid-envelopes.mjs` builds the entries from the envelopes, and `gen.mjs` splices the
+draft through it, so the next regeneration keeps the draft and 1.0 in step. `check.mjs` holds the
+draft's block to the 1.0 file plus the entries derived from it.
 
-**Battery.** The cloud's conformance battery, in its `envelope` group, gains one subtest that posts
-each refusal above as raw `sealed_call` arguments, as the pinned contact. It wants `envelope_invalid`
-for each. The group's existing control, a well-formed envelope opened, runs first and changes no
-state (`get_card`). The duplicate control, the real `sig` last, runs after the refusals and wants an
-opened envelope. The subtest needs a raw-text post beside the battery's struct-encoding one, which
-cannot write a duplicate, a fifth member or an absent one. The node's live harness gains the same
-cases in its `envelope` scenarios.
+Each entry of `invalid_envelopes` is `{name, envelope, arguments_text, answer}`. `envelope` names one
+of `envelopes`. `arguments_text` is the raw JSON text of the `sealed_call` arguments. `answer` is the
+code that a receiver at `now`, holding that envelope's recipient key and Alina as a contact, gives.
+The vector is text, not parsed JSON, because a parsed fixture cannot hold a duplicate. The eleven
+entries are on `alina-to-bharat` unless named:
+
+- a fifth member (`"note":"x"`), `envelope_invalid`;
+- `SIG` in place of `sig`, `envelope_invalid`;
+- `Protected` beside `protected`, `envelope_invalid`;
+- `sig` absent, on `alina-to-bharat-by-reference` (the small form), `envelope_invalid`;
+- `sig` `null`, on the same, `envelope_invalid`;
+- `sig` a number, `envelope_invalid`;
+- `sig` not base64url (`!!!!`), on the same small-form envelope, `envelope_invalid`;
+- an array in place of the object, `envelope_invalid`;
+- `sig` twice, `AAAA` then the real one, `ok`: the control for MUST 2;
+- `sig` twice, the real one then `AAAA`, `envelope_invalid`. `AAAA` is canonical base64url, so this
+  one is refused at the signature check (step 7), not at step 1;
+- `sig` twice, `5` then the real one, `ok`.
+
+Every entry except the controls is the unmodified text of a vector that opens, with one change, so
+each refusal is due to that change. The seed reads the text with `receiveText` in
+`vectors/lib/envelope.mjs`, which applies step 1 before the existing steps. `check.mjs` checks that
+each entry answers its `answer`, and that each referenced envelope, written with each member once,
+answers `ok`. The draft's Appendix B states the count of entries, and `check.mjs` holds that count to
+the block.
+
+**Intrusion scenarios.** `vectors/intrude.mjs` gained twelve scenarios in the category `envelope`.
+They send the same cases as `sealed_call` text against the seed's receiver, plus one for the order of
+step 1: a `sig` that is not base64url, sealed to a key the receiver once held, is refused and not
+answered `certificate_renewed`. The two duplicate controls run last. Each refusal was shown red with
+step 1 removed from the seed, or with `sig` read leniently or after `kid`. Each duplicate scenario
+was shown red under a reader that keeps the first occurrence.
+
+**Battery.** This part is planned. The cloud's conformance battery, in its `envelope` group, gains
+one subtest. The subtest posts each refusal above as raw `sealed_call` arguments, as the pinned
+contact, and wants `envelope_invalid` for each. The group's existing control, a well-formed envelope
+that opens, runs first and changes no state (`get_card`). The duplicate control, with the real `sig`
+last, runs after the refusals and wants an opened envelope. The subtest needs a raw-text post beside
+the battery's struct-encoding one, because the struct encoder cannot write a duplicate, a fifth
+member or an absent one. The node's live harness gains the same cases in its `envelope` scenarios.
 
 **Implementations.**
 
-| Holder | Change |
-|---|---|
-| hdtp-identity, both ports | `decide` refuses a `sig` that is not canonical base64url as `envelope_invalid` before any form-specific answer, as §13.1 already requires. That aligns the node, which calls `decide` without decoding first |
-| the node, requests | `envelopeOf` refuses an absent or `null` member and reads each member from the map of last occurrences |
-| the node, results | the result reader goes through `envelopeOf` |
-| the cloud, results | the result is read by the request side's envelope reader before `open_result` |
+| Holder | Change | State |
+|---|---|---|
+| the seed | step 1 refuses another object and reads the four spellings before `kid`; `receiveText` reads the text | done, in this change |
+| hdtp-identity, both ports | `decide` refuses a `sig` that is not canonical base64url as `envelope_invalid` before any form-specific answer | done in 0.8.1 (#59) |
+| hdtp-identity, both ports | `decide` reads the spellings of `enc`, `ct` and `sig` before it resolves `kid`; its intrusion suite adds the twelve scenarios by name | to do |
+| the node, requests | `envelopeOf` refuses an absent member or one that is not a JSON string (`null` included), and reads each member from the map of last occurrences | to do |
+| the node, results | the result reader goes through `envelopeOf` | to do |
+| the cloud, results | the result is read by the request side's envelope reader before `open_result` | to do |
 
 The node's `TestAnEnvelopeOfOtherMembersIsRefused` and the cloud's envelope reader tests gain the
 absent, `null` and duplicate cases, each shown red on the code as it is.
