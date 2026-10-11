@@ -505,6 +505,45 @@ scenario('carrier', 'a request reflected back at its own sender', 'unknown kid',
   return receive(a, message(hostA, chainA, LEAF_B)).why;
 });
 
+// ── Threads: the two forms of a thread_id ──────────────────────────────────────
+// §7: a contact chooses a thread_id, and it reaches the owner's store, interface, export and
+// webhooks. It is 1 to 64 ASCII letters and digits, or a lower-case UUID; over 64 bytes is
+// too_large, checked first, and any other string is bad_request, at every tool that takes one and
+// before anything is recorded. Each call answers with its code, or the tier and whether the call was
+// recorded. The controls that must get through run last.
+const THREAD_ARGS = { send_message: { msg_id: 'm', text: 'hello' }, send_media: { msg_id: 'm', url: 'https://files.example/a.pdf' }, book_slot: { msg_id: 'm', slot: { start: '2026-09-14T09:00:00Z', end: '2026-09-14T09:30:00Z', tz: 'UTC' }, subject: 'Coffee' } };
+const threadCall = (threadId, tool = 'send_message', o = {}) => {
+  const b = bharat();
+  const r = receive(b, env({ senderKey: hostA.sign, senderChain: chainA, recipientLeaf: LEAF_B, params: { name: tool, arguments: { ...THREAD_ARGS[tool], thread_id: threadId } }, ...o }));
+  return r.code === 'ok' ? `${r.tier}${b.seen.size ? ', recorded' : ''}` : `${r.code}${b.seen.size ? ', recorded' : ''}`;
+};
+const HEX62 = 'ab'.repeat(31), UUID = '0f6e2c1a-7d4b-4f0e-9a51-3c2b8d9e4f10';
+scenario('thread', 'a thread_id of 65 letters and digits', 'too_large', () => threadCall('a'.repeat(65)));
+scenario('thread', 'a thread_id of 65 bytes of neither form is too_large, the length checked first', 'too_large', () => threadCall('.'.repeat(65)));
+scenario('thread', 'a thread_id of 33 two-byte characters', 'too_large', () => threadCall('é'.repeat(33)));
+scenario('thread', 'a thread_id of one dot', 'bad_request', () => threadCall('.'));
+scenario('thread', 'a thread_id of two dots', 'bad_request', () => threadCall('..'));
+scenario('thread', 'a thread_id with a slash', 'bad_request', () => threadCall('a/b'));
+scenario('thread', 'a thread_id with a hyphen that is not a UUID', 'bad_request', () => threadCall('a-b'));
+scenario('thread', 'a thread_id of r- and 62 hex digits', 'bad_request', () => threadCall('r-' + HEX62.slice(0, 62)));
+scenario('thread', 'a UUID thread_id in upper case', 'bad_request', () => threadCall(UUID.toUpperCase()));
+scenario('thread', 'a thread_id of 32 hex digits with one hyphen', 'bad_request', () => threadCall(UUID.replace(/-/g, '').replace(/^(.{8})/, '$1-')));
+scenario('thread', 'an empty thread_id', 'bad_request', () => threadCall(''));
+scenario('thread', 'a thread_id with a control character', 'bad_request', () => threadCall('a\u0001b'));
+scenario('thread', 'a thread_id ending in a line break', 'bad_request', () => threadCall('abc\n'));
+scenario('thread', 'a thread_id of one non-ASCII letter', 'bad_request', () => threadCall('é'));
+scenario('thread', 'a thread_id that is a number', 'bad_request', () => threadCall(7));
+scenario('thread', 'send_media with a thread_id of neither form', 'bad_request', () => threadCall('..', 'send_media'));
+scenario('thread', 'book_slot with a thread_id of neither form', 'bad_request', () => threadCall('..', 'book_slot'));
+scenario('thread', 'the small form with a thread_id of neither form', 'bad_request', () => threadCall('..', 'send_message', { reference: true }));
+scenario('thread', 'a null thread_id is no thread_id (control)', 'contact, recorded', () => threadCall(null));
+scenario('thread', 'a thread_id of r and 62 hex digits, as a writer re-issues one (control)', 'contact, recorded', () => threadCall('r' + HEX62));
+scenario('thread', 'a lower-case UUID thread_id (control)', 'contact, recorded', () => threadCall(UUID));
+scenario('thread', 'a thread_id of 64 letters and digits at every tool (control)', 'contact, recorded', () => {
+  const answers = Object.keys(THREAD_ARGS).map((tool) => threadCall('Az09'.repeat(16), tool));
+  return answers.every((a) => a === 'contact, recorded') ? 'contact, recorded' : answers.join('; ');
+});
+
 // ── Report ──────────────────────────────────────────────────────────────────────
 let last = '';
 for (const r of results) {

@@ -62,8 +62,8 @@ A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way
 
 | Tool | Permission | Arguments | Result |
 |---|---|---|---|
-| `send_message` | `message.text` | `msg_id` (string); `text` (string, at most 16384 bytes); `thread_id`, `topic`, `reply_to` (strings, optional); `sender` (`"agent"` or `"human"`, optional) | `thread_id`; `status`: `"delivered"` |
-| `send_media` | `message.media` | `msg_id` (string); `data` (string: standard base64 with padding, RFC 4648, Section 4, of at most 5242880 bytes once decoded) or `url` (string); `filename`, `mime`, `thread_id` (strings, optional); `sender` (`"agent"` or `"human"`, optional) | `thread_id`; `status`: `"delivered"` |
+| `send_message` | `message.text` | `msg_id` (string); `text` (string, at most 16384 bytes); `topic`, `reply_to` (strings, optional); `thread_id` (string, optional, of a form of §7); `sender` (`"agent"` or `"human"`, optional) | `thread_id`; `status`: `"delivered"` |
+| `send_media` | `message.media` | `msg_id` (string); `data` (string: standard base64 with padding, RFC 4648, Section 4, of at most 5242880 bytes once decoded) or `url` (string); `filename`, `mime` (strings, optional); `thread_id` (string, optional, of a form of §7); `sender` (`"agent"` or `"human"`, optional) | `thread_id`; `status`: `"delivered"` |
 | `get_status` | `status.view` | none | `status`: `"available"`, `"busy"`, `"dnd"` or `"offline"` |
 | `update_contact` | (always) | `card` (string: the caller's new card) | `{"status": "ok"}` — a card refresh, or `{"status": "pending"}` from a new address under `ask` (§5.3). The caller's chain is the authority: the card's certificate **MUST** equal the chain's leaf, and a card that names another root or carries a certificate that is not that leaf **MUST** be refused `bad_request`, the card-intake code of §3 |
 | `remove_contact` | (always) | none | `{"status": "ok"}` |
@@ -78,7 +78,7 @@ A leaf newer than the pinned one, at the pinned endpoint, replaces it on the way
 | Tool | Permission | Arguments | Result |
 |---|---|---|---|
 | `check_availability` | `calendar.availability` | `window` (object: `from`, `to`, `tz`), `duration_min` (integer) | `slots`: at most 5 objects of `start`, `end`, `tz` — candidate slots filtered by the owner's policy, never raw free/busy |
-| `book_slot` | `calendar.book` | `msg_id` (string), `slot` (object: `start`, `end`, `tz`), `subject` (string), `thread_id` (string, optional) | `booking_id`; `ics`: the booking as iCalendar text (RFC 5545) |
+| `book_slot` | `calendar.book` | `msg_id` (string), `slot` (object: `start`, `end`, `tz`), `subject` (string), `thread_id` (string, optional, of a form of §7) | `booking_id`; `ics`: the booking as iCalendar text (RFC 5545) |
 | `cancel_booking` | `calendar.book` | `booking_id` (string), `reason` (string, optional) | `{"status": "ok"}` |
 
 ---
