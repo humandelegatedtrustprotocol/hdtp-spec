@@ -48,6 +48,7 @@ export function stated(text) {
       renewed: renewed ? number(renewed[1]) : null,
       discarded: renewed ? number(renewed[2]) : null,
       envelopes: count(/(\w+) `v: \d+` envelopes/),
+      invalidEnvelopes: count(/(\w+) arguments of `sealed_call` as raw JSON text/),
     },
   }
 }

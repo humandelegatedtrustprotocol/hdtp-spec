@@ -44,6 +44,19 @@ accepts and writes: a 1.0 sender's `thread_id` of neither form is refused, and a
 file whose `id` is of neither form does not arrive. `vectors/intrude.mjs` gained the 22 scenarios
 that hold the two forms at the seed's receiving side.
 
+An envelope is exactly `protected`, `enc`, `ct` and `sig`, each present and each a JSON string
+(§13.1, SEP-0005). A receiver refuses any other object with `envelope_invalid` at step 1 of §13.3 —
+a fifth member, a member spelled another way, an absent or `null` member, one that is not a string —
+for request and result envelopes alike, comparing member names byte for byte, and reads a member that
+occurs more than once at its last occurrence, never an earlier one. Step 1 reads all four members in
+their canonical base64url before the key is resolved, so a misspelled member sealed to a former key
+is `envelope_invalid`, not `certificate_renewed`. This changes what an implementation accepts, and no
+version moves: 1.0 already defines the envelope as these four members, so what a 1.0 sender writes is
+unaffected, and an envelope carrying anything else, which some 1.0 receivers read, is refused. The
+draft's Appendix B adds `invalid_envelopes`, eleven `sealed_call` arguments as raw JSON text with the
+code each gets; 1.0's Appendix B does not change. `vectors/intrude.mjs` gained the 12 scenarios that
+hold the four members at the seed's receiving side.
+
 In §14.5, the row for a stolen leaf key said the key "speaks only from its one address". It is
 *reached* only there: a receiver verifies a chain against the endpoint it pinned, never against where
 a call came from, so until the renewal reaches a contact the thief calls that contact as the person

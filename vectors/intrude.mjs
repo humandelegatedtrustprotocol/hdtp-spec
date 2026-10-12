@@ -8,7 +8,7 @@ import { seed, ed25519FromSeed, p256FromSeed, pkcs8Of, b64url, fromB64url } from
 import { buildRoot, buildLeaf, validateChain, parse, fingerprintOf, OID } from './lib/x509.mjs';
 import { seal, sealDeterministic, open } from './lib/hpke.mjs';
 import { encodeCard, decodeCard } from './lib/card.mjs';
-import { sealEnvelope, makeNode, renew, forgetKeysPast, pin, removeContact, receive } from './lib/envelope.mjs';
+import { sealEnvelope, makeNode, renew, forgetKeysPast, pin, removeContact, receive, receiveText } from './lib/envelope.mjs';
 import { readSpec, root, versions } from '../site/spec-source.mjs';
 
 const at = (iso) => new Date(iso);
@@ -504,6 +504,34 @@ scenario('carrier', 'a request reflected back at its own sender', 'unknown kid',
   pin(a, fingerprintOf(parse(ROOT_B)), { endpoint: E_B, leafDer: LEAF_B });
   return receive(a, message(hostA, chainA, LEAF_B)).why;
 });
+
+// ── The envelope: exactly four members, each a string ───────────────────────────
+// §13.1: anything but `protected`, `enc`, `ct` and `sig`, each present and each a string, is refused
+// before the header is read, and a member written twice is read at its last occurrence. Each call is
+// `sealed_call`'s arguments as text, a real envelope written with one change, and answers the tier it
+// reached or why it was refused. The controls that must get through run last.
+const asText = (r) => (r.code === 'ok' ? r.tier : r.why ?? r.code);
+const sigTwice = (m, first, last) => `{"protected":${JSON.stringify(m.protected)},"enc":${JSON.stringify(m.enc)},"ct":${JSON.stringify(m.ct)},"sig":${first},"sig":${last}}`;
+const smallForm = () => message(hostA, chainA, LEAF_B, { reference: true });
+scenario('envelope', 'an envelope with a fifth member', 'envelope members', () => asText(receiveText(bharat(), JSON.stringify({ ...message(hostA, chainA, LEAF_B), note: 'x' }))));
+scenario('envelope', 'an envelope whose sig is spelled SIG', 'envelope members', () => { const { sig, ...m } = message(hostA, chainA, LEAF_B); return asText(receiveText(bharat(), JSON.stringify({ ...m, SIG: sig }))); });
+scenario('envelope', 'an envelope with Protected beside protected', 'envelope members', () => { const m = message(hostA, chainA, LEAF_B); return asText(receiveText(bharat(), JSON.stringify({ ...m, Protected: m.protected }))); });
+scenario('envelope', 'a pinned contact\'s small-form envelope without sig', 'envelope members', () => { const { sig: _, ...m } = smallForm(); return asText(receiveText(bharat(), JSON.stringify(m))); });
+scenario('envelope', 'a pinned contact\'s small-form envelope whose sig is null', 'envelope member types', () => asText(receiveText(bharat(), JSON.stringify({ ...smallForm(), sig: null }))));
+scenario('envelope', 'an envelope whose sig is a number', 'envelope member types', () => asText(receiveText(bharat(), JSON.stringify({ ...message(hostA, chainA, LEAF_B), sig: 5 }))));
+scenario('envelope', 'a pinned contact\'s small-form envelope whose sig is not base64url', 'sig is not base64url', () => asText(receiveText(bharat(), JSON.stringify({ ...smallForm(), sig: '!!!!' }))));
+scenario('envelope', 'an array in place of the envelope', 'envelope members', () => asText(receiveText(bharat(), JSON.stringify(Object.values(message(hostA, chainA, LEAF_B))))));
+// Step 1 comes before the key is resolved (§13.3): a misspelled member sealed to a key the receiver
+// once held is refused, not answered with the current chain.
+scenario('envelope', 'an envelope to a former key whose sig is not base64url', 'sig is not base64url', () => {
+  const a = makeNode({ path: '/alina', leafKey: hostA.sign, chain: chainA, now: NOW });
+  renew(a, hostA2.sign, [fresh(hostA2, E_A), ROOT_A]);
+  a.now = new Date(at('2027-09-01T00:00:00Z').getTime() + D); forgetKeysPast(a);
+  return asText(receiveText(a, JSON.stringify({ ...message(hostB, chainB, LEAF_A, { ts: Math.floor(a.now / 1000) }), sig: '!!!!' })));
+});
+scenario('envelope', 'an envelope whose sig is repeated, the real one first', "signature is not the chain's leaf key", () => { const m = message(hostA, chainA, LEAF_B); return asText(receiveText(bharat(), sigTwice(m, JSON.stringify(m.sig), '"AAAA"'))); });
+scenario('envelope', 'an envelope whose sig is repeated, the real one last (control)', 'contact', () => { const m = message(hostA, chainA, LEAF_B); return asText(receiveText(bharat(), sigTwice(m, '"AAAA"', JSON.stringify(m.sig)))); });
+scenario('envelope', 'an envelope whose sig is repeated, a number then the real one (control)', 'contact', () => { const m = message(hostA, chainA, LEAF_B); return asText(receiveText(bharat(), sigTwice(m, '5', JSON.stringify(m.sig)))); });
 
 // ── Threads: the two forms of a thread_id ──────────────────────────────────────
 // §7: a contact chooses a thread_id, and it reaches the owner's store, interface, export and
