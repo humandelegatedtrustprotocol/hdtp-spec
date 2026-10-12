@@ -194,25 +194,25 @@ part of that is written into §9.2 here.
 
 ## Implementations
 
-| Where | What it implements |
-|---|---|
-| The node (hdtp-gateway) | MUST 1 at `send_message`, `send_media` and `book_slot` (replacing the 1024-byte cap for `thread_id`), MUST 2 at the owner surfaces (owner MCP, portal), MUST 3 (already 32 hex digits); the migration that deletes stored threads of neither form; the import of MUSTs 4 and 5 through hdtp-identity |
-| The cloud (batondeck) | MUST 1 at the three tools (replacing the 128- and 256-byte caps), MUST 2 at `/v1`, the owner MCP and the portal, MUST 3 (ending the fallback to `msg_id`); the D1 migration that deletes stored threads of neither form; the import of MUSTs 4 and 5 through hdtp-identity |
-| hdtp-identity, export | MUST 6 with the `r` prefix in both ports (0.8.1 writes `r-`), and a re-issued form of `r` and 62 lowercase hex digits; MUST 7 (0.8.1 already refuses an outgoing key-shaped `msg_id`) |
-| hdtp-identity, import | MUSTs 4 and 5 in both ports: the threads of neither form, their messages and the files only they name left out and listed, `reply_to` into them written `null`; a corpus file holding such a thread, and one holding an `r-` id |
-| hdtp-identity, intrusion parity | the 22 `thread` scenarios of the seed, run on both ports |
-| The seed (`vectors/`) | MUST 1 in `receive()` (`threadIdRefusal` in `lib/envelope.mjs`) and the 22 `thread` scenarios of `intrude.mjs` |
+| Where | What it implements | State |
+|---|---|---|
+| The node (hdtp-gateway) | MUST 1 at `send_message`, `send_media` and `book_slot` (replacing the 1024-byte cap for `thread_id`), MUST 2 at the owner surfaces (owner MCP, portal), MUST 3 (already 32 hex digits); migration 0005, which deletes stored threads of neither form; the import of MUSTs 4 and 5 through hdtp-identity | built, v0.1.4 (#120, #121) |
+| The cloud (batondeck) | MUST 1 at the three tools (replacing the 128- and 256-byte caps), MUST 2 at `/v1`, the owner MCP and the portal, MUST 3 (ending the fallback to `msg_id`); the identity Durable Object's migration 1005, which deletes stored threads of neither form, and which a snapshot restore runs again over what it writes back; the import of MUSTs 4 and 5 through hdtp-identity | built (#287), in production since 2026-10-12 (batondeck 39fb9b7e) |
+| hdtp-identity, export | MUST 6 with the `r` prefix in both ports (0.8.1 wrote `r-`), and a re-issued form of `r` and 62 lowercase hex digits; MUST 7 (0.8.1 already refuses an outgoing key-shaped `msg_id`) | built, 0.8.2 |
+| hdtp-identity, import | MUSTs 4 and 5 in both ports: the threads of neither form, their messages and the files only they name left out and listed, `reply_to` into them written `null`; a corpus file holding such a thread, and one holding an `r-` id | built, 0.8.2 |
+| hdtp-identity, intrusion parity | the 22 `thread` scenarios of the seed, run on both ports | built, 0.8.2 |
+| The seed (`vectors/`) | MUST 1 in `receive()` (`threadIdRefusal` in `lib/envelope.mjs`) and the 22 `thread` scenarios of `intrude.mjs` | built (hdtp-spec #62) |
 
 ## Evidence
 
 | MUST | Holder |
 |---|---|
-| 1 | the seed's 22 `thread` scenarios: 65 letters and digits, 65 bytes of neither form and 33 two-byte characters refused `too_large`; `.`, `..`, `a/b`, `a-b`, `r-` and 62 hex digits, an upper-case UUID, 32 hex digits with one hyphen, the empty string, U+0001, a trailing line break, `é` and a number refused `bad_request`, nothing recorded; the same at `send_media`, `book_slot` and in the small form; the controls, run last: `null`, `r` and 62 hex digits, a lower-case UUID, and 64 letters and digits at all three tools. Each was shown red on a mutated `receive()`, the controls included. Then (planned) the node's and the cloud's tool tests, and the cloud's conformance battery, with the same cases |
-| 2 | (planned) the owner surfaces' tests in each implementation: an owner-chosen id of neither form is refused `bad_request` before anything is sent |
-| 3 | (planned) a `send_message` with no `thread_id` answers an id of a form that is not the call's `msg_id` |
-| 4, 5 | (planned) hdtp-identity's import tests on both ports over a corpus file with a thread of neither form, and each implementation's import test |
-| 6, 7 | (planned, with the `r` prefix; 0.8.1's tests hold the `r-` one) hdtp-identity's export tests on both ports: `MAoCAQAwAwYBAAQA` and `r` with 62 hex digits as thread ids and `msg_id`s re-issued alike in `threads.csv` and `messages.jsonl`; an outgoing key-shaped `msg_id` refused |
-| The migration | (planned) each implementation's migration test: a stored thread of neither form, with messages, a read marker and a change row, is gone with all of them, and a thread of a form is untouched (the control) |
+| 1 | the seed's 22 `thread` scenarios: 65 letters and digits, 65 bytes of neither form and 33 two-byte characters refused `too_large`; `.`, `..`, `a/b`, `a-b`, `r-` and 62 hex digits, an upper-case UUID, 32 hex digits with one hyphen, the empty string, U+0001, a trailing line break, `é` and a number refused `bad_request`, nothing recorded; the same at `send_media`, `book_slot` and in the small form; the controls, run last: `null`, `r` and 62 hex digits, a lower-case UUID, and 64 letters and digits at all three tools. Each was shown red on a mutated `receive()`, the controls included. hdtp-identity 0.8.2 runs the 22 on both ports. The node's tool tests run one table of ids at each tool, holding the seed's ids and others (`testid.ThreadIDs`). The cloud's `thread-id-door` tests refuse at each tool with nothing recorded. The cloud's conformance battery sends three cases: a dot, 65 letters and a control |
+| 2 | the node's owner-surface tests (portal and owner MCP: an id of neither form is refused); the cloud's `thread-id-door` test of the owner's `callContact`, refused before anything is sent |
+| 3 | the cloud's `thread-id-door` test: a call that names no thread is placed in a new thread whose id is not its `msg_id`. (planned) the node's test of the same |
+| 4, 5 | hdtp-identity 0.8.2's import tests on both ports, over the corpus files `valid-export-with-a-left-out-thread.zip` and `valid-export-with-a-0.8.1-reissued-thread-id.zip`; the node's `TestTheReviewShowsEachThreadTheImportLeavesOut`; the cloud's export tests over the corpus's left-out thread |
+| 6, 7 | hdtp-identity 0.8.2's export tests on both ports: `MAoCAQAwAwYBAAQA` as a thread id and as a `msg_id`, re-issued alike in `threads.csv` and `messages.jsonl`, an id already re-issued re-issued again, and an outgoing key-shaped `msg_id` refused |
+| The migration | the node's `TestTheWipeDeletesEveryConversationOfNeitherFormAndOnlyThose`: a stored thread of neither form goes with its messages, change rows and read marker, and a thread of a form is untouched (the control); the cloud's migration 1005 test: each thread of neither form goes with its messages, files and read marker, the rest and every acknowledgment stay |
 
 The new MUSTs are in `docs/specification/draft/`. hdtp-identity's MUST registry reads the newest
 released version, 1.0.0, so it holds them when 1.1 is released, not before.
