@@ -6,7 +6,7 @@ Plain mTLS ends where TLS ends. A terminating tunnel edge reads whatever crosses
 
 ### 13.1 Format
 
-An envelope is a JSON object of four members:
+An envelope is a JSON object of exactly four members, each present and each a JSON string:
 
 | Member | Content |
 |---|---|
@@ -16,6 +16,8 @@ An envelope is a JSON object of four members:
 | `sig` | base64url detached signature by the sender's leaf key over `protected ‖ enc ‖ ct` (the raw byte concatenation of the three decoded members) |
 
 Each of the four members is base64url (RFC 4648, Section 5) without padding, in its one canonical spelling, and a receiver **MUST** refuse (`envelope_invalid`) a member written any other way: with a character outside that alphabet — padding, whitespace and the standard alphabet's `+` and `/` among them — or with a last character whose unused bits are not zero. `sig` covers the *decoded* bytes, so every spelling a reader forgives is a second envelope that verifies, and two readers that forgive different things disagree about which envelopes exist: a reader that skips a character it does not recognise accepts an envelope a strict reader refuses.
+
+A receiver **MUST** refuse (`envelope_invalid`) an envelope that is not a JSON object, that lacks one of these four members or has any other, or one of whose members is not a JSON string. Member names are compared byte for byte: `SIG` is not `sig`. A member that occurs more than once is read at its last occurrence, and a receiver **MUST NOT** read or judge an earlier one. Both rules hold for a result envelope as for a request.
 
 `kid` is what lets a superseded key be refused before anything is opened, and refused usefully — with `certificate_renewed` and the current chain (§14.4). The header names one key and nothing else; the sender's certificates travel inside the ciphertext (§13.2), so a carrier sees which key a message is for, when, and how large — never who sent it, a name, or an address. The recipient's key id is stable for a leaf's life, and that linkage is the metadata that remains (§13.5).
 
@@ -40,7 +42,7 @@ The plaintext of a request envelope is one bare JSON object (no JSON-RPC framing
 
 The inner call is dispatched exactly as if it had arrived directly from the proven identity — same tiers, same permission switchboard (§8).
 
-**Results.** The result of a sealed request **MUST** be sealed back to the caller, in the same format: `kid` names the caller's leaf key, `msg_id` is the request's, for correlation, `cty` is `application/hdtp-result+json`, and the plaintext carries the responder's own `chain` or `leaf` beside the result, by the rule a request follows — the chain when the caller has not seen this leaf, the fingerprint after. A result plaintext is one bare JSON object of `result`, the inner result, or `error`, an error object of §12, and exactly one of `chain` and `leaf`. Result envelopes are never dispatched: the receiving caller decodes, opens, validates the chain or finds the named leaf among its pins, verifies the signature and correlates, and the request-side steps of §13.3 (idempotency, tiering) do not apply to them. A caller that cannot verify a result asks with `get_card`, which always answers with the chain. A plaintext request gets a plaintext result.
+**Results.** The result of a sealed request **MUST** be sealed back to the caller, in the same format: `kid` names the caller's leaf key, `msg_id` is the request's, for correlation, `cty` is `application/hdtp-result+json`, and the plaintext carries the responder's own `chain` or `leaf` beside the result, by the rule a request follows — the chain when the caller has not seen this leaf, the fingerprint after. A result plaintext is one bare JSON object of `result`, the inner result, or `error`, an error object of §12, and exactly one of `chain` and `leaf`. Result envelopes are never dispatched: the receiving caller reads the envelope as step 1 of §13.3 does, opens, validates the chain or finds the named leaf among its pins, verifies the signature and correlates, and the request-side steps of §13.3 (idempotency, tiering) do not apply to them. A caller that cannot verify a result asks with `get_card`, which always answers with the chain. A plaintext request gets a plaintext result.
 
 A guest's sealed `redeem_invite`/`request_contact` is bound three ways inside the opened payload: `chain` **MUST** validate (§14.2), `sig` **MUST** verify under its leaf key, and its leaf **MUST** byte-equal the `card` argument's `X-HDTP-CERT`. A sealed `tools/list` from an unknown sender has no card to bind and is rejected `envelope_invalid` (guests use plain `tools/list`, which always answers).
 
@@ -52,7 +54,7 @@ Error results follow the sealing rule too: once a request envelope has been succ
 
 Receivers **MUST** validate in this order, rejecting at the first failure:
 
-1. Decode `protected`.
+1. Read the envelope (§13.1): exactly the four members, each a JSON string in its canonical base64url. Decode `protected`.
 2. Check that `v` and `suite` are supported.
 3. Resolve `kid` to a leaf key this endpoint holds for the identity served at the path the envelope arrived at — the current one, or a superseded one not yet past its `notAfter`. Otherwise answer `certificate_renewed` with the current chain when `kid` names a key this endpoint once held for that identity, and `envelope_invalid` when it never did or holds it for another identity (§14.4).
 4. Check that `suite` is the one the leaf's key takes (§13.1).
