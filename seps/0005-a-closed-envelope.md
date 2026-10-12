@@ -104,6 +104,11 @@ no trace of the earlier ones. The node's go-sdk passes the arguments as raw byte
 earlier occurrence is not a string: Go's struct decoder reports the type error even though a later
 occurrence overwrites it, and `JSON.parse` never sees it.
 
+MUST 2 takes what the node and the cloud both do. The node was the side that changed: since v0.1.4
+(#122) it decodes the arguments with hdtp-identity's reader, which reads each member at its last
+occurrence. The cloud cannot see an earlier occurrence without replacing its body parser. The alternative,
+refusing duplicates, is under Alternatives.
+
 hdtp-identity 0.8.3 and the seed differ in a third case. The library holds the whole arguments text to
 its argument boundary (its CONTRACT §0), including an earlier occurrence of a repeated member. A lone
 UTF-16 surrogate, a number outside the range of a double, or nesting deeper than 127 inside an earlier
@@ -112,11 +117,6 @@ occurrence makes `decide` fail the call `bad_request` (`args: …`). The same te
 answers `ok`. hdtp-identity's CONTRACT states this as a divergence from MUST 2 (measured for 0.8.3,
 hdtp-identity f4984e1). The node decodes the arguments with that decoder, so it answers such text
 `envelope_invalid`. This is read from the code, not re-run.
-
-MUST 2 takes what both do. The node is the side that changes: it reads each member from the map it
-already builds, whose values are the last occurrences, and not by decoding the whole object a second
-time. The cloud cannot see an earlier occurrence without replacing its body parser. The alternative,
-refusing duplicates, is under Alternatives.
 
 Duplicate members inside `protected` are not addressed here.
 
@@ -216,7 +216,7 @@ member or an absent one. The node's live harness gains the same cases in its `en
 | hdtp-identity, both ports | one reader for `decide` and `open_result` refuses another object (`envelope members`, `envelope member types`); `decide` reads the spellings of `enc`, `ct` and `sig` before it resolves `kid`; its intrusion suite runs the twelve scenarios by name | done in 0.8.3 (#66) |
 | the node, requests | `envelopeOf` decodes the arguments with hdtp-identity's `Envelope` decoder, which refuses another object, an absent member or one that is not a string (`null` included), and keeps the last occurrence of a repeated member | done in v0.1.4 (#122) |
 | the node, results | a peer's result is decoded with the same decoder before `OpenResult`; a refusal is `envelope_invalid`, and no `get_card` is asked | done in v0.1.4 (#122) |
-| the cloud, requests | `decodeEnvelope` refuses another member, an absent member and one that is not a string before `decide` | done before this SEP |
+| the cloud, requests | `decodeEnvelope` refuses another member, an absent member and one that is not a string before `decide` | done (batondeck #278, 2026-10-11) |
 | the cloud, results | re-vendors hdtp-identity 0.8.3, whose `open_result` refuses another object; the client answers that refusal `envelope_invalid`, with no `get_card` and no re-pin | done (batondeck #291) |
 
 The node's `TestAnEnvelopeOfOtherMembersIsRefused` has the absent, `null` and duplicate cases; its
