@@ -4,8 +4,8 @@ title: "HDTP — Human Delegated Trust Protocol"
 authors:
   - family-names: Agrawal
     given-names: Sumit
-version: "1.0.0"
-date-released: "2026-10-03"
+version: "1.0.1"
+date-released: "2026-10-16"
 url: "https://hdtp.io/spec/"
 license: CC-BY-4.0
 preferred-citation:
@@ -14,7 +14,7 @@ preferred-citation:
   authors:
     - family-names: Agrawal
       given-names: Sumit
-  version: "1.0.0"
-  date-released: "2026-10-03"
+  version: "1.0.1"
+  date-released: "2026-10-16"
   url: "https://hdtp.io/spec/"
   license: CC-BY-4.0

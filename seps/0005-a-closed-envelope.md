@@ -5,7 +5,7 @@
 | Status | Accepted (by the owner, 2026-10-12) |
 | Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-11 |
-| Target | 1.1 |
+| Target | 1.0.2 |
 
 ## Summary
 

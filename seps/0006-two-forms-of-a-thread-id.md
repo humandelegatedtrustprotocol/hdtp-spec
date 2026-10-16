@@ -5,7 +5,7 @@
 | Status | Accepted (by the owner, 2026-10-11) |
 | Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-11 |
-| Target | 1.1 |
+| Target | 1.0.2 |
 
 ## Summary
 
@@ -162,12 +162,12 @@ a number.
 
 ## Wire
 
-A 1.1 receiver refuses a 1.0 sender's `thread_id` of neither form, and the empty string. Both
+A 1.0.2 receiver refuses an earlier 1.0 sender's `thread_id` of neither form, and the empty string. Both
 implementations' own ids are of a form, so between them the break is only for ids a caller chose: a
-contact's agent, or an owner on a surface that passes the owner's choice through. A 1.1 importer
-leaves out a 1.0 file's thread of neither form. No version moves: GOVERNANCE moves `X-HDTP-VERSION`
+contact's agent, or an owner on a surface that passes the owner's choice through. A 1.0.2 importer
+leaves out an earlier 1.0 file's thread of neither form. No version moves: GOVERNANCE moves `X-HDTP-VERSION`
 and `hdtp_export` only with X, and a caller that sends no `thread_id`, or sends back the one it was
-given, is not affected. The node and the cloud ship this before 1.1 is released.
+given, is not affected. The node and the cloud ship this before 1.0.2 is released.
 
 ## Security
 
@@ -215,7 +215,7 @@ part of that is written into §9.2 here.
 | The migration | the node's `TestTheWipeDeletesEveryConversationOfNeitherFormAndOnlyThose`: a stored thread of neither form goes with its messages, change rows and read marker, and a thread of a form is untouched (the control); the cloud's migration 1005 test: each thread of neither form goes with its messages, files and read marker, the rest and every acknowledgment stay |
 
 The new MUSTs are in `docs/specification/draft/`. hdtp-identity's MUST registry reads the newest
-released version, 1.0.0, so it holds them when 1.1 is released, not before.
+released version, 1.0.1, so it holds them when 1.0.2 is released, not before.
 
 The spec repository's vectors do not change: no envelope, certificate or card carries a `thread_id`,
 and the examples of §6.2 and Appendix A are of the UUID and first forms.

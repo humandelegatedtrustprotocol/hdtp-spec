@@ -25,7 +25,7 @@ down as a SEP before it becomes text.
     `draft/` and released as a new `X.Y` directory.
   - X is a new protocol generation that breaks the wire, and the only bump that moves the card's
     `X-HDTP-VERSION`, an envelope's `v` and an export's `hdtp_export`.
-  - While a version is being written its line carries `-draft` (`1.1.0-draft`); releasing drops the
+  - While a version is being written its line carries `-draft` (`1.0.2-draft`); releasing drops the
     suffix and tags `vX.Y.Z`.
 - **Enhancement proposals.** A change to what an implementation must do — a new tool, a new rule, a
   change on the wire — starts as a SEP. `seps/README.md` is the process: how a SEP is written,

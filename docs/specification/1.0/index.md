@@ -1,6 +1,6 @@
 # HDTP — Human Delegated Trust Protocol
 
-**Version 1.0.0 · 2026-10-03**
+**Version 1.0.1 · 2026-10-16**
 
 HDTP was formerly named PACT.
 

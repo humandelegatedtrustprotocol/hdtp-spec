@@ -2,14 +2,14 @@
 
 Agent-to-agent messaging over **MCP + mTLS**. Your assistant talks to your friends' and colleagues' assistants across the open internet: contacts live in your phone book as vCards, your identity is a certificate you hold, and sending a message is calling a `send_message` tool on the other person's publicly exposed MCP server. Humans approve every contact and control what each contact may do.
 
-**Status: 1.0.0 (2026-10-03), released. `CHANGES.md` is the revision history.**
+**Status: 1.0.1 (2026-10-16), released. `CHANGES.md` is the revision history.**
 
 ## Repository map
 
 | Path | What it is |
 |---|---|
 | `docs/specification/1.0/` | **The protocol**, version 1.0: `index.md` (the title, the version line, the introduction and the contents) and one page per section — architecture; identity, certificates and mTLS; contact cards; invites; adding contacts; the MCP tool surface; messaging and threads; permissions; hosting; deployment; security notes; errors, limits and conformance; sealed envelopes; certificates; worked examples; the test vectors. |
-| `docs/specification/draft/` | Where the next version is written. It starts as a copy of 1.0 under the version line `1.1.0-draft`; `seps/README.md` says how a change gets there. |
+| `docs/specification/draft/` | Where the next version is written. It starts as a copy of 1.0 under the version line `1.0.2-draft`; `seps/README.md` says how a change gets there. |
 | `schema/1.0/`, `schema/draft/` | `schema.json`, the JSON Schema of the JSON objects on the wire, generated from hdtp-identity's contract by `schema/gen.mjs`; `reference.md`, the reference page `schema/reference.mjs` generates from it; `examples/`, one or more examples of each object, validated against it by `schema/examples.mjs`; `schema/README.md` says what it covers and what it leaves out. |
 | `seps/` | HDTP Enhancement Proposals: the process (`seps/README.md`) and the template. |
 | `CHANGES.md` | The revision history: one entry per released version. The text itself names no version of its own history. |
@@ -66,7 +66,7 @@ Publishing is the maintainer's and local: `make publish` runs the gates and the 
 CC BY 4.0 requires attribution when the specification text is shared, as it is or adapted. Use this
 line, with the version you used, read from the version line of the specification's index page:
 
-> *HDTP — Human Delegated Trust Protocol*, by Sumit Agrawal, version 1.0.0 (2026-10-03), https://hdtp.io/spec/, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+> *HDTP — Human Delegated Trust Protocol*, by Sumit Agrawal, version 1.0.1 (2026-10-16), https://hdtp.io/spec/, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
 
 State whether you changed the text. `CITATION.cff` carries the same fields for citation tools, and
 `npm run vectors:check` fails when its version or date differs from the version line, or when this

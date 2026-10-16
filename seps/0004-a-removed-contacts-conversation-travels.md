@@ -5,7 +5,7 @@
 | Status | Draft |
 | Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-10 |
-| Target | 1.1 |
+| Target | 1.0.2 |
 
 ## Summary
 
@@ -195,15 +195,15 @@ hdtp-identity's `contract/contract.json`, and through `npm run schema` this repo
 
 ## Wire
 
-A 1.1 writer's file interoperates with a 1.0 importer only when it carries no removed thread. One
-that does has the longer header, and a 1.0 importer refuses it whole (§9.2, Rows). No version moves:
+A 1.0.2 writer's file interoperates with an earlier 1.0 importer only when it carries no removed
+thread. One that does has the longer header, and an earlier 1.0 importer refuses it whole (§9.2, Rows). No version moves:
 GOVERNANCE moves `hdtp_export` only with X, and a bump would refuse every file, not only these.
 
-A 1.1 importer accepts every file a 1.0 writer writes.
+A 1.0.2 importer accepts every file an earlier 1.0 writer writes.
 
 An export carries every conversation the identity holds but those with a root that was never a
 contact, with no choice at export time. A person controls what travels by deleting a conversation
-beforehand. A host that implements only 1.0
+beforehand. A host that implements only an earlier 1.0
 refuses a file that carries a removed thread: that is the accepted residual, and a person who must
 move to such a host deletes those conversations first.
 
@@ -247,8 +247,8 @@ it enters (§7), or leave such a file to a host's ceiling.
   contact list for roots that are not contacts. The owner declined it: the conversation carries them.
 - **A `removed` status in `contacts.csv`.** A removed contact would need an endpoint and permissions it
   does not have, and every importer would special-case a contact row it must never write as one.
-- **Always the longer header.** Every file would change, and every 1.0 importer would refuse every
-  1.1 file.
+- **Always the longer header.** Every file would change, and every earlier 1.0 importer would refuse
+  every 1.0.2 file.
 - **A marker column for removal.** It says what "not in `contacts.csv`" already says, and could
   disagree with it.
 - **Leave the conversation out, as today.** A person who moves loses every conversation with every
