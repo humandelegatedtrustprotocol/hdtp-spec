@@ -38,13 +38,13 @@ Two exist, both by this project: a self-hosted node, HDTP Gateway ([hdtp.dev](ht
 npm ci
 npm run vectors:check     # the vectors against the specification
 npm run docs:check        # every section reference and link resolves; no local machine path in the text; the schema's reference page and examples hold to schema.json
-npm run spec:check        # the web renderer and the open-fonts rule; needs hdtp-identity beside this checkout
+npm run spec:check        # the web renderer, the open-fonts rule and the git hooks; needs hdtp-identity beside this checkout
 npm run schema:check      # schema/draft/schema.json is what hdtp-identity's contract generates, released ones are frozen; needs hdtp-identity too
 npm run publish:check     # make publish against a stub wrangler: the two objects, their keys and types, and its refusals
 npm run build             # the whitepaper; the build is also a gate
 ```
 
-`make check` runs the first five, `make build` the sixth. `spec:check` also needs hdtp-web-kit beside this repository (private); the rest run anywhere with hdtp-identity checked out beside it, which is public since 2026-10-08 (`CONTRIBUTING.md`, "Gates and where they run").
+`make check` runs the first five, `make build` the sixth. `spec:check` also needs hdtp-web-kit beside this repository (private); the rest run anywhere with hdtp-identity checked out beside it, which is public since 2026-10-08 (`CONTRIBUTING.md`, "Gates and where they run"). `make hooks`, once per clone, has git run them: `githooks/pre-push` runs `make check`, and `githooks/commit-msg` refuses a message that carries a local machine path.
 
 ## Building the whitepaper
 

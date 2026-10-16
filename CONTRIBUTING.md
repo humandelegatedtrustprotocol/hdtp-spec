@@ -60,7 +60,7 @@ this one too (or `HDTP_WEB_KIT_DIR`).
 ```
 npm run vectors:check     # the vectors against the specification
 npm run docs:check        # every section reference and link resolves; no local machine path in the text; the schema's reference page and examples
-npm run spec:check        # the web renderer and the open-fonts rule
+npm run spec:check        # the web renderer, the open-fonts rule and the git hooks
 npm run schema:check      # the schema is what hdtp-identity's contract generates
 npm run publish:check     # make publish against a stub wrangler: the two objects, their keys and types, and its refusals
 npm run build             # the newest released version -> dist/hdtp-whitepaper.pdf; the build is also a gate
@@ -75,8 +75,10 @@ read from a local file and from nowhere else.
 ## Gates and where they run
 
 Every gate runs locally. Nothing runs on GitHub: there is no CI and no CI credential, and there
-will be none. This repository has no git hooks: the rule below on commit messages is held by whoever
-writes one.
+will be none. `make hooks`, once per clone, points git at `githooks/`: `pre-push` runs `make check`
+on the checked-out tree, and refuses before the gate starts when a sibling below is missing;
+`commit-msg` refuses a message that carries a local machine path (the rule below, with
+hdtp-identity's pattern, held to it by `scripts/commit-msg.test.mjs` in `spec:check`).
 
 | Gate | Needs |
 |---|---|
@@ -85,7 +87,7 @@ writes one.
 | `npm run spec:check` | the `hdtp-web-kit` checkout beside this one, or `HDTP_WEB_KIT_DIR` (private) |
 
 Without hdtp-identity, `schema:check` stops at once and `spec:check` fails its three tests of the
-MUST registry. Without hdtp-web-kit, `spec:check` fails its two tests that hold the copies of the
+MUST registry and its test of the commit-msg pattern. Without hdtp-web-kit, `spec:check` fails its two tests that hold the copies of the
 kit's files (the diagram contract, the fonts list and scanner) to the kit's. They fail rather than
 skip, so that `make check` cannot pass with a sibling missing. Outside contributors run those that
 need only this checkout and say so in the pull request.
@@ -95,7 +97,8 @@ need only this checkout and say so in the pull request.
 - One logical change per commit. The message says what changed and why; if it fixes a defect,
   say how the defect was shown. Neither the message nor any tracked file carries a path from the
   machine that wrote it (a path under `/Users` or `/home`): `npm run docs:check` refuses one in
-  the text, and nothing can refuse one in a message, so say "the worktree" or "the sibling checkout".
+  the text and `githooks/commit-msg` one in a message (`make hooks`), so say "the worktree" or "the
+  sibling checkout".
 - A change to the text comes with its `CHANGES.md` entry in the same commit, and with regenerated
   vectors when it touched the wire.
 - Inbound is outbound. A contribution is accepted only under the terms the repository gives out:

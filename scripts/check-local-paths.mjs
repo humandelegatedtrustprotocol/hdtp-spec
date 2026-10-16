@@ -11,11 +11,12 @@
 // The dated records listed in docs/records.sha256 are not living text and are not read while their
 // bytes are the ones it pins: they are
 // true of their date and keep the words of their day. Whether one of them is redacted, and its hash
-// pinned again, is the maintainer's decision, not this check's. This repository has no git hooks, so
-// a commit message is held to the same rule by whoever writes it (CONTRIBUTING.md, "Sending a change").
+// pinned again, is the maintainer's decision, not this check's. A commit message is held to the same
+// rule by githooks/commit-msg (`make hooks`), whose pattern scripts/commit-msg.test.mjs holds to this one.
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { root } from '../site/spec-source.mjs'
 import { frozenRecords, tracked } from './tracked.mjs'
 
@@ -79,11 +80,13 @@ function selftest() {
   }
 }
 
-if (process.argv.includes('--selftest')) selftest()
-const { problems, files } = check()
-if (problems.length) {
-  console.error(`check-local-paths: ${problems.length} line(s) carry a path from the machine that wrote them; say "the worktree" or "the sibling checkout" instead:`)
-  for (const p of problems) console.error('  ' + p)
-  process.exit(1)
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+  if (process.argv.includes('--selftest')) selftest()
+  const { problems, files } = check()
+  if (problems.length) {
+    console.error(`check-local-paths: ${problems.length} line(s) carry a path from the machine that wrote them; say "the worktree" or "the sibling checkout" instead:`)
+    for (const p of problems) console.error('  ' + p)
+    process.exit(1)
+  }
+  console.log(`check-local-paths: ok (${files} files${process.argv.includes('--selftest') ? ', self-test passed' : ''})`)
 }
-console.log(`check-local-paths: ok (${files} files${process.argv.includes('--selftest') ? ', self-test passed' : ''})`)
