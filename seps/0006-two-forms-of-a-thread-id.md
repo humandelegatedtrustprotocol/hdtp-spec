@@ -66,10 +66,9 @@ Sections touched: §6.2 (`mcp-server.md`), §7 (`messaging.md`), §9.2 (`hosting
 > other `thread_id` of neither form, the empty string included, with `bad_request`, and record
 > nothing of the call: not the message, its thread, nor the call's `msg_id` or its envelope's as
 > seen; what §13.3 learns before dispatch, a renewal (§14.3) or a new address (§5.3), is still
-> learned, and the call spends its budget (§12). A `thread_id` of
-> `null` is no `thread_id`. A host **MUST NOT** send a `thread_id` of neither form. A host that
-> assigns a `thread_id` **MUST** assign one of the two forms, and one not taken from the call's
-> arguments.
+> learned, and the call spends its budget (§12). A `thread_id` of `null` is no `thread_id`. A host
+> **MUST NOT** send a `thread_id` of neither form. A host that assigns a `thread_id` **MUST** assign
+> one of the two forms, and one not taken from the call's arguments.
 
 `too_large` comes first, so a 2000-byte id of any characters is `too_large`, as both implementations
 answer an over-long id today. The empty string is `bad_request`; both implementations read it today as
@@ -165,12 +164,13 @@ a number.
 
 ## Wire
 
-A 1.0.2 receiver refuses an earlier 1.0 sender's `thread_id` of neither form, and the empty string. Both
-implementations' own ids are of a form, so between them the break is only for ids a caller chose: a
-contact's agent, or an owner on a surface that passes the owner's choice through. A 1.0.2 importer
-leaves out an earlier 1.0 file's thread of neither form. No version moves: GOVERNANCE moves `X-HDTP-VERSION`
-and `hdtp_export` only with X, and a caller that sends no `thread_id`, or sends back the one it was
-given, is not affected. The node and the cloud ship this before 1.0.2 is released.
+A 1.0.2 receiver refuses an earlier 1.0 sender's `thread_id` of neither form, and the empty string.
+Both implementations' own ids are of a form, so between them the break is only for ids a caller
+chose: a contact's agent, or an owner on a surface that passes the owner's choice through. A 1.0.2
+importer leaves out an earlier 1.0 file's thread of neither form. No version moves: GOVERNANCE moves
+`X-HDTP-VERSION` and `hdtp_export` only with X, and a caller that sends no `thread_id`, or sends
+back the one it was given, is not affected. The node and the cloud ship this before 1.0.2 is
+released.
 
 ## Security
 
