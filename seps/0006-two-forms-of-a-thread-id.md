@@ -64,7 +64,9 @@ Sections touched: §6.2 (`mcp-server.md`), §7 (`messaging.md`), §9.2 (`hosting
 > variant. Two `thread_id`s are the same only when their bytes are. A receiver **MUST** refuse, at
 > every tool that takes a `thread_id`, a `thread_id` of more than 64 bytes with `too_large`, and any
 > other `thread_id` of neither form, the empty string included, with `bad_request`, and record
-> nothing of the call: not the message, its thread, nor its `msg_id` as seen. A `thread_id` of
+> nothing of the call: not the message, its thread, nor the call's `msg_id` or its envelope's as
+> seen; what §13.3 learns before dispatch, a renewal (§14.3) or a new address (§5.3), is still
+> learned, and the call spends its budget (§12). A `thread_id` of
 > `null` is no `thread_id`. A host **MUST NOT** send a `thread_id` of neither form. A host that
 > assigns a `thread_id` **MUST** assign one of the two forms, and one not taken from the call's
 > arguments.
@@ -105,8 +107,9 @@ file with an `id` of neither form is still read and validated whole.
 ### The MUSTs this adds or changes
 
 1. §7: a receiver refuses a `thread_id` of neither form: `too_large` over 64 bytes, `bad_request`
-   otherwise, recording nothing of the call (a renewal or new address learned from its envelope,
-   §14.3 and §5.3, is still learned).
+   otherwise, recording nothing of the call, neither its `msg_id` nor its envelope's (a renewal or
+   new address learned from its envelope, §14.3 and §5.3, is still learned, and the call spends its
+   budget, §12).
 2. §7: a host does not send a `thread_id` of neither form.
 3. §7: a host that assigns a `thread_id` assigns one of the two forms, not taken from the call's arguments.
 4. §9.2 Import, step 3: an importer does not write a thread of neither form, its messages or the files
