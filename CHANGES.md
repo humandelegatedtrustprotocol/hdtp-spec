@@ -33,7 +33,8 @@ A `thread_id` has one of two forms, 1 to 64 ASCII letters and digits or a lower-
 are the same only when their bytes are (§7, SEP-0006); §6.2 types it as a string or `null`, at most
 64 bytes, a bound no host tunes. A receiver refuses one of more than 64 bytes with `too_large` and
 any other of neither form, the empty string included, with `bad_request`, at `send_message`,
-`send_media` and `book_slot`, recording nothing of the call; a host sends only these forms, and
+`send_media` and `book_slot`, recording nothing of the call but what §13.3 learns before dispatch,
+and spending the call's budget (§12); a host sends only these forms, and
 assigns one not taken from the call's arguments. An importer leaves out a thread whose `id` is of
 neither form, with its messages and the files only they name, and shows the person each such `id`
 before it writes anything; the file is not refused for it. A writer re-issues, as `r` and the first
