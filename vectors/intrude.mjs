@@ -574,6 +574,19 @@ scenario('thread', 'a renewed chain with a thread_id of neither form: refused, t
   const learned = b.pins.get(FP_A).leafDer.equals(leafA2) && b.events.some((e) => e.event === 'renewal');
   return `${r.code}, ${learned ? 'renewal learned' : 'renewal not learned'}, ${b.seen.size ? 'recorded' : 'nothing recorded'}`;
 });
+// §7 names its precedence: a call §5.3 or §6.1 answers pending_approval is answered so whatever its
+// thread_id, and one whose thread_id is of neither form records nothing; a new address is still held.
+const heldCall = (b) => {
+  const r = receive(b, env({ senderKey: hostN.sign, senderChain: [fresh(hostN, E_N), ROOT_A], recipientLeaf: LEAF_B, params: { name: 'send_message', arguments: { ...THREAD_ARGS.send_message, thread_id: '..' } } }));
+  return `${r.code === 'ok' ? r.tier : r.code}, ${b.pending.length ? 'address held' : 'address not held'}, ${b.seen.size ? 'recorded' : 'nothing recorded'}`;
+};
+scenario('thread', 'a call from a held address with a thread_id of neither form: pending_approval, nothing recorded', 'pending_new_address, address held, nothing recorded', () => heldCall(bharat('ask')));
+scenario('thread', 'a call from a root returned after removal with a thread_id of neither form: pending_approval, nothing recorded', 'pending_new_address, address held, nothing recorded', () => { const b = bharat(); removeContact(b, FP_A); return heldCall(b); });
+scenario('thread', 'a call from a contact still pending_out with a thread_id of neither form: pending_approval, nothing recorded', 'pending_approval, nothing recorded', () => {
+  const b = bharat(); pin(b, FP_A, { endpoint: E_A, leafDer: LEAF_A, state: 'pending_out' });
+  const r = receive(b, env({ senderKey: hostA.sign, senderChain: chainA, recipientLeaf: LEAF_B, params: { name: 'send_message', arguments: { ...THREAD_ARGS.send_message, thread_id: '..' } } }));
+  return `${r.code === 'ok' ? r.tier : r.code}, ${b.seen.size ? 'recorded' : 'nothing recorded'}`;
+});
 scenario('thread', 'a null thread_id is no thread_id (control)', 'contact, recorded', () => threadCall(null));
 scenario('thread', 'a thread_id of r and 62 hex digits, as a writer re-issues one (control)', 'contact, recorded', () => threadCall('r' + HEX62));
 scenario('thread', 'a lower-case UUID thread_id (control)', 'contact, recorded', () => threadCall(UUID));
