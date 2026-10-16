@@ -24,9 +24,8 @@ requests and are reviewed by the maintainers (`MAINTAINERS.md`). How decisions a
 
 - A released version's text (`docs/specification/1.0/`) changes only by a Z bump of its version
   line. Within 1.0 a Z may change what an implementation writes or accepts; `CHANGES.md` marks each
-  such change. Anything that changes what an
-  implementation must do is written in `docs/specification/draft/`, by the process in
-  `seps/README.md`.
+  such change. Anything that changes what an implementation must do is written first in
+  `docs/specification/draft/`, by the process in `seps/README.md`.
 - The text reads as the specification as it stands: it names no version of its own history. What
   a change altered goes in `CHANGES.md` under the version that carries it. The index page's line
   `**Version X.Y.Z · date**` is the version — the whitepaper cover parses it and the identity
