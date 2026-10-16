@@ -42,7 +42,7 @@ its sha256, every id already of that form, and a thread's `id`, a message's `thr
 and an incoming message's `msg_id`, that reads as a private key; it refuses a message that went out
 whose `msg_id` reads as a key (§9.2). This changes what an implementation accepts and writes: an
 earlier 1.0 sender's `thread_id` of neither form is refused, and a thread of an earlier 1.0 file
-whose `id` is of neither form does not arrive. `vectors/intrude.mjs` gained the 22 scenarios that
+whose `id` is of neither form does not arrive. `vectors/intrude.mjs` gained the 23 scenarios that
 hold the two forms at the seed's receiving side.
 
 An envelope is exactly `protected`, `enc`, `ct` and `sig`, each present and each a JSON string
@@ -56,8 +56,9 @@ accepts, and no version moves: 1.0.1 already defines the envelope as these four 
 earlier 1.0 sender writes is unaffected, and an envelope carrying anything else, which some earlier
 1.0 receivers read, is refused. The draft's Appendix B adds `invalid_envelopes`, eleven
 `sealed_call` arguments as raw JSON text with the code each gets; 1.0.1's Appendix B does not
-change. `vectors/intrude.mjs` gained the 12 scenarios that hold the four members at the seed's
-receiving side.
+change. `vectors/intrude.mjs` gained the 15 scenarios that hold the four members at the seed's
+receiving side, three of them a member whose name joins two others with a comma, in the envelope,
+its header and its plaintext.
 
 In §14.5, the row for a stolen leaf key said the key "speaks only from its one address". It is
 *reached* only there: a receiver verifies a chain against the endpoint it pinned, never against where

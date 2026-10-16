@@ -7,7 +7,12 @@ import { fingerprint, b64url, strictB64url, wireB64url } from './keys.mjs';
 import { canonical } from './canonical.mjs';
 import { decodeCard } from './card.mjs';
 
-export const HEADER_MEMBERS = 'cty,exp,kid,msg_id,suite,ts,v';
+export const HEADER_MEMBERS = ['cty', 'exp', 'kid', 'msg_id', 'suite', 'ts', 'v'];
+// An object has exactly `names` (sorted) when its own names, sorted, are those names one by one.
+export const membersAre = (o, names) => {
+  const own = Object.keys(o).sort();
+  return own.length === names.length && own.every((n, i) => n === names[i]);
+};
 // §13.1 gives each member a type as well as a name. The closed set of names exists so two
 // implementations cannot disagree about what was signed; latitude in the types reopens the same gap,
 // since `"1757000000"` and `1757000000` are different bytes under one signature and compare alike.
@@ -76,7 +81,7 @@ export function threadIdRefusal(tool, args) {
 // Sender side, with every knob an attacker would turn. `recipientLeaf` is the DER of the leaf being sealed to.
 // `reference: true` names the sender's leaf by fingerprint instead of carrying the chain (§13.2): the small form,
 // for a receiver that already holds the leaf. A host sends the chain on first contact and after each renewal.
-export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = 'tools/call', params, msgId, ts, exp, cty = 'application/hdtp-call+json', ephemeralSeed, signWith, header = {}, chainInside, info = 'HDTP-SEAL-v1', suite, recipientPub, reference = false, referenceKey, referenceFingerprint, both = false }) {
+export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = 'tools/call', params, msgId, ts, exp, cty = 'application/hdtp-call+json', ephemeralSeed, signWith, header = {}, chainInside, info = 'HDTP-SEAL-v1', suite, recipientPub, reference = false, referenceKey, referenceFingerprint, both = false, plaintextText }) {
   const leaf = parse(recipientLeaf);
   const s = suite ?? suiteForLeaf(leaf), pub = recipientPub ?? recipientOf(leaf);
   const h = { v: 1, suite: s, kid: fingerprint(leaf.publicKey), msg_id: msgId, ts, exp: exp ?? ts + 600, cty, ...header };
@@ -85,7 +90,7 @@ export function sealEnvelope({ senderKey, senderChain, recipientLeaf, method = '
   // `referenceFingerprint` names a leaf by a string nobody holds: what a guesser sends.
   const ref = referenceFingerprint ?? fingerprint((referenceKey ?? senderKey).pub ?? referenceKey ?? senderKey);
   const body = both ? { method, params, chain, leaf: ref } : reference ? { method, params, leaf: ref } : { method, params, chain };
-  const plaintext = Buffer.from(JSON.stringify(body));
+  const plaintext = Buffer.from(plaintextText ?? JSON.stringify(body));
   const { enc, ct } = ephemeralSeed ? sealDeterministic(s, pub, Buffer.from(info), aad, plaintext, ephemeralSeed) : seal(s, pub, Buffer.from(info), aad, plaintext);
   const signer = signWith ?? senderKey;
   const sig = signDetached(signer.priv ?? signer, Buffer.concat([aad, enc, ct]));
@@ -121,7 +126,7 @@ const invalid = (why) => ({ code: 'envelope_invalid', why });
 // §13.1: an envelope is an object of exactly these four members, each a string, names compared byte
 // for byte. A member read twice in the text is the last occurrence: `receiveText` parses with
 // JSON.parse, which keeps only that one.
-export const ENVELOPE_MEMBERS = 'ct,enc,protected,sig';
+export const ENVELOPE_MEMBERS = ['ct', 'enc', 'protected', 'sig'];
 
 /** `receive` for the envelope as it arrives: the JSON text of `sealed_call`'s arguments. */
 export function receiveText(node, text, options) {
@@ -131,7 +136,7 @@ export function receiveText(node, text, options) {
 }
 
 export function receive(node, envelope, { siblings = [] } = {}) {
-  if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope) || Object.keys(envelope).sort().join(',') !== ENVELOPE_MEMBERS) return invalid('envelope members');
+  if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope) || !membersAre(envelope, ENVELOPE_MEMBERS)) return invalid('envelope members');
   if (Object.values(envelope).some((m) => typeof m !== 'string')) return invalid('envelope member types');
   // Step 1 reads each member in its one spelling (§13.1) before anything is resolved, so a misspelled
   // member is `envelope_invalid` whatever key it names.
@@ -143,7 +148,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   if (sig === null) return invalid('sig is not base64url');
   let header;
   try { header = readJSON(aad); } catch { return invalid('protected is not JSON'); }
-  if (Object.keys(header).sort().join(',') !== HEADER_MEMBERS) return invalid('header members');
+  if (!membersAre(header, HEADER_MEMBERS)) return invalid('header members');
   if (!headerTypesOk(header, spellings(aad))) return invalid('header member types');
   if (header.v !== 1 || !SUITES[header.suite]) return invalid('version or suite');
 
@@ -161,8 +166,8 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   if (enc.length !== SUITES[header.suite].npk) return invalid("encapsulated key is not the suite's length");
   let body;
   try { body = readJSON(open(header.suite, held.key.priv, held.key.pub, Buffer.from('HDTP-SEAL-v1'), aad, enc, ct)); } catch { return invalid('does not open'); }
-  const members = body && typeof body === 'object' ? Object.keys(body).sort().join(',') : '';
-  if (members !== 'chain,method,params' && members !== 'leaf,method,params') return invalid('plaintext members');
+  const members = body && typeof body === 'object' ? ['chain', 'leaf'].find((m) => membersAre(body, [m, 'method', 'params'])) : undefined;
+  if (!members) return invalid('plaintext members');
   if (!['tools/call', 'tools/list'].includes(body.method)) return invalid('plaintext shape');
   const signed = Buffer.concat([aad, enc, ct]);
   const tool = body.params?.name;
@@ -182,7 +187,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
 
   // The small form: the sender names a leaf this node already holds. Anything that cannot be verified
   // against a held leaf — unknown, blocked, or a bad signature — gets the same answer, so nothing leaks.
-  if (members === 'leaf,method,params') {
+  if (members === 'leaf') {
     if (typeof body.leaf !== 'string') return invalid('plaintext shape');
     const chainRequired = { code: 'chain_required' };
     const hit = [...node.pins].find(([, p]) => p.state !== 'blocked' && fingerprint(parse(p.leafDer).publicKey) === body.leaf);
