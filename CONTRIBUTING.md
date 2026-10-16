@@ -62,12 +62,13 @@ npm run vectors:check     # the vectors against the specification
 npm run docs:check        # every section reference and link resolves; no local machine path in the text; the schema's reference page and examples
 npm run spec:check        # the web renderer and the open-fonts rule
 npm run schema:check      # the schema is what hdtp-identity's contract generates
+npm run publish:check     # make publish against a stub wrangler: the two objects, their keys and types, and its refusals
 npm run build             # the newest released version -> dist/hdtp-whitepaper.pdf; the build is also a gate
 npm run vectors:intrude   # the compromise cases against the in-memory node; a REPRODUCES is a finding
 npm run vectors           # regenerate the vectors (only after a wire-visible edit)
 ```
 
-`make check` runs the first four and `make build` the build. `make publish` is the maintainer's:
+`make check` runs the first five and `make build` the build. `make publish` is the maintainer's:
 it puts the built PDF and its meta into the private bucket that hdtp.io serves, with credentials
 read from a local file and from nowhere else.
 
@@ -79,15 +80,15 @@ writes one.
 
 | Gate | Needs |
 |---|---|
-| `npm run vectors:check`, `npm run docs:check`, `npm run build` | this checkout |
+| `npm run vectors:check`, `npm run docs:check`, `npm run publish:check`, `npm run build` | this checkout |
 | `npm run spec:check`, `npm run schema:check` | the `hdtp-identity` checkout beside this one, or `HDTP_IDENTITY_DIR` (public since 2026-10-08) |
 | `npm run spec:check` | the `hdtp-web-kit` checkout beside this one, or `HDTP_WEB_KIT_DIR` (private) |
 
 Without hdtp-identity, `schema:check` stops at once and `spec:check` fails its three tests of the
 MUST registry. Without hdtp-web-kit, `spec:check` fails its two tests that hold the copies of the
 kit's files (the diagram contract, the fonts list and scanner) to the kit's. They fail rather than
-skip, so that `make check` cannot pass with a sibling missing. Outside contributors run the first
-three and say so in the pull request.
+skip, so that `make check` cannot pass with a sibling missing. Outside contributors run those that
+need only this checkout and say so in the pull request.
 
 ## Sending a change
 
