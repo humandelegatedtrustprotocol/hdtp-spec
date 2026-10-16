@@ -40,10 +40,11 @@ npm run vectors:check     # the vectors against the specification
 npm run docs:check        # every section reference and link resolves; no local machine path in the text; the schema's reference page and examples hold to schema.json
 npm run spec:check        # the web renderer and the open-fonts rule; needs hdtp-identity beside this checkout
 npm run schema:check      # schema/draft/schema.json is what hdtp-identity's contract generates, released ones are frozen; needs hdtp-identity too
+npm run publish:check     # make publish against a stub wrangler: the two objects, their keys and types, and its refusals
 npm run build             # the whitepaper; the build is also a gate
 ```
 
-`make check` runs the first four, `make build` the fifth. All five run anywhere with hdtp-identity checked out beside this repository, which is public since 2026-10-08 (`CONTRIBUTING.md`, "Gates and where they run").
+`make check` runs the first five, `make build` the sixth. `spec:check` also needs hdtp-web-kit beside this repository (private); the rest run anywhere with hdtp-identity checked out beside it, which is public since 2026-10-08 (`CONTRIBUTING.md`, "Gates and where they run").
 
 ## Building the whitepaper
 

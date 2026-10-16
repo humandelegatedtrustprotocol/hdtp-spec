@@ -16,11 +16,12 @@ WITH_ENV  = set -a && . "$(ENV_FILE)" && set +a &&
 help:
 	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  \033[1m%-9s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-check: ## the vectors, the references and the schema's reference and examples, the web renderer, open fonts only, and the schema held to hdtp-identity's contract
+check: ## the vectors, the references and the schema's reference and examples, the web renderer, open fonts only, the schema held to hdtp-identity's contract, and the publish recipe against a stub wrangler
 	npm run vectors:check
 	npm run docs:check
 	npm run spec:check
 	npm run schema:check
+	npm run publish:check
 
 build: ## render the newest released version into dist/hdtp-whitepaper.pdf and its meta (the build is also a gate)
 	npm run build
