@@ -214,7 +214,9 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   const early = freshness(); if (early) return early;
 
   const root = v.rootFingerprint, endpoint = v.endpoint;
-  const result = (tier, extra = {}) => { node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint, method: body.method, tool, form: 'chain', ...extra }; };
+  const result = (tier, extra = {}, record = true) => { if (record) node.seen.add(header.msg_id); return { code: 'ok', tier, root, endpoint, method: body.method, tool, form: 'chain', ...extra }; };
+  // §7: a call §5.3 holds is answered so whatever its thread_id, and one of neither form records nothing.
+  const pendingAddress = (extra) => result('pending_new_address', extra, !threadIdRefusal(tool, body.params?.arguments));
   const asGuest = (why) => {
     if (body.method !== 'tools/call' || !GUEST_TOOLS.includes(tool)) return invalid('guest may only redeem or request');
     // §14.5: a guest's endpoint never equals the receiver's own. Otherwise a stranger is pinned to
@@ -233,7 +235,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
     const t = node.tombstones.get(root);
     if (t && node.now - t.at < TOMBSTONE_MS && compareLeaves(t.leafDer, chain[0]) === 'newer') {
       node.pending.push({ root, endpoint, why: 'returned after removal' });
-      return result('pending_new_address', { forced: 'tombstone', decision: 'ask' });
+      return pendingAddress({ forced: 'tombstone', decision: 'ask' });
     }
     return asGuest('unknown root');
   }
@@ -245,7 +247,7 @@ export function receive(node, envelope, { siblings = [] } = {}) {
   // §14.3 is absolute: a newer leaf from the root takes priority the instant it is seen, whatever the
   // validity of the older one. At another address it is a new address; under `ask` the owner decides.
   if (endpoint !== p.endpoint) {
-    if (node.acceptNewHosts !== 'auto') { node.pending.push({ root, endpoint, why: 'ask' }); return result('pending_new_address', { decision: 'ask' }); }
+    if (node.acceptNewHosts !== 'auto') { node.pending.push({ root, endpoint, why: 'ask' }); return pendingAddress({ decision: 'ask' }); }
     node.formerEndpoints.push({ root, endpoint: p.endpoint, at: node.now });
     p.endpoint = endpoint; p.leafDer = chain[0];
     node.events.push({ event: 'new_address', root, endpoint });

@@ -34,15 +34,16 @@ are the same only when their bytes are (§7, SEP-0006); §6.2 types it as a stri
 64 bytes, a bound no host tunes. A receiver refuses one of more than 64 bytes with `too_large` and
 any other of neither form, the empty string included, with `bad_request`, at `send_message`,
 `send_media` and `book_slot`, recording nothing of the call but what §13.3 learns before dispatch,
-and spending the call's budget (§12); a host sends only these forms, and assigns one not taken from
-the call's arguments. An importer leaves out a thread whose `id` is of neither form, with its
+and spending the call's budget (§12); a call that §5.3 or §6.1 answers with `pending_approval` is
+answered so whatever its `thread_id`, and records nothing when its `thread_id` is one so refused; a
+host sends only these forms, and assigns one not taken from the call's arguments. An importer leaves out a thread whose `id` is of neither form, with its
 messages and the files only they name, and shows the person each such `id` before it writes
 anything; the file is not refused for it. A writer re-issues, as `r` and the first 62 hex digits of
 its sha256, every id already of that form, and a thread's `id`, a message's `thread` and `reply_to`,
 and an incoming message's `msg_id`, that reads as a private key; it refuses a message that went out
 whose `msg_id` reads as a key (§9.2). This changes what an implementation accepts and writes: an
 earlier 1.0 sender's `thread_id` of neither form is refused, and a thread of an earlier 1.0 file
-whose `id` is of neither form does not arrive. `vectors/intrude.mjs` gained the 23 scenarios that
+whose `id` is of neither form does not arrive. `vectors/intrude.mjs` gained the 26 scenarios that
 hold the two forms at the seed's receiving side.
 
 An envelope is exactly `protected`, `enc`, `ct` and `sig`, each present and each a JSON string
