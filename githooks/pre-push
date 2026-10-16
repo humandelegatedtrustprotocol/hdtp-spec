@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Pre-push: the whole gate (make check), here, because nothing else runs it. Installed by `make hooks`.
+#
+# make check reads two sibling checkouts: hdtp-identity and hdtp-web-kit, beside this repository or
+# where HDTP_IDENTITY_DIR and HDTP_WEB_KIT_DIR point (site/siblings.mjs, the one lookup, is asked
+# here too). A sibling that is not there stops the push before the gate starts, by name.
+# It checks the CHECKED-OUT tree, so pushing a ref that is not HEAD gates the wrong commit; that is
+# said, not refused.
+#
+# Git exports GIT_DIR and GIT_INDEX_FILE to a hook in a linked worktree, and spec:check commits a
+# fixture into a scratch repository: under those variables that git would act on this one. Dropped.
+#
+# This project does not bypass its hooks: a gate that is wrong is fixed, not skipped.
+set -euo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX
+cd "$(git rev-parse --show-toplevel)"
+
+zero=0000000000000000000000000000000000000000
+only_deletes=true
+head_sha="$(git rev-parse HEAD)"
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  only_deletes=false
+  commit="$(git rev-parse "$local_sha^{commit}" 2>/dev/null || echo "$local_sha")"
+  [ "$commit" = "$head_sha" ] || echo "pre-push: NOTE — gating the checked-out tree ($(git rev-parse --short HEAD)), not $(git rev-parse --short "$commit")" >&2
+done
+[ "$only_deletes" = true ] && exit 0
+
+sibling() { node --input-type=module -e "import { $1 } from './site/siblings.mjs'; console.log($1())"; }
+identity="$(sibling identityDir)"
+kit="$(sibling webKitDir)"
+missing=false
+[ -f "$identity/contract/contract.json" ] || { echo "pre-push: hdtp-identity is not at $identity (set HDTP_IDENTITY_DIR)" >&2; missing=true; }
+[ -f "$kit/kit/styles.css" ] || { echo "pre-push: hdtp-web-kit is not at $kit (set HDTP_WEB_KIT_DIR)" >&2; missing=true; }
+[ "$missing" = false ] || { echo "pre-push: make check needs both; nothing was gated" >&2; exit 1; }
+
+echo "pre-push: make check — nothing else runs it"
+if ! make check; then
+  echo >&2
+  echo "pre-push: the gate failed (make check reproduces it). Fix it before pushing: hooks are never" >&2
+  echo "          bypassed here." >&2
+  exit 1
+fi

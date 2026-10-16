@@ -11,7 +11,7 @@ ROOT     := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ENV_FILE ?= $(abspath $(ROOT)/../.env)
 WITH_ENV  = set -a && . "$(ENV_FILE)" && set +a &&
 
-.PHONY: help check build spec-html publish
+.PHONY: help check build spec-html publish hooks
 
 help:
 	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  \033[1m%-9s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -33,6 +33,9 @@ REF ?= HEAD
 OUT ?= dist/spec
 spec-html: ## render VERSION (default: the newest released) at REF (default HEAD) into OUT (default dist/spec)
 	npm run spec:html -- --ref $(REF) --out $(OUT) $(if $(VERSION),--version $(VERSION))
+
+hooks: ## point git at githooks/: pre-push runs make check, commit-msg refuses a local machine path
+	git config core.hooksPath githooks
 
 publish: check build ## build, then put the PDF and its meta into the private bucket, together
 	@test -f "$(ENV_FILE)" || { echo "no .env at $(ENV_FILE)"; exit 1; }
