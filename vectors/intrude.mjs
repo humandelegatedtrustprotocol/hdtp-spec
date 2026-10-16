@@ -521,6 +521,10 @@ scenario('envelope', 'a pinned contact\'s small-form envelope whose sig is null'
 scenario('envelope', 'an envelope whose sig is a number', 'envelope member types', () => asText(receiveText(bharat(), JSON.stringify({ ...message(hostA, chainA, LEAF_B), sig: 5 }))));
 scenario('envelope', 'a pinned contact\'s small-form envelope whose sig is not base64url', 'sig is not base64url', () => asText(receiveText(bharat(), JSON.stringify({ ...smallForm(), sig: '!!!!' }))));
 scenario('envelope', 'an array in place of the envelope', 'envelope members', () => asText(receiveText(bharat(), JSON.stringify(Object.values(message(hostA, chainA, LEAF_B))))));
+// A name holding a comma: names compared sorted and joined would read `ct,enc` as `ct` and `enc`.
+scenario('envelope', 'an envelope with a member named ct,enc for ct and enc', 'envelope members', () => { const m = message(hostA, chainA, LEAF_B); return asText(receiveText(bharat(), JSON.stringify({ 'ct,enc': m.ct, protected: m.protected, sig: m.sig }))); });
+scenario('envelope', 'a header with a member named cty,exp for cty and exp', 'header members', () => asText(receive(bharat(), message(hostA, chainA, LEAF_B, { header: { cty: undefined, exp: undefined, 'cty,exp': 'x' } }))));
+scenario('envelope', 'a call whose plaintext has a member named chain,method for chain and method', 'plaintext members', () => asText(receive(bharat(), message(hostA, chainA, LEAF_B, { plaintextText: '{"chain,method":"tools/call","params":{"name":"send_message","arguments":{"msg_id":"m","text":"hello"}}}' }))));
 // Step 1 comes before the key is resolved (§13.3): a misspelled member sealed to a key the receiver
 // once held is refused, not answered with the current chain.
 scenario('envelope', 'an envelope to a former key whose sig is not base64url', 'sig is not base64url', () => {
@@ -564,6 +568,12 @@ scenario('thread', 'a thread_id that is a number', 'bad_request', () => threadCa
 scenario('thread', 'send_media with a thread_id of neither form', 'bad_request', () => threadCall('..', 'send_media'));
 scenario('thread', 'book_slot with a thread_id of neither form', 'bad_request', () => threadCall('..', 'book_slot'));
 scenario('thread', 'the small form with a thread_id of neither form', 'bad_request', () => threadCall('..', 'send_message', { reference: true }));
+scenario('thread', 'a renewed chain with a thread_id of neither form: refused, the renewal learned, nothing recorded', 'bad_request, renewal learned, nothing recorded', () => {
+  const b = bharat(), leafA2 = fresh(hostA2, E_A);
+  const r = receive(b, env({ senderKey: hostA2.sign, senderChain: [leafA2, ROOT_A], recipientLeaf: LEAF_B, params: { name: 'send_message', arguments: { ...THREAD_ARGS.send_message, thread_id: '..' } } }));
+  const learned = b.pins.get(FP_A).leafDer.equals(leafA2) && b.events.some((e) => e.event === 'renewal');
+  return `${r.code}, ${learned ? 'renewal learned' : 'renewal not learned'}, ${b.seen.size ? 'recorded' : 'nothing recorded'}`;
+});
 scenario('thread', 'a null thread_id is no thread_id (control)', 'contact, recorded', () => threadCall(null));
 scenario('thread', 'a thread_id of r and 62 hex digits, as a writer re-issues one (control)', 'contact, recorded', () => threadCall('r' + HEX62));
 scenario('thread', 'a lower-case UUID thread_id (control)', 'contact, recorded', () => threadCall(UUID));
