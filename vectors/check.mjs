@@ -569,7 +569,13 @@ console.log('what the text states about versions and its vectors, against the by
     envelopes: vec.envelopes.length,
   };
   for (const dir of [current(), 'draft']) {
-    if (!existsSync(new URL(`../docs/specification/${dir}/index.md`, import.meta.url))) continue;
+    // A released version is a directory that exists; draft/ may be absent between releases. A directory
+    // that is there without its index is a version nothing here can read, so it fails, never skips.
+    const dirThere = existsSync(new URL(`../docs/specification/${dir}/`, import.meta.url));
+    const indexThere = existsSync(new URL(`../docs/specification/${dir}/index.md`, import.meta.url));
+    if (!dirThere && dir === 'draft') continue;
+    ok(indexThere, `${dir}: docs/specification/${dir}/ has no index.md, so nothing it states is held`);
+    if (!indexThere) continue;
     counts.invalidEnvelopes = appendixB(readSpec(root, dir)).blocks[0]?.value?.invalid_envelopes?.length ?? null;
     const said = stated(readSpec(root, dir));
     const schemaPath = new URL(`../schema/${dir}/schema.json`, import.meta.url);
