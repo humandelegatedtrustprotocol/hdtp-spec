@@ -9,7 +9,7 @@
 # The whole message file is read. A message given with -m or -F keeps its comment lines and anything
 # under a scissors line (git's cleanup is then "whitespace"), so neither is skipped. The cost: a
 # `git commit -v` whose diff removes such a path from the tree is refused; commit that without -v.
-# The pattern is hdtp-identity's commit-msg's, line for line, and check-local-paths.mjs's; the test
+# The pattern is hdtp-identity's commit-msg's, line for line, and scripts/local-paths.mjs's; the test
 # scripts/commit-msg.test.mjs holds the three to each other.
 #
 # This project does not bypass its hooks: a gate that is wrong is fixed, not skipped.
