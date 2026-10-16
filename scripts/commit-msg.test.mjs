@@ -1,7 +1,8 @@
 // The hooks in githooks/, held here because no hook can hold itself. commit-msg's pattern is three
 // copies of one rule: hdtp-identity's commit-msg (the line is held equal), and this repository's
-// scripts/check-local-paths.mjs (held by verdict, case by case). pre-push refuses before the gate
-// when a sibling it needs is missing, and gates nothing on a push of deletions only.
+// scripts/local-paths.mjs, the rule check-local-paths.mjs applies (held by verdict, case by case).
+// pre-push refuses before the gate when a sibling it needs is missing, and gates nothing on a push of
+// deletions only.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
@@ -9,7 +10,7 @@ import { join, resolve, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { localPaths } from './check-local-paths.mjs'
+import { localPaths } from './local-paths.mjs'
 import { identityDir } from '../site/siblings.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')

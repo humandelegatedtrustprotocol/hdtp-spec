@@ -12,31 +12,18 @@
 // bytes are the ones it pins: they are
 // true of their date and keep the words of their day. Whether one of them is redacted, and its hash
 // pinned again, is the maintainer's decision, not this check's. A commit message is held to the same
-// rule by githooks/commit-msg (`make hooks`), whose pattern scripts/commit-msg.test.mjs holds to this one.
+// rule by githooks/commit-msg (`make hooks`); the rule itself is scripts/local-paths.mjs, which
+// scripts/commit-msg.test.mjs holds the hook's pattern to.
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { join } from 'node:path'
 import { root } from '../site/spec-source.mjs'
 import { frozenRecords, tracked } from './tracked.mjs'
-
-// A /home path counts where it begins a path (not inside one, as in a route like a/home/x) and names
-// someone, whatever follows the name (a slash, a space, punctuation or the end of the line).
-const LOCAL = /\/Users\/|(^|[^A-Za-z0-9_\/-])\/home\/[A-Za-z0-9._-]+/
-
-// The lines of `text` that carry a local path, as `line: what`.
-export function localPaths(text) {
-  const bad = []
-  text.split('\n').forEach((line, i) => {
-    const m = LOCAL.exec(line)
-    if (m) bad.push(`${i + 1}: carries a local machine path (${m[0]})`)
-  })
-  return bad
-}
+import { localPaths } from './local-paths.mjs'
 
 const binary = (bytes) => bytes.subarray(0, 8000).includes(0)
 
-export function check() {
+function check() {
   const frozen = frozenRecords()
   const problems = []
   let files = 0
@@ -80,13 +67,11 @@ function selftest() {
   }
 }
 
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  if (process.argv.includes('--selftest')) selftest()
-  const { problems, files } = check()
-  if (problems.length) {
-    console.error(`check-local-paths: ${problems.length} line(s) carry a path from the machine that wrote them; say "the worktree" or "the sibling checkout" instead:`)
-    for (const p of problems) console.error('  ' + p)
-    process.exit(1)
-  }
-  console.log(`check-local-paths: ok (${files} files${process.argv.includes('--selftest') ? ', self-test passed' : ''})`)
+if (process.argv.includes('--selftest')) selftest()
+const { problems, files } = check()
+if (problems.length) {
+  console.error(`check-local-paths: ${problems.length} line(s) carry a path from the machine that wrote them; say "the worktree" or "the sibling checkout" instead:`)
+  for (const p of problems) console.error('  ' + p)
+  process.exit(1)
 }
+console.log(`check-local-paths: ok (${files} files${process.argv.includes('--selftest') ? ', self-test passed' : ''})`)
