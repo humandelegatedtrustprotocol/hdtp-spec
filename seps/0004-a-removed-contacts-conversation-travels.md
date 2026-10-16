@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft |
+| Status | Accepted (2026-10-16) |
 | Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-10 |
 | Target | 1.0.2 |
@@ -238,8 +238,8 @@ each is a legal file of 16 MiB that grew hdtp-identity's Wasm instance by 413.9 
 member and names that ceiling when it refuses), and a writer drops them from every name and topic
 (MUST 6). An `id` is written as given, because messages refer to it. A thread's `id` can be a
 `thread_id` a contact chose (§7), which no rule bounds, so a contact can still fill a `threads.csv`
-with these characters through its ids. That is an open question for this SEP: bound `thread_id` where
-it enters (§7), or leave such a file to a host's ceiling.
+with these characters through its ids. SEP-0006 bounds `thread_id` where it enters (its
+Specification changes, §7), which answers the question this SEP left open.
 
 ## Alternatives
 
