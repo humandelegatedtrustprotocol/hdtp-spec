@@ -19,9 +19,9 @@ down as a SEP before it becomes text.
 - **The text.** A released version lives in `docs/specification/<X.Y>/`; the next one is written
   in `docs/specification/draft/`. `CHANGES.md` records what each released version changed.
 - **Versions** are `X.Y.Z`, written once, in the version line of the index page:
-  - Z is the usual increment: a correction or clarification, made in a released version's
-    directory. Within 1.0 it may change what an implementation writes or accepts; `CHANGES.md` marks
-    each such change.
+  - Z is the usual increment: a correction or clarification. Within 1.0 it may change what an
+    implementation writes or accepts; `CHANGES.md` marks each such change. It may be made in a
+    released version's directory.
   - Y is a deliberate release of accumulated work, judged ready to stand as one. It is written in
     `draft/` and released as a new `X.Y` directory.
   - X is a new protocol generation that breaks the wire, and the only bump that moves the card's
