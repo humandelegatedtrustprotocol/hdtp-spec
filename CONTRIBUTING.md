@@ -22,8 +22,9 @@ requests and are reviewed by the maintainers (`MAINTAINERS.md`). How decisions a
 
 ## Ground rules
 
-- A released version's text (`docs/specification/1.0/`) changes only by a correction that changes
-  no requirement, and that is a Z bump of its version line. Anything that changes what an
+- A released version's text (`docs/specification/1.0/`) changes only by a Z bump of its version
+  line. Within 1.0 a Z may change what an implementation writes or accepts; `CHANGES.md` marks each
+  such change. Anything that changes what an
   implementation must do is written in `docs/specification/draft/`, by the process in
   `seps/README.md`.
 - The text reads as the specification as it stands: it names no version of its own history. What

@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | Final (2026-10-07) |
+| Status | Final (2026-10-16), in 1.0.1 |
 | Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-06 |
-| Target | 1.0, amending 1.0.0 in place, as SEP-0001 did |
+| Target | 1.0.1 |
 
 ## Summary
 

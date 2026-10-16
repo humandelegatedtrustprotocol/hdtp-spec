@@ -15,48 +15,49 @@ as they were written in `docs/release/changes-before-hdtp.md`, a dated record ke
 
 An export carries the conversations a person had with former contacts (§9.2, SEP-0004): a removed
 thread is a row of `threads.csv` whose `contact` is not a root of `contacts.csv`, and it carries the
-names the contact is known by in two new columns, `contact_name` and `contact_display_name`, empty on
-every other thread. `threads.csv` takes the longer header only when a removed thread exists, and the
-manifest does not change: a 1.0.2 importer accepts every file an earlier 1.0 writer writes, and an
-earlier 1.0 importer refuses a file with a removed thread. A full export carries every thread but one whose root was
-never a contact, and names each it leaves out; a removed thread's root is never written as a contact
-or called, and counts as once a contact, so the conversation travels again on a second move. A
-fingerprint has one spelling: its last character is one of `AEIMQUYcgkosw048`, and a reader refuses
-any other (§2). A writer drops every character below U+0020 but tab, line feed and carriage return
-from every name and a thread's `topic`, before a name's length is checked, and
-§9.2's Ceilings name those characters in one member as a count a host may bound. This changes what an
-implementation writes and accepts. §3's stripping of `FN` reaches an
-exported `display_name` and `contact_display_name`, and §14.5's planted row names a former contact's
-conversation as its residual.
+names the contact is known by in two new columns, `contact_name` and `contact_display_name`, empty
+on every other thread. `threads.csv` takes the longer header only when a removed thread exists, and
+the manifest does not change: a 1.0.2 importer accepts every file an earlier 1.0 writer writes, and
+an earlier 1.0 importer refuses a file with a removed thread. A full export carries every thread but
+one whose root was never a contact, and names each it leaves out; a removed thread's root is never
+written as a contact or called, and counts as once a contact, so the conversation travels again on a
+second move. A fingerprint has one spelling: its last character is one of `AEIMQUYcgkosw048`, and a
+reader refuses any other (§2). A writer drops every character below U+0020 but tab, line feed and
+carriage return from every name and a thread's `topic`, before a name's length is checked, and
+§9.2's Ceilings name those characters in one member as a count a host may bound. This changes what
+an implementation writes and accepts. §3's stripping of `FN` reaches an exported `display_name` and
+`contact_display_name`, and §14.5's planted row names a former contact's conversation as its
+residual.
 
 A `thread_id` has one of two forms, 1 to 64 ASCII letters and digits or a lower-case UUID, and two
 are the same only when their bytes are (§7, SEP-0006); §6.2 types it as a string or `null`, at most
 64 bytes, a bound no host tunes. A receiver refuses one of more than 64 bytes with `too_large` and
 any other of neither form, the empty string included, with `bad_request`, at `send_message`,
 `send_media` and `book_slot`, recording nothing of the call but what §13.3 learns before dispatch,
-and spending the call's budget (§12); a host sends only these forms, and
-assigns one not taken from the call's arguments. An importer leaves out a thread whose `id` is of
-neither form, with its messages and the files only they name, and shows the person each such `id`
-before it writes anything; the file is not refused for it. A writer re-issues, as `r` and the first
-62 hex digits of its sha256, every id already of that form, and a thread's `id`, a message's
-`thread` and `reply_to`, and an incoming message's `msg_id`, that reads as a private key; it refuses
-a message that went out whose `msg_id` reads as a key (§9.2). This changes what an implementation
-accepts and writes: an earlier 1.0 sender's `thread_id` of neither form is refused, and a thread of
-an earlier 1.0 file whose `id` is of neither form does not arrive. `vectors/intrude.mjs` gained the 22 scenarios
-that hold the two forms at the seed's receiving side.
+and spending the call's budget (§12); a host sends only these forms, and assigns one not taken from
+the call's arguments. An importer leaves out a thread whose `id` is of neither form, with its
+messages and the files only they name, and shows the person each such `id` before it writes
+anything; the file is not refused for it. A writer re-issues, as `r` and the first 62 hex digits of
+its sha256, every id already of that form, and a thread's `id`, a message's `thread` and `reply_to`,
+and an incoming message's `msg_id`, that reads as a private key; it refuses a message that went out
+whose `msg_id` reads as a key (§9.2). This changes what an implementation accepts and writes: an
+earlier 1.0 sender's `thread_id` of neither form is refused, and a thread of an earlier 1.0 file
+whose `id` is of neither form does not arrive. `vectors/intrude.mjs` gained the 22 scenarios that
+hold the two forms at the seed's receiving side.
 
 An envelope is exactly `protected`, `enc`, `ct` and `sig`, each present and each a JSON string
 (§13.1, SEP-0005). A receiver refuses any other object with `envelope_invalid` at step 1 of §13.3 —
 a fifth member, a member spelled another way, an absent or `null` member, one that is not a string —
-for request and result envelopes alike, comparing member names byte for byte, and reads a member that
-occurs more than once at its last occurrence, never an earlier one. Step 1 reads all four members in
-their canonical base64url before the key is resolved, so a misspelled member sealed to a former key
-is `envelope_invalid`, not `certificate_renewed`. This changes what an implementation accepts, and no
-version moves: 1.0.1 already defines the envelope as these four members, so what an earlier 1.0 sender
-writes is unaffected, and an envelope carrying anything else, which some earlier 1.0 receivers read, is
-refused. The draft's Appendix B adds `invalid_envelopes`, eleven `sealed_call` arguments as raw JSON
-text with the code each gets; 1.0.1's Appendix B does not change. `vectors/intrude.mjs` gained the 12 scenarios that
-hold the four members at the seed's receiving side.
+for request and result envelopes alike, comparing member names byte for byte, and reads a member
+that occurs more than once at its last occurrence, never an earlier one. Step 1 reads all four
+members in their canonical base64url before the key is resolved, so a misspelled member sealed to a
+former key is `envelope_invalid`, not `certificate_renewed`. This changes what an implementation
+accepts, and no version moves: 1.0.1 already defines the envelope as these four members, so what an
+earlier 1.0 sender writes is unaffected, and an envelope carrying anything else, which some earlier
+1.0 receivers read, is refused. The draft's Appendix B adds `invalid_envelopes`, eleven
+`sealed_call` arguments as raw JSON text with the code each gets; 1.0.1's Appendix B does not
+change. `vectors/intrude.mjs` gained the 12 scenarios that hold the four members at the seed's
+receiving side.
 
 In §14.5, the row for a stolen leaf key said the key "speaks only from its one address". It is
 *reached* only there: a receiver verifies a chain against the endpoint it pinned, never against where
@@ -70,7 +71,7 @@ contact seals to once the renewal has reached it, with the thief replaying the s
 ## 1.0.1 · 2026-10-16
 
 The 1.0 text as it was amended after `v1.0.0` was tagged, released under its own number so that each
-version names one text. Four of its pages differ from 1.0.0's.
+version names one text. Besides the version line, four of its pages differ from 1.0.0's.
 
 An address belongs to the hosting, not to the identity (§9; SEP-0002, SEP-0003). Whenever an
 identity leaves an address, deleted or moved, the host keeps the address for 24 hours for the
@@ -84,9 +85,9 @@ exist, as §6.1 required; 1.0.0's §6.2 and §12 said `permission_denied` (SEP-0
 a host writes: one that answers `permission_denied` there does not conform to 1.0.1.
 
 §14.5's row for a former host's leaf says that the old address is freed 24 hours after the identity
-leaves it, and that a later holder of it is another root, which a contact that pinned this one never
-auto-accepts (§5); 1.0.0's row said the address was not reassigned until the leaf expired. §12's
-*The record* numbers a MUST by its section's number as the section's heading writes it, as in
+leaves it, and that a later holder of it that is another root is never auto-accepted by a contact
+that pinned this one (§5); 1.0.0's row said the address was not reassigned until the leaf expired.
+§12's *The record* numbers a MUST by its section's number as the section's heading writes it, as in
 `9.#4`, and lets `PROOFS.md` name the implementation role that holds one. Neither changes a
 requirement.
 

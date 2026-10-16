@@ -36,8 +36,8 @@ also:
   (`npm run schema`) if hdtp-identity's contract changed with it;
 - names the SEP in its description.
 
-When the draft is released as a new `docs/specification/<X.Y>/`, every SEP it carries moves to
-`Final`, naming that version.
+When the draft is released, as the next Z of its X.Y or as a new `docs/specification/<X.Y>/`, every
+SEP it carries moves to `Final`, naming that version.
 
 ## Index
 

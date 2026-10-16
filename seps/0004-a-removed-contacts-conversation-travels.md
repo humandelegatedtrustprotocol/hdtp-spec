@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted (2026-10-16) |
+| Status | Accepted (by the owner, 2026-10-16) |
 | Author | Sumit Agrawal <security@hdtp.io> |
 | Created | 2026-10-10 |
 | Target | 1.0.2 |
@@ -196,16 +196,17 @@ hdtp-identity's `contract/contract.json`, and through `npm run schema` this repo
 ## Wire
 
 A 1.0.2 writer's file interoperates with an earlier 1.0 importer only when it carries no removed
-thread. One that does has the longer header, and an earlier 1.0 importer refuses it whole (§9.2, Rows). No version moves:
-GOVERNANCE moves `hdtp_export` only with X, and a bump would refuse every file, not only these.
+thread. One that does has the longer header, and an earlier 1.0 importer refuses it whole (§9.2,
+Rows). No version moves: GOVERNANCE moves `hdtp_export` only with X, and a bump would refuse every
+file, not only these.
 
 A 1.0.2 importer accepts every file an earlier 1.0 writer writes.
 
 An export carries every conversation the identity holds but those with a root that was never a
 contact, with no choice at export time. A person controls what travels by deleting a conversation
-beforehand. A host that implements only an earlier 1.0
-refuses a file that carries a removed thread: that is the accepted residual, and a person who must
-move to such a host deletes those conversations first.
+beforehand. A host that implements only an earlier 1.0 refuses a file that carries a removed thread:
+that is the accepted residual, and a person who must move to such a host deletes those conversations
+first.
 
 ## Privacy
 
@@ -232,14 +233,14 @@ No key material can enter. The key-material check covers every cell. A removed t
 
 A reader that answers a member as JSON writes U+0001 as six bytes (`\u0001`), as it does every
 character below U+0020 but tab, line feed, carriage return, U+0008 and U+000C, which take two. A
-`threads.csv` of removed threads whose names were 200 U+0001 characters
-each is a legal file of 16 MiB that grew hdtp-identity's Wasm instance by 413.9 MB, measured
-2026-10-10. A host bounds them by a ceiling of its own (hdtp-identity takes at most 65,536 in one
-member and names that ceiling when it refuses), and a writer drops them from every name and topic
-(MUST 6). An `id` is written as given, because messages refer to it. A thread's `id` can be a
-`thread_id` a contact chose (§7), which no rule bounds, so a contact can still fill a `threads.csv`
-with these characters through its ids. SEP-0006 bounds `thread_id` where it enters (its
-Specification changes, §7), which answers the question this SEP left open.
+`threads.csv` of removed threads whose names were 200 U+0001 characters each is a legal file of 16
+MiB that grew hdtp-identity's Wasm instance by 413.9 MB, measured 2026-10-10. A host bounds them by
+a ceiling of its own (hdtp-identity takes at most 65,536 in one member and names that ceiling when
+it refuses), and a writer drops them from every name and topic (MUST 6). An `id` is written as
+given, because messages refer to it. A thread's `id` can be a `thread_id` a contact chose (§7),
+which no rule bounds, so a contact can still fill a `threads.csv` with these characters through its
+ids. SEP-0006 bounds `thread_id` where it enters (its Specification changes, §7), which answers the
+question this SEP left open.
 
 ## Alternatives
 
