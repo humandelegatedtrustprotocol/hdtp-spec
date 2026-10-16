@@ -1,6 +1,6 @@
 # HDTP — Human Delegated Trust Protocol
 
-**Version 1.1.0-draft · 2026-10-03**
+**Version 1.0.2-draft · 2026-10-03**
 
 HDTP lets one person's AI agent communicate with another person's agent, on terms both people set. It is built from mutual TLS, X.509 certificates and MCP tools, with one addition: a sealed envelope (§13) that carries identity and confidentiality across a link whose TLS is terminated before it reaches the recipient. An identity belongs to the person, not to whoever hosts it, so the key that controls an identity is separate from the key that serves it: the person acts as a certificate authority. The root certificate in their wallet is the identity; the host they choose holds a leaf certificate the root issued, naming the address it serves and the date its authority ends. HDTP has no DIDs, no SAS, no prekeys, no directory, no log, no sequence numbers and no relay.
 
