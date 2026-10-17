@@ -7,7 +7,10 @@ dist/
 .wrangler/
 
 # Claude Code worktrees and session files: local tooling state, never part of the repository.
-.claude/
+.claude/*
 
 .env
 .dev.vars
+!.claude/settings.json
+!.claude/hooks/
+!.claude/no-ai-zones.json
