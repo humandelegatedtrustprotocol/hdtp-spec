@@ -24,7 +24,9 @@
       "Write(**/.claude/settings.json)",
       "Write(**/.claude/settings.local.json)",
       "Write(**/.claude/hooks/**)",
-      "Write(**/.claude/no-ai-zones.json)"
+      "Write(**/.claude/no-ai-zones.json)",
+      "Edit(**/.claude/skills/harness-audit/**)",
+      "Write(**/.claude/skills/harness-audit/**)"
     ],
     "ask": [
       "Bash(terraform apply *)",

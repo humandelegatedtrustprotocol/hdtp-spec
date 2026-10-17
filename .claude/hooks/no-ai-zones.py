@@ -35,7 +35,8 @@ BASH = [
     ("Z7", DENY, r"^git commit\b.*\s-[a-zA-Z]*n[a-zA-Z]*\b", "hook bypass (git commit -n)"),
     ("Z7", DENY, r"^git config\b.*\bcore\.hookspath\b", "hooks path change"),
     ("Z8", DENY, r"^git add\b.*\s(-A|--all|\.|\*|:/)(\s|$)", "git add -A/./*: stage explicit paths (a CA key and a 67 MB binary came in this way)"),
-    ("Z1", ASK, r"\bship-production\b|(^|\s)env=prod(uction)?\b|--env[ =]prod(uction)?\b", "production deploy"),
+    ("Z1", ASK, r"^make\b.*(?<![\w-])ship-production(?![\w-])|(^|\s)env=prod(uction)?(\s|$)|^wrangler\b.*\s--env[ =]prod(uction)?\b",
+     "production deploy"),
     ("Z1", ASK, r"^terraform (apply|destroy|import|state|taint|untaint)\b|^make\b.*\btf-(apply|destroy)\b", "infrastructure change"),
     ("Z2", ASK, r"^wrangler d1 (migrations apply|execute)\b.*--remote\b|^wrangler d1 (create|delete)\b", "remote database change"),
     ("Z2", ASK, r"^make\b.*(?<![\w-])migrate[\w-]*", "database migration"),
@@ -59,12 +60,13 @@ PATHS = [
     ("Z7", DENY, "githooks/*", "git hooks"),
     ("Z7", DENY, "tools/git-hooks/*", "git hooks"),
     ("Z7", DENY, "tools/no-ai-zones/*", "the zone hook's canonical copy"),
+    ("Z7", DENY, ".claude/skills/harness-audit/*", "the harness audit"),
     ("Z7", ASK, "CLAUDE.md", "agent instructions"),
     ("Z7", ASK, "AGENTS.md", "agent instructions"),
     ("Z2", ASK, "*migrations/*", "database migration"),
 ]
 HOME_DENY = ["~/.claude/settings.json", "~/.claude/settings.local.json", "~/.claude/CLAUDE.md"]
-GUARD_TOKENS = re.compile(r"\.claude/(settings[^/\s]*\.json|hooks/|no-ai-zones\.json)|(^|[\s/'\"])githooks/|tools/git-hooks/|tools/no-ai-zones/")
+GUARD_TOKENS = re.compile(r"\.claude/(settings[^/\s]*\.json|hooks/|no-ai-zones\.json|skills/harness-audit/)|(^|[\s/'\"])githooks/|tools/git-hooks/|tools/no-ai-zones/")
 WRITERS = re.compile(r"^(cp|mv|tee|rm|ln|chmod|chown|truncate|install|touch|rsync|dd)\b|^sed\b.*\s-i|^perl\b.*\s-[a-z]*i|^(python3?|node|ruby)\b.*\s-(c|e)\b")
 RECORDS = ["docs/release/*", ".claude/RESUME-*"]
 RM_OK = ["/tmp/", "/private/tmp/", "/var/folders/"]
@@ -73,32 +75,56 @@ RUNNERS = [["npx"], ["bunx"], ["pnpm", "exec"], ["pnpm", "dlx"], ["npm", "exec"]
 MANIFESTS = {"package.json", "go.mod", "Cargo.toml"}
 
 
+HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\1([^\n]*)\n.*?\n[ \t]*\2[ \t]*(?=\n|$)", re.S)
+
+
+def tokenize(cmd):
+    lx = shlex.shlex(cmd, posix=True, punctuation_chars="();<>|&\n")
+    lx.whitespace = " \t\r"
+    lx.whitespace_split = True
+    return list(lx)
+
+
 def segments(cmd, depth=0):
-    """Split a shell command into simple-command strings, descending into sh -c, $( ) and backticks."""
+    """The simple commands of a shell line. Quotes are respected (a quoted argument is data, matched as
+    <str>), heredoc bodies are dropped, redirect targets are kept, and sh -c / eval / $( ) / backticks
+    are descended into."""
+    cmd = HEREDOC.sub(lambda m: "<<HEREDOC" + m.group(3), cmd)
     out = []
-    for inner in re.findall(r"\$\(([^()]*)\)|`([^`]*)`", cmd):
-        for part in inner:
-            if part and depth < 4:
-                out += segments(part, depth + 1)
-    for raw in re.split(r"\|\||&&|;|\||\n|&(?!>)", cmd):
-        raw = raw.strip()
-        if not raw:
-            continue
-        try:
-            toks = shlex.split(raw, comments=True)
-        except ValueError:
-            toks = raw.split()
-        toks = normalise(toks)
+    if depth < 4:
+        for inner in re.findall(r"\$\(([^()]*)\)|`([^`]*)`", cmd):
+            out += [s for part in inner if part for s in segments(part, depth + 1)]
+    try:
+        toks = tokenize(cmd)
+    except ValueError:
+        toks = cmd.split()
+    groups, cur, targets, i = [], [], [], 0
+    while i < len(toks):
+        t = toks[i]
+        if t and all(c in "();|&\n" for c in t):
+            groups.append((cur, targets))
+            cur, targets = [], []
+        elif t and set(t) <= set("<>&|") and ("<" in t or ">" in t):
+            if i + 1 < len(toks) and ">" in t:
+                targets.append(toks[i + 1])
+            i += 1
+        else:
+            cur.append(t)
+        i += 1
+    groups.append((cur, targets))
+    for cur, targets in groups:
+        toks = normalise(cur)
         if not toks:
             continue
-        if toks[0] in ("sh", "bash", "zsh", "dash") and depth < 4:
-            for i, t in enumerate(toks):
-                if re.fullmatch(r"-[a-z]*c[a-z]*", t) and i + 1 < len(toks):
-                    out += segments(toks[i + 1], depth + 1)
+        if depth < 4 and toks[0] in ("sh", "bash", "zsh", "dash"):
+            for j, t in enumerate(toks):
+                if re.fullmatch(r"-[a-z]*c[a-z]*", t) and j + 1 < len(toks):
+                    out += segments(toks[j + 1], depth + 1)
                     break
-        if toks[0] == "eval" and depth < 4:
+        if depth < 4 and toks[0] == "eval":
             out += segments(" ".join(toks[1:]), depth + 1)
-        out.append((" ".join(toks), raw))
+        canon = " ".join("<str>" if re.search(r"\s", t) else t for t in toks)
+        out.append({"canon": canon, "toks": toks, "targets": targets})
     return out
 
 
@@ -205,29 +231,35 @@ def decide(data, root, extra):
     if tool == "Bash":
         cmd = ti.get("command", "")
         rules = BASH + [(e["zone"], e["decision"], e["pattern"], e["reason"]) for e in extra.get("bash", [])]
-        for canon, raw in segments(cmd):
-            low = canon.lower()
-            stripped = re.sub(r"^(\S+=\S*\s+)+", "", canon)
+        for s in segments(cmd):
+            low = s["canon"].lower()
+            stripped = re.sub(r"^(\S+=\S*\s+)+", "", low)
             for zone, dec, rx, why in rules:
-                if re.search(rx, stripped.lower(), re.I) or re.search(rx, low, re.I):
+                if re.search(rx, stripped, re.I) or re.search(rx, low, re.I):
                     hits.append((zone, dec, why))
-            if GUARD_TOKENS.search(raw):
-                words = [w for w in stripped.split() if not w.startswith("-")]
-                if re.match(r"^(cp|mv|install|rsync|ln)\b", stripped):
-                    writes = bool(words[1:]) and bool(GUARD_TOKENS.search(" " + words[-1]))  # only the destination counts
-                else:
-                    writes = bool(WRITERS.search(stripped))
-                if writes or re.search(r">>?\s*\S*(\.claude/(settings|hooks/|no-ai-zones)|githooks/|tools/git-hooks/|tools/no-ai-zones/)", raw):
-                    hits.append(("Z7", DENY, "writing to the guardrails' own files"))
-            if re.match(r"^(rm|git rm)\b", stripped):
-                args = stripped.split()[1:] if stripped.startswith("rm") else stripped.split()[2:]
+            toks = list(s["toks"])
+            while toks and re.fullmatch(r"[a-z_][a-z0-9_]*=.*", toks[0]):
+                toks.pop(0)
+            head = toks[0] if toks else ""
+            guarded = lambda t: bool(GUARD_TOKENS.search(" " + t))
+            if any(guarded(t) for t in s["targets"]):
+                writes = True
+            elif head in ("cp", "mv", "install", "rsync", "ln"):
+                dest = [t for t in toks[1:] if not t.startswith("-")]
+                writes = bool(dest[1:]) and guarded(dest[-1])  # only the destination counts
+            else:
+                writes = bool(WRITERS.search(stripped)) and any(guarded(t) for t in toks[1:])
+            if writes:
+                hits.append(("Z7", DENY, "writing to the guardrails' own files"))
+            if head == "rm" or toks[:2] == ["git", "rm"]:
+                args = toks[1:] if head == "rm" else toks[2:]
                 recursive = any(re.fullmatch(r"-[a-zA-Z]*[rR][a-zA-Z]*|--recursive", a) for a in args)
                 for a in (x for x in args if not x.startswith("-")):
                     full = os.path.abspath(os.path.join(cwd, os.path.expanduser(a)))
                     r = rel(full, root)
                     if r is not None and any(fnmatch.fnmatch(r, g) for g in RECORDS):
                         hits.append(("Z6", DENY, "deleting dated records"))
-                    elif recursive and stripped.startswith("rm") and not (
+                    elif recursive and head == "rm" and not (
                             r.startswith(".claude/worktrees/") if r is not None else any(full.startswith(p) for p in RM_OK)):
                         hits.append(("Z6", DENY, "recursive delete outside the scratchpad, /tmp and .claude/worktrees"))
     elif tool in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
