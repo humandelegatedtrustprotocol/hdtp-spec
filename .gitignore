@@ -8,3 +8,6 @@ dist/
 
 # Claude Code worktrees and session files: local tooling state, never part of the repository.
 .claude/
+
+.env
+.dev.vars
